@@ -1,0 +1,33 @@
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+
+# IDE
+.idea/
+.vscode/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Android
+.gradle/
+captures/
+local.properties
+GeneratedPluginRegistrant.java
+.cxx/
+
+# Signing / keystores
+key.properties
+**/*.keystore
+**/*.jks
+
+supabase_config.dart
+
+# Environment / secrets
+.env
+.env.*
