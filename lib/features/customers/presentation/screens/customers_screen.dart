@@ -74,6 +74,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'customers_fab',
         onPressed: () async {
           final result = await context.push<bool>('/customers/add');
 
@@ -87,10 +88,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
       body: customersAsync.when(
         loading: () => const _CustomersLoading(),
         error: (error, stackTrace) {
-          return _CustomersError(
-            message: error.toString(),
-            onRetry: _refresh,
-          );
+          return _CustomersError(message: error.toString(), onRetry: _refresh);
         },
         data: (customers) {
           final filteredCustomers = _filterCustomers(customers);
@@ -104,9 +102,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                 return SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: EdgeInsets.all(
-                    isDesktop
-                        ? AppSpacing.xl
-                        : AppSpacing.md,
+                    isDesktop ? AppSpacing.xl : AppSpacing.md,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -114,8 +110,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                       _PageHeader(
                         customerCount: customers.length,
                         onAddCustomer: () async {
-                          final result =
-                              await context.push<bool>(
+                          final result = await context.push<bool>(
                             '/customers/add',
                           );
 
@@ -134,9 +129,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
 
                       const SizedBox(height: AppSpacing.xl),
 
-                      CustomerSearchBar(
-                        controller: _searchController,
-                      ),
+                      CustomerSearchBar(controller: _searchController),
 
                       const SizedBox(height: AppSpacing.lg),
 
@@ -145,9 +138,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                           Expanded(
                             child: Text(
                               'Customers',
-                              style: AppTypography
-                                  .textTheme
-                                  .headlineMedium!
+                              style: AppTypography.textTheme.headlineMedium!
                                   .copyWith(
                                     fontWeight: FontWeight.w800,
                                     color: AppColors.textPrimary,
@@ -156,13 +147,10 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                           ),
                           Text(
                             '${filteredCustomers.length} ${filteredCustomers.length == 1 ? 'customer' : 'customers'}',
-                            style: AppTypography
-                                .textTheme
-                                .bodySmall!
-                                .copyWith(
-                                  color: AppColors.textSecondary,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                            style: AppTypography.textTheme.bodySmall!.copyWith(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
                       ),
@@ -172,13 +160,9 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                       if (filteredCustomers.isEmpty)
                         const _EmptyCustomers()
                       else if (isDesktop)
-                        _DesktopCustomerGrid(
-                          customers: filteredCustomers,
-                        )
+                        _DesktopCustomerGrid(customers: filteredCustomers)
                       else
-                        _MobileCustomerList(
-                          customers: filteredCustomers,
-                        ),
+                        _MobileCustomerList(customers: filteredCustomers),
 
                       const SizedBox(height: 80),
                     ],
@@ -212,10 +196,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
 }
 
 class _PageHeader extends StatelessWidget {
-  const _PageHeader({
-    required this.customerCount,
-    required this.onAddCustomer,
-  });
+  const _PageHeader({required this.customerCount, required this.onAddCustomer});
 
   final int customerCount;
   final VoidCallback onAddCustomer;
@@ -257,10 +238,7 @@ class _PageHeader extends StatelessWidget {
 }
 
 class _SummarySection extends StatelessWidget {
-  const _SummarySection({
-    required this.customers,
-    required this.isDesktop,
-  });
+  const _SummarySection({required this.customers, required this.isDesktop});
 
   final List<Customer> customers;
   final bool isDesktop;
@@ -270,13 +248,11 @@ class _SummarySection extends StatelessWidget {
     final active = customers.where((customer) => customer.isActive).length;
 
     final withPhone = customers.where((customer) {
-      return customer.phone != null &&
-          customer.phone!.trim().isNotEmpty;
+      return customer.phone != null && customer.phone!.trim().isNotEmpty;
     }).length;
 
     final withEmail = customers.where((customer) {
-      return customer.email != null &&
-          customer.email!.trim().isNotEmpty;
+      return customer.email != null && customer.email!.trim().isNotEmpty;
     }).length;
 
     final cards = [
@@ -311,8 +287,7 @@ class _SummarySection extends StatelessWidget {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: cards.length,
-        gridDelegate:
-            const SliverGridDelegateWithFixedCrossAxisCount(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 4,
           crossAxisSpacing: AppSpacing.md,
           mainAxisSpacing: AppSpacing.md,
@@ -327,13 +302,9 @@ class _SummarySection extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: cards.length,
-        separatorBuilder: (_, _) =>
-            const SizedBox(width: AppSpacing.sm),
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
         itemBuilder: (_, index) {
-          return SizedBox(
-            width: 230,
-            child: cards[index],
-          );
+          return SizedBox(width: 230, child: cards[index]);
         },
       ),
     );
@@ -341,9 +312,7 @@ class _SummarySection extends StatelessWidget {
 }
 
 class _DesktopCustomerGrid extends StatelessWidget {
-  const _DesktopCustomerGrid({
-    required this.customers,
-  });
+  const _DesktopCustomerGrid({required this.customers});
 
   final List<Customer> customers;
 
@@ -353,8 +322,7 @@ class _DesktopCustomerGrid extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: customers.length,
-      gridDelegate:
-          const SliverGridDelegateWithMaxCrossAxisExtent(
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 430,
         crossAxisSpacing: AppSpacing.md,
         mainAxisSpacing: AppSpacing.md,
@@ -379,10 +347,7 @@ class _DesktopCustomerGrid extends StatelessWidget {
     );
   }
 
-  void _confirmDelete(
-    BuildContext context,
-    Customer customer,
-  ) {
+  void _confirmDelete(BuildContext context, Customer customer) {
     showDialog<void>(
       context: context,
       builder: (dialogContext) {
@@ -402,8 +367,7 @@ class _DesktopCustomerGrid extends StatelessWidget {
                 Navigator.pop(dialogContext);
 
                 context
-                    .findAncestorStateOfType<
-                        _CustomersScreenState>()
+                    .findAncestorStateOfType<_CustomersScreenState>()
                     ?._deleteCustomer(customer.id);
               },
               child: const Text('Deactivate'),
@@ -416,9 +380,7 @@ class _DesktopCustomerGrid extends StatelessWidget {
 }
 
 class _MobileCustomerList extends StatelessWidget {
-  const _MobileCustomerList({
-    required this.customers,
-  });
+  const _MobileCustomerList({required this.customers});
 
   final List<Customer> customers;
 
@@ -428,8 +390,7 @@ class _MobileCustomerList extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: customers.length,
-      separatorBuilder: (_, _) =>
-          const SizedBox(height: AppSpacing.sm),
+      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
       itemBuilder: (context, index) {
         final customer = customers[index];
 
@@ -449,18 +410,13 @@ class _MobileCustomerList extends StatelessWidget {
     );
   }
 
-  void _confirmDelete(
-    BuildContext context,
-    Customer customer,
-  ) {
+  void _confirmDelete(BuildContext context, Customer customer) {
     showDialog<void>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Deactivate customer?'),
-          content: Text(
-            'This will deactivate ${customer.name}.',
-          ),
+          content: Text('This will deactivate ${customer.name}.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
@@ -470,8 +426,8 @@ class _MobileCustomerList extends StatelessWidget {
               onPressed: () {
                 Navigator.pop(dialogContext);
 
-                final state = context.findAncestorStateOfType<
-                    _CustomersScreenState>();
+                final state = context
+                    .findAncestorStateOfType<_CustomersScreenState>();
 
                 state?._deleteCustomer(customer.id);
               },
@@ -498,9 +454,7 @@ class _EmptyCustomers extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(
-          color: AppColors.border,
-        ),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         children: [
@@ -536,17 +490,12 @@ class _CustomersLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: CircularProgressIndicator(),
-    );
+    return const Center(child: CircularProgressIndicator());
   }
 }
 
 class _CustomersError extends StatelessWidget {
-  const _CustomersError({
-    required this.message,
-    required this.onRetry,
-  });
+  const _CustomersError({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
@@ -597,24 +546,18 @@ class _CustomersError extends StatelessWidget {
 extension on _CustomersScreenState {
   Future<void> _deleteCustomer(String id) async {
     try {
-      await ref
-          .read(customersProvider.notifier)
-          .deleteCustomer(id);
+      await ref.read(customersProvider.notifier).deleteCustomer(id);
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Customer deactivated successfully.'),
-        ),
+        const SnackBar(content: Text('Customer deactivated successfully.')),
       );
     } catch (error) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Unable to deactivate customer: $error'),
-        ),
+        SnackBar(content: Text('Unable to deactivate customer: $error')),
       );
     }
   }

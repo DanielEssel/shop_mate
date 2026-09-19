@@ -34,6 +34,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'products_fab',
         onPressed: () {
           context.push('/products/new');
         },
@@ -44,9 +45,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
       ),
       body: SafeArea(
         child: productsAsync.when(
-          loading: () => const Center(
-            child: CircularProgressIndicator(),
-          ),
+          loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, stackTrace) => Center(
             child: Text(
               'Unable to load products.',
@@ -61,22 +60,19 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     );
   }
 
-  Widget _buildContent(
-    BuildContext context,
-    List<Product> products,
-  ) {
+  Widget _buildContent(BuildContext context, List<Product> products) {
     final categories = <String>{
       'All',
       ...products.map((product) => product.category),
     }.toList();
 
     final filteredProducts = products.where((product) {
-      final matchesSearch = product.name
-          .toLowerCase()
-          .contains(_searchQuery.toLowerCase());
+      final matchesSearch = product.name.toLowerCase().contains(
+        _searchQuery.toLowerCase(),
+      );
 
-      final matchesCategory = _selectedCategory == 'All' ||
-          product.category == _selectedCategory;
+      final matchesCategory =
+          _selectedCategory == 'All' || product.category == _selectedCategory;
 
       return matchesSearch && matchesCategory;
     }).toList();
@@ -90,14 +86,10 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             AppSpacing.xxl,
             AppSpacing.lg,
           ),
-          sliver: SliverToBoxAdapter(
-            child: _buildHeader(context, products),
-          ),
+          sliver: SliverToBoxAdapter(child: _buildHeader(context, products)),
         ),
 
-        SliverToBoxAdapter(
-          child: _buildFilters(categories),
-        ),
+        SliverToBoxAdapter(child: _buildFilters(categories)),
 
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(
@@ -107,9 +99,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             100,
           ),
           sliver: filteredProducts.isEmpty
-              ? const SliverToBoxAdapter(
-                  child: _EmptyProductsState(),
-                )
+              ? const SliverToBoxAdapter(child: _EmptyProductsState())
               : SliverList.separated(
                   itemCount: filteredProducts.length,
                   itemBuilder: (context, index) {
@@ -123,9 +113,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                     );
                   },
                   separatorBuilder: (_, _) {
-                    return const SizedBox(
-                      height: AppSpacing.sm,
-                    );
+                    return const SizedBox(height: AppSpacing.sm);
                   },
                 ),
         ),
@@ -133,10 +121,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     );
   }
 
-  Widget _buildHeader(
-    BuildContext context,
-    List<Product> products,
-  ) {
+  Widget _buildHeader(BuildContext context, List<Product> products) {
     final theme = Theme.of(context);
 
     return Column(
@@ -188,9 +173,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     return SizedBox(
       height: 44,
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.xxl,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
         scrollDirection: Axis.horizontal,
         itemCount: categories.length,
         separatorBuilder: (_, _) {
@@ -225,9 +208,7 @@ class _EmptyProductsState extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.border,
-        ),
+        border: Border.all(color: AppColors.border),
       ),
       child: const Column(
         children: [
@@ -239,18 +220,13 @@ class _EmptyProductsState extends StatelessWidget {
           SizedBox(height: 16),
           Text(
             'No products found',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
           ),
           SizedBox(height: 4),
           Text(
             'Try changing your search or category filter.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.textSecondary,
-            ),
+            style: TextStyle(color: AppColors.textSecondary),
           ),
         ],
       ),

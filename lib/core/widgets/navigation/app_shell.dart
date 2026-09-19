@@ -3,12 +3,10 @@ import 'package:go_router/go_router.dart';
 
 import 'app_bottom_navigation.dart';
 import 'app_navigation_rail.dart';
+import 'app_drawer.dart';
 
 class AppShell extends StatelessWidget {
-  const AppShell({
-    required this.navigationShell,
-    super.key,
-  });
+  const AppShell({required this.navigationShell, super.key});
 
   final StatefulNavigationShell navigationShell;
 
@@ -64,6 +62,7 @@ class _MobileShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: const AppDrawer(),
       body: navigationShell,
       bottomNavigationBar: AppBottomNavigation(
         currentIndex: navigationShell.currentIndex,
@@ -89,15 +88,14 @@ class _TabletShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: const AppDrawer(),
       body: Row(
         children: [
           AppNavigationRail(
             currentIndex: navigationShell.currentIndex,
             onDestinationSelected: onDestinationSelected,
           ),
-          Expanded(
-            child: navigationShell,
-          ),
+          Expanded(child: navigationShell),
         ],
       ),
     );
@@ -120,15 +118,14 @@ class _DesktopShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: const AppDrawer(),
       body: Row(
         children: [
           AppNavigationRail(
             currentIndex: navigationShell.currentIndex,
             onDestinationSelected: onDestinationSelected,
           ),
-          Expanded(
-            child: navigationShell,
-          ),
+          Expanded(child: navigationShell),
         ],
       ),
     );

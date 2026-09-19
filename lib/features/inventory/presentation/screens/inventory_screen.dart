@@ -347,17 +347,17 @@ class _DesktopProductGrid extends StatelessWidget {
         final product = products[index];
 
         return InventoryProductCard(
-  product: products[index],
+  product: product,
   onTap: () {
     context.push(
       '/inventory/adjust',
-      extra: products[index],
+      extra: product,
     );
   },
   onAdjustStock: () {
     context.push(
       '/inventory/adjust',
-      extra: products[index],
+      extra: product,
     );
   },
 );
@@ -382,17 +382,17 @@ class _MobileProductList extends StatelessWidget {
         final product = products[index];
 
         return InventoryProductCard(
-  product: products[index],
+  product: product,
   onTap: () {
     context.push(
       '/inventory/adjust',
-      extra: products[index],
+      extra: product,
     );
   },
   onAdjustStock: () {
     context.push(
       '/inventory/adjust',
-      extra: products[index],
+      extra: product,
     );
   },
 );

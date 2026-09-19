@@ -237,7 +237,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Sign in to manage your shop inventory.',
+          'Sign in to manage your ShopMate.',
           style: Theme.of(context)
               .textTheme
               .bodyMedium

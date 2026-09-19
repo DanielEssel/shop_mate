@@ -32,25 +32,17 @@ class MoreScreen extends StatelessWidget {
 
             return SingleChildScrollView(
               padding: EdgeInsets.all(
-                isDesktop
-                    ? AppSpacing.xl
-                    : AppSpacing.md,
+                isDesktop ? AppSpacing.xl : AppSpacing.md,
               ),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: 1100,
-                  ),
+                  constraints: const BoxConstraints(maxWidth: 1100),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _PageHeader(
-                        isDesktop: isDesktop,
-                      ),
+                      _PageHeader(isDesktop: isDesktop),
 
-                      const SizedBox(
-                        height: AppSpacing.xl,
-                      ),
+                      const SizedBox(height: AppSpacing.xl),
 
                       _SectionTitle(
                         title: 'People & Transactions',
@@ -58,9 +50,7 @@ class MoreScreen extends StatelessWidget {
                             'Manage customers, purchases and other business records.',
                       ),
 
-                      const SizedBox(
-                        height: AppSpacing.md,
-                      ),
+                      const SizedBox(height: AppSpacing.md),
 
                       _FeatureGrid(
                         isDesktop: isDesktop,
@@ -89,10 +79,7 @@ class MoreScreen extends StatelessWidget {
                                 'Manage suppliers and supplier information.',
                             icon: Icons.local_shipping_outlined,
                             onTap: () {
-                              _showComingSoon(
-                                context,
-                                'Suppliers',
-                              );
+                              _showComingSoon(context, 'Suppliers');
                             },
                           ),
                           _MoreItem(
@@ -101,28 +88,20 @@ class MoreScreen extends StatelessWidget {
                                 'Track shop expenses and operating costs.',
                             icon: Icons.account_balance_wallet_outlined,
                             onTap: () {
-                              _showComingSoon(
-                                context,
-                                'Expenses',
-                              );
+                              _showComingSoon(context, 'Expenses');
                             },
                           ),
                         ],
                       ),
 
-                      const SizedBox(
-                        height: AppSpacing.xxl,
-                      ),
+                      const SizedBox(height: AppSpacing.xxl),
 
                       _SectionTitle(
                         title: 'Business & Insights',
-                        subtitle:
-                            'Understand how your shop is performing.',
+                        subtitle: 'Understand how your shop is performing.',
                       ),
 
-                      const SizedBox(
-                        height: AppSpacing.md,
-                      ),
+                      const SizedBox(height: AppSpacing.md),
 
                       _FeatureGrid(
                         isDesktop: isDesktop,
@@ -133,10 +112,7 @@ class MoreScreen extends StatelessWidget {
                                 'View sales, inventory and business performance reports.',
                             icon: Icons.bar_chart_outlined,
                             onTap: () {
-                              _showComingSoon(
-                                context,
-                                'Reports',
-                              );
+                              _showComingSoon(context, 'Reports');
                             },
                           ),
                           _MoreItem(
@@ -145,28 +121,20 @@ class MoreScreen extends StatelessWidget {
                                 'Understand sales trends, profit and customer activity.',
                             icon: Icons.analytics_outlined,
                             onTap: () {
-                              _showComingSoon(
-                                context,
-                                'Analytics',
-                              );
+                              _showComingSoon(context, 'Analytics');
                             },
                           ),
                         ],
                       ),
 
-                      const SizedBox(
-                        height: AppSpacing.xxl,
-                      ),
+                      const SizedBox(height: AppSpacing.xxl),
 
                       _SectionTitle(
                         title: 'App & Administration',
-                        subtitle:
-                            'Configure ShopMate and manage your shop.',
+                        subtitle: 'Configure ShopMate and manage your shop.',
                       ),
 
-                      const SizedBox(
-                        height: AppSpacing.md,
-                      ),
+                      const SizedBox(height: AppSpacing.md),
 
                       _FeatureGrid(
                         isDesktop: isDesktop,
@@ -177,10 +145,7 @@ class MoreScreen extends StatelessWidget {
                                 'Configure shop details, preferences and system options.',
                             icon: Icons.settings_outlined,
                             onTap: () {
-                              _showComingSoon(
-                                context,
-                                'Settings',
-                              );
+                              _showComingSoon(context, 'Settings');
                             },
                           ),
                           _MoreItem(
@@ -189,10 +154,7 @@ class MoreScreen extends StatelessWidget {
                                 'Manage staff accounts and access permissions.',
                             icon: Icons.admin_panel_settings_outlined,
                             onTap: () {
-                              _showComingSoon(
-                                context,
-                                'Users & Permissions',
-                              );
+                              _showComingSoon(context, 'Users & Permissions');
                             },
                           ),
                           _MoreItem(
@@ -201,10 +163,7 @@ class MoreScreen extends StatelessWidget {
                                 'Manage alerts and important shop notifications.',
                             icon: Icons.notifications_none_rounded,
                             onTap: () {
-                              _showComingSoon(
-                                context,
-                                'Notifications',
-                              );
+                              _showComingSoon(context, 'Notifications');
                             },
                           ),
                           _MoreItem(
@@ -213,10 +172,7 @@ class MoreScreen extends StatelessWidget {
                                 'Get help using ShopMate and understand its features.',
                             icon: Icons.help_outline_rounded,
                             onTap: () {
-                              _showComingSoon(
-                                context,
-                                'Help & Support',
-                              );
+                              _showComingSoon(context, 'Help & Support');
                             },
                           ),
                         ],
@@ -232,10 +188,7 @@ class MoreScreen extends StatelessWidget {
     );
   }
 
-  static void _showComingSoon(
-    BuildContext context,
-    String feature,
-  ) {
+  static void _showComingSoon(BuildContext context, String feature) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('$feature is coming soon.'),
@@ -246,9 +199,7 @@ class MoreScreen extends StatelessWidget {
 }
 
 class _PageHeader extends StatelessWidget {
-  const _PageHeader({
-    required this.isDesktop,
-  });
+  const _PageHeader({required this.isDesktop});
 
   final bool isDesktop;
 
@@ -256,19 +207,11 @@ class _PageHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(
-        isDesktop
-            ? AppSpacing.xl
-            : AppSpacing.lg,
-      ),
+      padding: EdgeInsets.all(isDesktop ? AppSpacing.xl : AppSpacing.lg),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(
-          AppRadius.lg,
-        ),
-        border: Border.all(
-          color: AppColors.border,
-        ),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.border),
         boxShadow: AppShadows.card,
       ),
       child: Row(
@@ -278,12 +221,8 @@ class _PageHeader extends StatelessWidget {
             height: 52,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(
-                alpha: 0.10,
-              ),
-              borderRadius: BorderRadius.circular(
-                AppRadius.md,
-              ),
+              color: AppColors.primary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
             child: const Icon(
               Icons.apps_rounded,
@@ -291,37 +230,24 @@ class _PageHeader extends StatelessWidget {
               size: 26,
             ),
           ),
-          const SizedBox(
-            width: AppSpacing.md,
-          ),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'ShopMate tools',
-                  style: AppTypography
-                      .textTheme
-                      .titleLarge!
-                      .copyWith(
-                        fontWeight: FontWeight.w800,
-                        color:
-                            AppColors.textPrimary,
-                      ),
+                  style: AppTypography.textTheme.titleLarge!.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
-                const SizedBox(
-                  height: AppSpacing.xs,
-                ),
+                const SizedBox(height: AppSpacing.xs),
                 Text(
                   'Access customers, purchases, reports, settings and other shop management tools.',
-                  style: AppTypography
-                      .textTheme
-                      .bodyMedium!
-                      .copyWith(
-                        color:
-                            AppColors.textSecondary,
-                      ),
+                  style: AppTypography.textTheme.bodyMedium!.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -333,10 +259,7 @@ class _PageHeader extends StatelessWidget {
 }
 
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({
-    required this.title,
-    required this.subtitle,
-  });
+  const _SectionTitle({required this.title, required this.subtitle});
 
   final String title;
   final String subtitle;
@@ -344,30 +267,21 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: AppTypography
-              .textTheme
-              .titleMedium!
-              .copyWith(
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
+          style: AppTypography.textTheme.titleMedium!.copyWith(
+            fontWeight: FontWeight.w800,
+            color: AppColors.textPrimary,
+          ),
         ),
-        const SizedBox(
-          height: AppSpacing.xs,
-        ),
+        const SizedBox(height: AppSpacing.xs),
         Text(
           subtitle,
-          style: AppTypography
-              .textTheme
-              .bodySmall!
-              .copyWith(
-                color: AppColors.textSecondary,
-              ),
+          style: AppTypography.textTheme.bodySmall!.copyWith(
+            color: AppColors.textSecondary,
+          ),
         ),
       ],
     );
@@ -375,10 +289,7 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _FeatureGrid extends StatelessWidget {
-  const _FeatureGrid({
-    required this.items,
-    required this.isDesktop,
-  });
+  const _FeatureGrid({required this.items, required this.isDesktop});
 
   final List<_MoreItem> items;
   final bool isDesktop;
@@ -390,10 +301,7 @@ class _FeatureGrid extends StatelessWidget {
         children: [
           for (int i = 0; i < items.length; i++) ...[
             items[i],
-            if (i != items.length - 1)
-              const SizedBox(
-                height: AppSpacing.md,
-              ),
+            if (i != items.length - 1) const SizedBox(height: AppSpacing.md),
           ],
         ],
       );
@@ -401,11 +309,9 @@ class _FeatureGrid extends StatelessWidget {
 
     return GridView.builder(
       shrinkWrap: true,
-      physics:
-          const NeverScrollableScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: items.length,
-      gridDelegate:
-          const SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         mainAxisExtent: 150,
         crossAxisSpacing: AppSpacing.md,
@@ -435,25 +341,15 @@ class _MoreItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.surface,
-      borderRadius: BorderRadius.circular(
-        AppRadius.lg,
-      ),
+      borderRadius: BorderRadius.circular(AppRadius.lg),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(
-          AppRadius.lg,
-        ),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         child: Container(
-          padding: const EdgeInsets.all(
-            AppSpacing.lg,
-          ),
+          padding: const EdgeInsets.all(AppSpacing.lg),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(
-              AppRadius.lg,
-            ),
-            border: Border.all(
-              color: AppColors.border,
-            ),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(color: AppColors.border),
             boxShadow: AppShadows.card,
           ),
           child: Row(
@@ -463,65 +359,37 @@ class _MoreItem extends StatelessWidget {
                 height: 48,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color:
-                      AppColors.primary.withValues(
-                    alpha: 0.10,
-                  ),
-                  borderRadius:
-                      BorderRadius.circular(
-                    AppRadius.md,
-                  ),
+                  color: AppColors.primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
-                child: Icon(
-                  icon,
-                  color: AppColors.primary,
-                  size: 24,
-                ),
+                child: Icon(icon, color: AppColors.primary, size: 24),
               ),
-              const SizedBox(
-                width: AppSpacing.md,
-              ),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Column(
-                  mainAxisAlignment:
-                      MainAxisAlignment.center,
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
-                      style: AppTypography
-                          .textTheme
-                          .titleSmall!
-                          .copyWith(
-                            fontWeight:
-                                FontWeight.w800,
-                            color:
-                                AppColors.textPrimary,
-                          ),
+                      style: AppTypography.textTheme.titleSmall!.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                    const SizedBox(
-                      height: AppSpacing.xs,
-                    ),
+                    const SizedBox(height: AppSpacing.xs),
                     Text(
                       subtitle,
                       maxLines: 2,
-                      overflow:
-                          TextOverflow.ellipsis,
-                      style: AppTypography
-                          .textTheme
-                          .bodySmall!
-                          .copyWith(
-                            color:
-                                AppColors.textSecondary,
-                          ),
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.textTheme.bodySmall!.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(
-                width: AppSpacing.sm,
-              ),
+              const SizedBox(width: AppSpacing.sm),
               const Icon(
                 Icons.chevron_right_rounded,
                 color: AppColors.textSecondary,

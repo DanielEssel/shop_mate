@@ -19,9 +19,9 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final dashboardAsync = ref.watch(dashboardSummaryProvider);
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
+    return Container(
+      color: AppColors.background,
+      child: SafeArea(
         child: RefreshIndicator(
           color: AppColors.primary,
           onRefresh: () async {
@@ -35,9 +35,7 @@ class DashboardScreen extends ConsumerWidget {
                 ref.invalidate(dashboardSummaryProvider);
               },
             ),
-            data: (summary) => _DashboardContent(
-              summary: summary,
-            ),
+            data: (summary) => _DashboardContent(summary: summary),
           ),
         ),
       ),
@@ -46,9 +44,7 @@ class DashboardScreen extends ConsumerWidget {
 }
 
 class _DashboardContent extends StatelessWidget {
-  const _DashboardContent({
-    required this.summary,
-  });
+  const _DashboardContent({required this.summary});
 
   final DashboardSummary summary;
 
@@ -68,37 +64,27 @@ class _DashboardContent extends StatelessWidget {
           ),
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 1440,
-              ),
+              constraints: const BoxConstraints(maxWidth: 1440),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const DashboardHeader(),
 
-const SizedBox(height: AppSpacing.xl),
+                  const SizedBox(height: AppSpacing.xl),
 
-if (!isWide) ...[
-  DashboardLowStockBanner(
-    summary: summary,
-  ),
+                  if (!isWide) ...[
+                    DashboardLowStockBanner(summary: summary),
 
-  const SizedBox(height: AppSpacing.xl),
-],
+                    const SizedBox(height: AppSpacing.xl),
+                  ],
 
-_DashboardStats(
-  summary: summary,
-),
+                  _DashboardStats(summary: summary),
 
                   const SizedBox(height: AppSpacing.xxxl),
 
                   const DashboardQuickActions(),
 
                   const SizedBox(height: AppSpacing.xxxl),
-
-                  
-
-                  
 
                   const SizedBox(height: AppSpacing.xxxl),
 
@@ -113,21 +99,13 @@ _DashboardStats(
                           ),
                         ),
                         const SizedBox(width: AppSpacing.xl),
-                        Expanded(
-                          child: _DashboardOverview(
-                            summary: summary,
-                          ),
-                        ),
+                        Expanded(child: _DashboardOverview(summary: summary)),
                       ],
                     )
                   else ...[
-                    DashboardRecentSales(
-                      sales: summary.recentSales,
-                    ),
+                    DashboardRecentSales(sales: summary.recentSales),
                     const SizedBox(height: AppSpacing.xxxl),
-                    _DashboardOverview(
-                      summary: summary,
-                    ),
+                    _DashboardOverview(summary: summary),
                   ],
 
                   const SizedBox(height: AppSpacing.xl),
@@ -142,9 +120,7 @@ _DashboardStats(
 }
 
 class _DashboardStats extends StatelessWidget {
-  const _DashboardStats({
-    required this.summary,
-  });
+  const _DashboardStats({required this.summary});
 
   final DashboardSummary summary;
 
@@ -154,16 +130,11 @@ class _DashboardStats extends StatelessWidget {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
 
-        final columns = width >= 1100
-            ? 4
-            : 2;
+        final columns = width >= 1100 ? 4 : 2;
 
-        final spacing = width < 500
-            ? AppSpacing.sm
-            : AppSpacing.lg;
+        final spacing = width < 500 ? AppSpacing.sm : AppSpacing.lg;
 
-        final cardWidth =
-            (width - (spacing * (columns - 1))) / columns;
+        final cardWidth = (width - (spacing * (columns - 1))) / columns;
 
         return Wrap(
           spacing: spacing,
@@ -216,14 +187,12 @@ class _DashboardStats extends StatelessWidget {
                 value: summary.totalProducts.toString(),
                 subtitle: _productSubtitle(summary),
                 icon: Icons.inventory_2_rounded,
-                iconBackgroundColor:
-                    summary.lowStockProducts > 0
-                        ? AppColors.warningLight
-                        : AppColors.primaryLight,
-                iconColor:
-                    summary.lowStockProducts > 0
-                        ? AppColors.warning
-                        : AppColors.primary,
+                iconBackgroundColor: summary.lowStockProducts > 0
+                    ? AppColors.warningLight
+                    : AppColors.primaryLight,
+                iconColor: summary.lowStockProducts > 0
+                    ? AppColors.warning
+                    : AppColors.primary,
                 valueColor: AppColors.textPrimary,
                 onTap: () => context.go('/products'),
               ),
@@ -251,11 +220,8 @@ class _DashboardStats extends StatelessWidget {
   }
 }
 
-
 class _DashboardOverview extends StatelessWidget {
-  const _DashboardOverview({
-    required this.summary,
-  });
+  const _DashboardOverview({required this.summary});
 
   final DashboardSummary summary;
 
@@ -268,9 +234,7 @@ class _DashboardOverview extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.border,
-        ),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -297,10 +261,7 @@ class _DashboardOverview extends StatelessWidget {
             value: summary.totalProducts.toString(),
           ),
 
-          const Divider(
-            height: AppSpacing.xxl,
-            color: AppColors.border,
-          ),
+          const Divider(height: AppSpacing.xxl, color: AppColors.border),
 
           _OverviewRow(
             icon: Icons.warning_amber_rounded,
@@ -311,10 +272,7 @@ class _DashboardOverview extends StatelessWidget {
                 : AppColors.success,
           ),
 
-          const Divider(
-            height: AppSpacing.xxl,
-            color: AppColors.border,
-          ),
+          const Divider(height: AppSpacing.xxl, color: AppColors.border),
 
           _OverviewRow(
             icon: Icons.remove_shopping_cart_outlined,
@@ -349,11 +307,7 @@ class _OverviewRow extends StatelessWidget {
 
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 20,
-          color: AppColors.textMuted,
-        ),
+        Icon(icon, size: 20, color: AppColors.textMuted),
         const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Text(
@@ -386,15 +340,9 @@ class _DashboardLoading extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _LoadingBox(
-            width: 260,
-            height: 34,
-          ),
+          _LoadingBox(width: 260, height: 34),
           SizedBox(height: AppSpacing.sm),
-          _LoadingBox(
-            width: 360,
-            height: 18,
-          ),
+          _LoadingBox(width: 360, height: 18),
           SizedBox(height: AppSpacing.xxxl),
           _LoadingStats(),
         ],
@@ -413,28 +361,22 @@ class _LoadingStats extends StatelessWidget {
         final columns = constraints.maxWidth >= 1000
             ? 4
             : constraints.maxWidth >= 600
-                ? 2
-                : 1;
+            ? 2
+            : 1;
 
         const spacing = AppSpacing.lg;
 
         final width = columns == 1
             ? constraints.maxWidth
-            : (constraints.maxWidth -
-                    spacing * (columns - 1)) /
-                columns;
+            : (constraints.maxWidth - spacing * (columns - 1)) / columns;
 
         return Wrap(
           spacing: spacing,
           runSpacing: spacing,
           children: List.generate(
             4,
-            (_) => SizedBox(
-              width: width,
-              child: const _LoadingBox(
-                height: 180,
-              ),
-            ),
+            (_) =>
+                SizedBox(width: width, child: const _LoadingBox(height: 180)),
           ),
         );
       },
@@ -443,10 +385,7 @@ class _LoadingStats extends StatelessWidget {
 }
 
 class _LoadingBox extends StatelessWidget {
-  const _LoadingBox({
-    this.width,
-    required this.height,
-  });
+  const _LoadingBox({this.width, required this.height});
 
   final double? width;
   final double height;
@@ -465,9 +404,7 @@ class _LoadingBox extends StatelessWidget {
 }
 
 class _DashboardError extends StatelessWidget {
-  const _DashboardError({
-    required this.onRetry,
-  });
+  const _DashboardError({required this.onRetry});
 
   final VoidCallback onRetry;
 
@@ -514,9 +451,7 @@ class _DashboardError extends StatelessWidget {
             const SizedBox(height: AppSpacing.xl),
             FilledButton.icon(
               onPressed: onRetry,
-              icon: const Icon(
-                Icons.refresh_rounded,
-              ),
+              icon: const Icon(Icons.refresh_rounded),
               label: const Text('Try again'),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.primary,

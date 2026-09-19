@@ -9,7 +9,7 @@ class ShopInventoryApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Shop Inventory',
+      title: 'ShopMate',
 
       debugShowCheckedModeBanner: false,
 

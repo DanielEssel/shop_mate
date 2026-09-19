@@ -17,9 +17,7 @@ class SalesScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text(
           'Sales',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
           IconButton(
@@ -27,28 +25,21 @@ class SalesScreen extends ConsumerWidget {
             onPressed: () {
               ref.invalidate(salesProvider);
             },
-            icon: const Icon(
-              Icons.refresh_rounded,
-            ),
+            icon: const Icon(Icons.refresh_rounded),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'sales_fab',
         onPressed: () {
           context.push('/sales/new');
         },
-        icon: const Icon(
-          Icons.add_rounded,
-        ),
-        label: const Text(
-          'New Sale',
-        ),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('New Sale'),
       ),
       body: salesAsync.when(
         loading: () {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
+          return const Center(child: CircularProgressIndicator());
         },
         error: (error, stackTrace) {
           return _ErrorState(
@@ -74,12 +65,7 @@ class SalesScreen extends ConsumerWidget {
               await ref.read(salesProvider.future);
             },
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(
-                16,
-                16,
-                16,
-                100,
-              ),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               children: [
                 _SalesSummary(
                   transactionCount: sales.length,
@@ -88,23 +74,16 @@ class SalesScreen extends ConsumerWidget {
                 const SizedBox(height: 20),
                 const Text(
                   'Recent Transactions',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 12),
                 ...sales.map(
                   (sale) => Padding(
-                    padding: const EdgeInsets.only(
-                      bottom: 10,
-                    ),
+                    padding: const EdgeInsets.only(bottom: 10),
                     child: SaleCard(
                       sale: sale,
                       onTap: () {
-                        context.push(
-                          '/sales/${sale.id}',
-                        );
+                        context.push('/sales/${sale.id}');
                       },
                     ),
                   ),
@@ -139,15 +118,12 @@ class _SalesSummary extends StatelessWidget {
         children: [
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Total Sales',
                   style: TextStyle(
-                    color: Colors.white.withValues(
-                      alpha: 0.78,
-                    ),
+                    color: Colors.white.withValues(alpha: 0.78),
                     fontSize: 13,
                   ),
                 ),
@@ -166,21 +142,16 @@ class _SalesSummary extends StatelessWidget {
           Container(
             width: 1,
             height: 48,
-            color: Colors.white.withValues(
-              alpha: 0.25,
-            ),
+            color: Colors.white.withValues(alpha: 0.25),
           ),
           const SizedBox(width: 20),
           Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
                 'Transactions',
                 style: TextStyle(
-                  color: Colors.white.withValues(
-                    alpha: 0.78,
-                  ),
+                  color: Colors.white.withValues(alpha: 0.78),
                   fontSize: 13,
                 ),
               ),
@@ -228,30 +199,21 @@ class _EmptySalesState extends StatelessWidget {
             const SizedBox(height: 18),
             const Text(
               'No sales yet',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             Text(
               'Completed sales will appear here.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(color: Colors.grey.shade600),
             ),
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: () {
                 context.push('/sales/new');
               },
-              icon: const Icon(
-                Icons.add_rounded,
-              ),
-              label: const Text(
-                'Create First Sale',
-              ),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Create First Sale'),
             ),
           ],
         ),
@@ -261,10 +223,7 @@ class _EmptySalesState extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
-  const _ErrorState({
-    required this.error,
-    required this.onRetry,
-  });
+  const _ErrorState({required this.error, required this.onRetry});
 
   final Object error;
   final VoidCallback onRetry;
@@ -285,28 +244,19 @@ class _ErrorState extends StatelessWidget {
             const SizedBox(height: 12),
             const Text(
               'Unable to load sales',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 6),
             Text(
               error.toString(),
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(color: Colors.grey.shade600),
             ),
             const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(
-                Icons.refresh_rounded,
-              ),
-              label: const Text(
-                'Try Again',
-              ),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Try Again'),
             ),
           ],
         ),

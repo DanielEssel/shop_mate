@@ -42,14 +42,11 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
     }
 
     return purchases.where((purchase) {
-      final purchaseNumber =
-          purchase.purchaseNumber.toLowerCase();
+      final purchaseNumber = purchase.purchaseNumber.toLowerCase();
 
-      final supplier =
-          purchase.supplierName?.toLowerCase() ?? '';
+      final supplier = purchase.supplierName?.toLowerCase() ?? '';
 
-      final phone =
-          purchase.supplierPhone?.toLowerCase() ?? '';
+      final phone = purchase.supplierPhone?.toLowerCase() ?? '';
 
       return purchaseNumber.contains(_searchQuery) ||
           supplier.contains(_searchQuery) ||
@@ -71,91 +68,64 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
       appBar: AppBar(
         title: const Text(
           'Purchases',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
           IconButton(
             tooltip: 'Refresh',
             onPressed: _refresh,
-            icon: const Icon(
-              Icons.refresh_rounded,
-            ),
+            icon: const Icon(Icons.refresh_rounded),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'purchases_fab',
         onPressed: () {
           context.push('/purchases/new');
         },
-        icon: const Icon(
-          Icons.add_shopping_cart_rounded,
-        ),
-        label: const Text(
-          'New Purchase',
-        ),
+        icon: const Icon(Icons.add_shopping_cart_rounded),
+        label: const Text('New Purchase'),
       ),
       body: purchasesAsync.when(
         loading: () {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
+          return const Center(child: CircularProgressIndicator());
         },
         error: (error, stackTrace) {
-          return _PurchaseErrorState(
-            error: error,
-            onRetry: _refresh,
-          );
+          return _PurchaseErrorState(error: error, onRetry: _refresh);
         },
         data: (purchases) {
-          return _buildContent(
-            context,
-            purchases,
-          );
+          return _buildContent(context, purchases);
         },
       ),
     );
   }
 
-  Widget _buildContent(
-    BuildContext context,
-    List<Purchase> purchases,
-  ) {
+  Widget _buildContent(BuildContext context, List<Purchase> purchases) {
     if (purchases.isEmpty) {
       return const _EmptyPurchasesState();
     }
 
-    final filteredPurchases =
-        _filterPurchases(purchases);
+    final filteredPurchases = _filterPurchases(purchases);
 
     final totalPurchases = purchases.fold<double>(
       0,
-      (sum, purchase) =>
-          sum + purchase.totalAmount,
+      (sum, purchase) => sum + purchase.totalAmount,
     );
 
     final totalPaid = purchases.fold<double>(
       0,
-      (sum, purchase) =>
-          sum + purchase.amountPaid,
+      (sum, purchase) => sum + purchase.amountPaid,
     );
 
     final outstanding = purchases.fold<double>(
       0,
-      (sum, purchase) =>
-          sum + purchase.balance,
+      (sum, purchase) => sum + purchase.balance,
     );
 
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          16,
-          16,
-          16,
-          110,
-        ),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
         children: [
           PurchaseSummary(
             totalPurchases: totalPurchases,
@@ -167,42 +137,31 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
           TextField(
             controller: _searchController,
             decoration: InputDecoration(
-              hintText:
-                  'Search purchase or supplier...',
-              prefixIcon: const Icon(
-                Icons.search_rounded,
-              ),
-              suffixIcon:
-                  _searchQuery.isNotEmpty
-                      ? IconButton(
-                          tooltip: 'Clear',
-                          onPressed: () {
-                            _searchController.clear();
-                          },
-                          icon: const Icon(
-                            Icons.clear_rounded,
-                          ),
-                        )
-                      : null,
+              hintText: 'Search purchase or supplier...',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      tooltip: 'Clear',
+                      onPressed: () {
+                        _searchController.clear();
+                      },
+                      icon: const Icon(Icons.clear_rounded),
+                    )
+                  : null,
               filled: true,
               fillColor: Colors.white,
               border: OutlineInputBorder(
-                borderRadius:
-                    BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius:
-                    BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius:
-                    BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primary,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
@@ -213,10 +172,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
               const Expanded(
                 child: Text(
                   'Recent Purchases',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                 ),
               ),
               if (_searchQuery.isNotEmpty)
@@ -236,14 +192,11 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
           else
             ...filteredPurchases.map(
               (purchase) => Padding(
-                padding:
-                    const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.only(bottom: 10),
                 child: PurchaseCard(
                   purchase: purchase,
                   onTap: () {
-                    context.push(
-                      '/purchases/${purchase.id}',
-                    );
+                    context.push('/purchases/${purchase.id}');
                   },
                 ),
               ),
@@ -254,8 +207,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
   }
 }
 
-class _EmptyPurchasesState
-    extends StatelessWidget {
+class _EmptyPurchasesState extends StatelessWidget {
   const _EmptyPurchasesState();
 
   @override
@@ -271,8 +223,7 @@ class _EmptyPurchasesState
               height: 80,
               decoration: BoxDecoration(
                 color: const Color(0xFFE8F5F0),
-                borderRadius:
-                    BorderRadius.circular(26),
+                borderRadius: BorderRadius.circular(26),
               ),
               child: const Icon(
                 Icons.shopping_bag_outlined,
@@ -283,30 +234,21 @@ class _EmptyPurchasesState
             const SizedBox(height: 18),
             const Text(
               'No purchases yet',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             Text(
               'Purchases you record will appear here.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(color: Colors.grey.shade600),
             ),
             const SizedBox(height: 20),
             FilledButton.icon(
               onPressed: () {
                 context.push('/purchases/new');
               },
-              icon: const Icon(
-                Icons.add_shopping_cart_rounded,
-              ),
-              label: const Text(
-                'Create First Purchase',
-              ),
+              icon: const Icon(Icons.add_shopping_cart_rounded),
+              label: const Text('Create First Purchase'),
             ),
           ],
         ),
@@ -315,39 +257,26 @@ class _EmptyPurchasesState
   }
 }
 
-class _NoSearchResults
-    extends StatelessWidget {
+class _NoSearchResults extends StatelessWidget {
   const _NoSearchResults();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        vertical: 40,
-        horizontal: 20,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
       child: Column(
         children: [
-          Icon(
-            Icons.search_off_rounded,
-            size: 44,
-            color: Colors.grey.shade500,
-          ),
+          Icon(Icons.search_off_rounded, size: 44, color: Colors.grey.shade500),
           const SizedBox(height: 12),
           const Text(
             'No purchases found',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-            ),
+            style: TextStyle(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 5),
           Text(
             'Try a different purchase number or supplier.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
           ),
         ],
       ),
@@ -355,12 +284,8 @@ class _NoSearchResults
   }
 }
 
-class _PurchaseErrorState
-    extends StatelessWidget {
-  const _PurchaseErrorState({
-    required this.error,
-    required this.onRetry,
-  });
+class _PurchaseErrorState extends StatelessWidget {
+  const _PurchaseErrorState({required this.error, required this.onRetry});
 
   final Object error;
   final Future<void> Function() onRetry;
@@ -381,29 +306,19 @@ class _PurchaseErrorState
             const SizedBox(height: 12),
             const Text(
               'Unable to load purchases',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             Text(
               error.toString(),
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
             ),
             const SizedBox(height: 18),
             OutlinedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(
-                Icons.refresh_rounded,
-              ),
-              label: const Text(
-                'Try Again',
-              ),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Try Again'),
             ),
           ],
         ),
