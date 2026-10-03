@@ -109,28 +109,42 @@ Future<void> deleteProduct(
 }
 
   Future<String> uploadProductImage({
-    required String productId,
-    required Uint8List bytes,
-    required String extension,
-  }) async {
-    final filePath =
-        '$productId.$extension';
+  required String productId,
+  required Uint8List bytes,
+  required String extension,
+}) async {
+  final product = await _client
+      .from(_table)
+      .select('shop_id')
+      .eq('id', productId)
+      .single();
 
-    await _client.storage
-        .from(_bucket)
-        .uploadBinary(
-          filePath,
-          bytes,
-          fileOptions: FileOptions(
-            upsert: true,
-            contentType: _contentType(extension),
-          ),
-        );
+  final shopId = product['shop_id'] as String?;
 
-    return _client.storage
-        .from(_bucket)
-        .getPublicUrl(filePath);
+  if (shopId == null || shopId.isEmpty) {
+    throw StateError(
+      'Product is not associated with a shop.',
+    );
   }
+
+  final filePath =
+      '$shopId/products/$productId.$extension';
+
+  await _client.storage
+      .from(_bucket)
+      .uploadBinary(
+        filePath,
+        bytes,
+        fileOptions: FileOptions(
+          upsert: true,
+          contentType: _contentType(extension),
+        ),
+      );
+
+  return _client.storage
+      .from(_bucket)
+      .getPublicUrl(filePath);
+}
 
   Future<void> updateProductImageUrl(
     String productId,

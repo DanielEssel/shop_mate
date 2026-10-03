@@ -1,4 +1,7 @@
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
+
 
 import '../../../../core/services/supabase_service.dart';
 import '../../data/datasources/dashboard_remote_datasource.dart';
@@ -30,6 +33,9 @@ final getDashboardSummaryProvider =
 
 final dashboardSummaryProvider =
     FutureProvider<DashboardSummary>((ref) {
+  // Rebuild the dashboard whenever the authenticated account changes.
+  ref.watch(authStateProvider);
+
   return ref
       .read(getDashboardSummaryProvider)
       .call();
