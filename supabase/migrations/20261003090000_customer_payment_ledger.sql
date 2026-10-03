@@ -1,7 +1,13 @@
+create unique index customers_id_shop_id_uidx
+  on public.customers (id, shop_id);
+
+create unique index sales_id_shop_id_uidx
+  on public.sales (id, shop_id);
+
 create table public.customer_payments (
   id uuid primary key default gen_random_uuid(),
   shop_id uuid not null references public.shops(id) on delete restrict,
-  customer_id uuid not null references public.customers(id) on delete restrict,
+  customer_id uuid not null,
   amount numeric(12, 2) not null check (amount > 0),
   payment_method text not null check (
     payment_method in ('cash', 'mobile_money', 'card', 'bank_transfer')
@@ -13,19 +19,29 @@ create table public.customer_payments (
   created_at timestamptz not null default now(),
   idempotency_key uuid not null,
   constraint customer_payments_shop_idempotency_key_key
-    unique (shop_id, idempotency_key)
+    unique (shop_id, idempotency_key),
+  constraint customer_payments_id_shop_id_key
+    unique (id, shop_id),
+  constraint customer_payments_customer_shop_fkey
+    foreign key (customer_id, shop_id)
+    references public.customers (id, shop_id) on delete restrict
 );
 
 create table public.customer_payment_allocations (
   id uuid primary key default gen_random_uuid(),
   shop_id uuid not null references public.shops(id) on delete restrict,
-  payment_id uuid not null
-    references public.customer_payments(id) on delete restrict,
-  sale_id uuid not null references public.sales(id) on delete restrict,
+  payment_id uuid not null,
+  sale_id uuid not null,
   amount numeric(12, 2) not null check (amount > 0),
   created_at timestamptz not null default now(),
   constraint customer_payment_allocations_payment_sale_key
-    unique (payment_id, sale_id)
+    unique (payment_id, sale_id),
+  constraint customer_payment_allocations_payment_shop_fkey
+    foreign key (payment_id, shop_id)
+    references public.customer_payments (id, shop_id) on delete restrict,
+  constraint customer_payment_allocations_sale_shop_fkey
+    foreign key (sale_id, shop_id)
+    references public.sales (id, shop_id) on delete restrict
 );
 
 create index customer_payments_shop_customer_paid_at_idx
