@@ -9,6 +9,7 @@ import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../domain/entities/customer.dart';
 import '../providers/customers_provider.dart';
+import '../widgets/customer_credit_section.dart';
 
 class CustomerDetailsScreen extends ConsumerStatefulWidget {
   const CustomerDetailsScreen({
@@ -328,6 +329,13 @@ class _CustomerDetailsScreenState
                             onCancel: () =>
                                 _cancelEditing(customer),
                           ),
+                          if (!_isEditing) ...[
+                            const SizedBox(height: AppSpacing.xl),
+                            CustomerCreditSection(
+                              customerId: customer.id,
+                              customerName: customer.name,
+                            ),
+                          ],
                           const SizedBox(height: AppSpacing.lg),
                           if (!_isEditing)
                             _CustomerActions(

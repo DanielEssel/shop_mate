@@ -1,3 +1,5 @@
+import '../../domain/entities/customer_credit_statement.dart';
+import '../../domain/entities/customer_payment_request.dart';
 import '../../domain/entities/customer.dart';
 import '../../domain/repositories/customer_repository.dart';
 import '../datasources/customer_remote_datasource.dart';
@@ -15,6 +17,18 @@ class CustomerRepositoryImpl implements CustomerRepository {
   @override
   Future<Customer> getCustomerById(String id) {
     return _remoteDataSource.getCustomerById(id);
+  }
+
+  @override
+  Future<CustomerCreditStatement> getCustomerCreditStatement(
+    String customerId,
+  ) {
+    return _remoteDataSource.getCustomerCreditStatement(customerId);
+  }
+
+  @override
+  Future<void> recordCustomerPayment(RecordCustomerPaymentRequest request) {
+    return _remoteDataSource.recordCustomerPayment(request);
   }
 
   @override

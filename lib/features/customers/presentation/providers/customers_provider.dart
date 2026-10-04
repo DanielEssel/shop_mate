@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../data/datasources/customer_remote_datasource.dart';
 import '../../data/repositories/customer_repository_impl.dart';
+import '../../domain/entities/customer_credit_statement.dart';
 import '../../domain/entities/customer.dart';
 import '../../domain/repositories/customer_repository.dart';
 import '../../domain/usecases/create_customer.dart';
 import '../../domain/usecases/delete_customer.dart';
 import '../../domain/usecases/get_customer.dart';
+import '../../domain/usecases/get_customer_credit_statement.dart';
 import '../../domain/usecases/get_customers.dart';
+import '../../domain/usecases/record_customer_payment.dart';
 import '../../domain/usecases/update_customer.dart';
 
 final customerRepositoryProvider = Provider<CustomerRepository>((ref) {
@@ -29,6 +32,16 @@ final getCustomerProvider = Provider<GetCustomer>((ref) {
   return GetCustomer(
     ref.read(customerRepositoryProvider),
   );
+});
+
+final getCustomerCreditStatementProvider = Provider<GetCustomerCreditStatement>(
+  (ref) {
+    return GetCustomerCreditStatement(ref.read(customerRepositoryProvider));
+  },
+);
+
+final recordCustomerPaymentProvider = Provider<RecordCustomerPayment>((ref) {
+  return RecordCustomerPayment(ref.read(customerRepositoryProvider));
 });
 
 final createCustomerProvider = Provider<CreateCustomer>((ref) {
@@ -131,3 +144,8 @@ final customerProvider =
     FutureProvider.family<Customer, String>((ref, id) {
   return ref.read(getCustomerProvider).call(id);
 });
+
+final customerCreditStatementProvider =
+    FutureProvider.family<CustomerCreditStatement, String>((ref, customerId) {
+      return ref.read(getCustomerCreditStatementProvider).call(customerId);
+    });
