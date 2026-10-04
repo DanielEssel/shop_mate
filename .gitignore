@@ -67,3 +67,5 @@ key.properties
 .flutter-plugins-dependencies
 .packages
 
+# Supabase CLI local state
+supabase/.temp/
