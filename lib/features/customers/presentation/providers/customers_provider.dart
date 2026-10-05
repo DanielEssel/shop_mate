@@ -119,7 +119,9 @@ final customerProvider = FutureProvider.family<Customer, String>((ref, id) {
   return ref.read(getCustomerProvider).call(id);
 });
 
-final customerCreditStatementProvider =
-    FutureProvider.family<CustomerCreditStatement, String>((ref, customerId) {
+// Auto-disposed so each visit to a customer re-reads the payment ledger
+// instead of reusing a statement cached before later credit sales.
+final customerCreditStatementProvider = FutureProvider.autoDispose
+    .family<CustomerCreditStatement, String>((ref, customerId) {
       return ref.read(getCustomerCreditStatementProvider).call(customerId);
     });

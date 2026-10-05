@@ -326,6 +326,9 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
       ref.invalidate(productsProvider);
       ref.invalidate(salesProductsProvider);
       ref.invalidate(salesProvider);
+      if (isCreditSale && customerId != null) {
+        ref.invalidate(customerCreditStatementProvider(customerId));
+      }
 
       if (!mounted) return;
 
