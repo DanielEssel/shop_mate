@@ -33,6 +33,7 @@ import '../../features/sales/presentation/screens/new_sale_screen.dart';
 import '../../features/sales/presentation/screens/receipt_preview_screen.dart';
 import '../../features/sales/presentation/screens/sale_details_screen.dart';
 import '../../features/sales/presentation/screens/sales_screen.dart';
+import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../features/shop/domain/entities/shop_access.dart';
 import '../../features/shop/presentation/providers/shop_provider.dart';
 import '../../features/shop/presentation/screens/register_shop_screen.dart';
@@ -435,6 +436,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/reports/inventory',
         builder: (context, state) {
           return const InventoryReportScreen();
+        },
+      ),
+
+      // =============================================================
+      // SETTINGS
+      // =============================================================
+      // Root-level like Reports: opened from More or the drawer and stacked
+      // on the root navigator, outside the StatefulShellRoute.
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) {
+          return const SettingsScreen();
         },
       ),
     ],

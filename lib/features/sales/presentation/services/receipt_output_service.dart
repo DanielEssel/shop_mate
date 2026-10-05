@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:pdf/pdf.dart' as pdf;
@@ -6,6 +7,7 @@ import 'package:printing/printing.dart';
 
 import '../../domain/entities/sale.dart';
 import '../../domain/entities/sale_item.dart';
+import 'receipt_branding.dart';
 
 class ReceiptPdfData {
   const ReceiptPdfData({
@@ -15,7 +17,7 @@ class ReceiptPdfData {
     required this.paymentMethod,
     required this.date,
     required this.time,
-    this.shopName,
+    this.branding = const ReceiptBranding(),
     this.customerName,
   });
 
@@ -25,12 +27,65 @@ class ReceiptPdfData {
   final String paymentMethod;
   final String date;
   final String time;
-  final String? shopName;
+  final ReceiptBranding branding;
   final String? customerName;
 }
 
 class ReceiptOutputService {
+  /// Bounds for the printed logo, in PDF points.
+  static const logoMaxWidth = 140.0;
+  static const logoMaxHeight = 56.0;
+
+  /// Scales an image of [width] x [height] to fit within the logo bounds,
+  /// preserving its aspect ratio and never enlarging it.
+  static ({double width, double height}) fitLogo(int width, int height) {
+    if (width <= 0 || height <= 0) {
+      return (width: logoMaxWidth, height: logoMaxHeight);
+    }
+    final scale = math.min(
+      1.0,
+      math.min(logoMaxWidth / width, logoMaxHeight / height),
+    );
+    return (width: width * scale, height: height * scale);
+  }
+
+  /// Generates the receipt. A logo that cannot be decoded or rendered is
+  /// dropped; the receipt itself never fails because of the logo.
   Future<Uint8List> generatePdf(ReceiptPdfData data) async {
+    if (data.branding.logoBytes == null) {
+      return _generate(data, logo: null);
+    }
+
+    try {
+      return await _generate(data, logo: _logoImage(data.branding.logoBytes));
+    } catch (_) {
+      return _generate(data, logo: null);
+    }
+  }
+
+  /// The decoded, size-bounded logo, or null when the bytes are unusable.
+  static pw.Widget? _logoImage(Uint8List? bytes) {
+    if (bytes == null) return null;
+
+    final pw.MemoryImage image;
+    try {
+      image = pw.MemoryImage(bytes);
+    } catch (_) {
+      return null;
+    }
+
+    final size = fitLogo(image.width ?? 0, image.height ?? 0);
+    return pw.Image(
+      image,
+      width: size.width,
+      height: size.height,
+      fit: pw.BoxFit.contain,
+    );
+  }
+
+  Future<Uint8List> _generate(ReceiptPdfData data, {pw.Widget? logo}) async {
+    final shopName = data.branding.shopName;
+    final phone = data.branding.phone;
     final document = pw.Document(
       title: 'Receipt ${data.sale.saleNumber}',
       author: 'ShopMate',
@@ -49,14 +104,27 @@ class ReceiptOutputService {
         pageFormat: pdf.PdfPageFormat.a4,
         margin: const pw.EdgeInsets.fromLTRB(42, 48, 42, 48),
         build: (context) => [
-          if (data.shopName != null && data.shopName!.trim().isNotEmpty) ...[
+          if (logo != null) ...[pw.Center(child: logo), pw.SizedBox(height: 8)],
+          if (shopName != null) ...[
             pw.Center(
               child: pw.Text(
-                data.shopName!,
+                shopName,
                 textAlign: pw.TextAlign.center,
                 style: pw.TextStyle(
                   fontSize: 19,
                   fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ),
+            pw.SizedBox(height: 5),
+          ],
+          if (phone != null) ...[
+            pw.Center(
+              child: pw.Text(
+                phone,
+                style: const pw.TextStyle(
+                  fontSize: 10,
+                  color: pdf.PdfColors.grey700,
                 ),
               ),
             ),

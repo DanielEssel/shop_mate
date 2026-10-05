@@ -8,10 +8,12 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../../customers/presentation/providers/customers_provider.dart';
+import '../../../shop/presentation/providers/shop_branding_providers.dart';
 import '../../../shop/presentation/providers/shop_provider.dart';
 import '../../domain/entities/sale.dart';
 import '../../domain/entities/sale_item.dart';
 import '../providers/sales_provider.dart';
+import '../services/receipt_branding.dart';
 import '../services/receipt_output_service.dart';
 
 class ReceiptPreviewScreen extends ConsumerWidget {
@@ -68,14 +70,19 @@ class _ReceiptCustomerContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final shopName = ref.watch(shopAccessProvider).value?.shopName;
+    // Branding is non-blocking: until it loads (or if it fails) the receipt
+    // uses the shop access name and no logo.
+    final branding = ReceiptBranding.from(
+      branding: ref.watch(shopBrandingProvider).value,
+      fallbackShopName: ref.watch(shopAccessProvider).value?.shopName,
+    );
     final customerId = sale.customerId;
 
     if (customerId == null) {
       return _ReceiptPaymentContent(
         sale: sale,
         items: items,
-        shopName: shopName,
+        branding: branding,
       );
     }
 
@@ -91,7 +98,7 @@ class _ReceiptCustomerContent extends ConsumerWidget {
       data: (customer) => _ReceiptPaymentContent(
         sale: sale,
         items: items,
-        shopName: shopName,
+        branding: branding,
         customerName: customer.name,
       ),
     );
@@ -102,13 +109,13 @@ class _ReceiptPaymentContent extends ConsumerWidget {
   const _ReceiptPaymentContent({
     required this.sale,
     required this.items,
-    required this.shopName,
+    required this.branding,
     this.customerName,
   });
 
   final Sale sale;
   final List<SaleItem> items;
-  final String? shopName;
+  final ReceiptBranding branding;
   final String? customerName;
 
   @override
@@ -117,7 +124,7 @@ class _ReceiptPaymentContent extends ConsumerWidget {
       return _ReceiptDocument(
         sale: sale,
         items: items,
-        shopName: shopName,
+        branding: branding,
         customerName: customerName,
         paidAmount: sale.amountPaid,
         paymentMethod: sale.paymentMethodLabel,
@@ -136,7 +143,7 @@ class _ReceiptPaymentContent extends ConsumerWidget {
       data: (summary) => _ReceiptDocument(
         sale: sale,
         items: items,
-        shopName: shopName,
+        branding: branding,
         customerName: customerName,
         paidAmount: summary.paidAmount,
         paymentMethod: summary.paymentMethods
@@ -162,7 +169,7 @@ class _ReceiptDocument extends StatefulWidget {
   const _ReceiptDocument({
     required this.sale,
     required this.items,
-    required this.shopName,
+    required this.branding,
     required this.paidAmount,
     required this.paymentMethod,
     this.customerName,
@@ -170,7 +177,7 @@ class _ReceiptDocument extends StatefulWidget {
 
   final Sale sale;
   final List<SaleItem> items;
-  final String? shopName;
+  final ReceiptBranding branding;
   final String? customerName;
   final double paidAmount;
   final String paymentMethod;
@@ -203,7 +210,7 @@ class _ReceiptDocumentState extends State<_ReceiptDocument> {
         other.sale.createdAt == widget.sale.createdAt &&
         other.items.length == widget.items.length &&
         _itemsHaveSamePdfData(other.items, widget.items) &&
-        other.shopName == widget.shopName &&
+        other.branding == widget.branding &&
         other.customerName == widget.customerName &&
         other.paidAmount == widget.paidAmount &&
         other.paymentMethod == widget.paymentMethod;
@@ -235,7 +242,7 @@ class _ReceiptDocumentState extends State<_ReceiptDocument> {
       ReceiptPdfData(
         sale: widget.sale,
         items: widget.items,
-        shopName: widget.shopName,
+        branding: widget.branding,
         customerName: widget.customerName,
         paidAmount: widget.paidAmount,
         paymentMethod: widget.sale.isCredit && widget.paymentMethod.isEmpty
@@ -386,14 +393,32 @@ class _ReceiptDocumentState extends State<_ReceiptDocument> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (widget.shopName != null &&
-                        widget.shopName!.trim().isNotEmpty) ...[
+                    if (widget.branding.logoBytes case final logo?) ...[
+                      Center(
+                        child: _ReceiptLogo(
+                          bytes: logo,
+                          shopName: widget.branding.shopName,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                    ],
+                    if (widget.branding.shopName case final shopName?) ...[
                       Text(
-                        widget.shopName!,
+                        shopName,
                         textAlign: TextAlign.center,
                         style: AppTypography.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                           color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                    ],
+                    if (widget.branding.phone case final phone?) ...[
+                      Text(
+                        phone,
+                        textAlign: TextAlign.center,
+                        style: AppTypography.textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
                         ),
                       ),
                       const SizedBox(height: AppSpacing.xs),
@@ -747,6 +772,32 @@ class _ReceiptError extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The shop logo at receipt size: bounded like the printed logo, aspect
+/// ratio preserved, and omitted if the image cannot be decoded.
+class _ReceiptLogo extends StatelessWidget {
+  const _ReceiptLogo({required this.bytes, required this.shopName});
+
+  final Uint8List bytes;
+  final String? shopName;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        maxWidth: ReceiptOutputService.logoMaxWidth,
+        maxHeight: ReceiptOutputService.logoMaxHeight,
+      ),
+      child: Image.memory(
+        bytes,
+        key: const ValueKey('receipt-logo'),
+        fit: BoxFit.contain,
+        semanticLabel: shopName == null ? 'Shop logo' : '$shopName logo',
+        errorBuilder: (_, _, _) => const SizedBox.shrink(),
       ),
     );
   }

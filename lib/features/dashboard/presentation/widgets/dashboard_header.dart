@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../shop/presentation/providers/shop_branding_providers.dart';
+import '../../../shop/presentation/providers/shop_provider.dart';
+import '../../../shop/presentation/widgets/shop_logo_mark.dart';
 
-class DashboardHeader extends StatelessWidget {
+class DashboardHeader extends ConsumerWidget {
   const DashboardHeader({super.key});
 
   String _greeting() {
@@ -21,8 +25,20 @@ class DashboardHeader extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+
+    // Branding never blocks the dashboard: while it loads or if it fails,
+    // the shop access name and the initial/icon fallback are shown.
+    final brandingAsync = ref.watch(shopBrandingProvider);
+    final branding = brandingAsync.value;
+    final accessName = ref.watch(
+      shopAccessProvider.select((access) => access.value?.shopName),
+    );
+    final brandName = branding?.branding.name.trim();
+    final shopName = brandName != null && brandName.isNotEmpty
+        ? brandName
+        : accessName?.trim();
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,6 +63,32 @@ class DashboardHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (shopName != null && shopName.isNotEmpty) ...[
+                Row(
+                  children: [
+                    ShopLogoMark(
+                      shopName: shopName,
+                      logoBytes: branding?.logoBytes,
+                      isLoading: brandingAsync.isLoading && branding == null,
+                      size: 32,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        shopName,
+                        key: const ValueKey('dashboard-shop-name'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+              ],
               Text(
                 '${_greeting()} 👋',
                 style: theme.textTheme.headlineMedium?.copyWith(

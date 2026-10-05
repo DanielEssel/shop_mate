@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -7,6 +8,9 @@ import '../../../app/theme/app_radius.dart';
 import '../../../app/theme/app_shadows.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../features/shop/presentation/providers/shop_branding_providers.dart';
+import '../../../features/shop/presentation/providers/shop_provider.dart';
+import '../../../features/shop/presentation/widgets/shop_logo_mark.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -91,6 +95,12 @@ class AppDrawer extends StatelessWidget {
                   ),
 
                   _DrawerItem(
+                    icon: Icons.assessment_outlined,
+                    title: 'Inventory Report',
+                    onTap: () => _navigate(context, '/reports/inventory'),
+                  ),
+
+                  _DrawerItem(
                     icon: Icons.analytics_outlined,
                     title: 'Analytics',
                     onTap: () => _showComingSoon(context, 'Analytics'),
@@ -103,7 +113,7 @@ class AppDrawer extends StatelessWidget {
                   _DrawerItem(
                     icon: Icons.settings_outlined,
                     title: 'Settings',
-                    onTap: () => _showComingSoon(context, 'Settings'),
+                    onTap: () => _navigate(context, '/settings'),
                   ),
 
                   _DrawerItem(
@@ -220,13 +230,25 @@ class AppDrawer extends StatelessWidget {
   }
 }
 
-class _DrawerHeader extends StatelessWidget {
+/// Shop identity from the shared branding state. Branding is non-blocking:
+/// while it loads or if it fails, the shop access name (or "ShopMate") and
+/// the initial/icon fallback are shown.
+class _DrawerHeader extends ConsumerWidget {
   const _DrawerHeader({required this.email});
 
   final String? email;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final brandingAsync = ref.watch(shopBrandingProvider);
+    final branding = brandingAsync.value;
+    final accessName = ref.watch(
+      shopAccessProvider.select((access) => access.value?.shopName),
+    );
+    final shopName =
+        _nonEmpty(branding?.branding.name) ?? _nonEmpty(accessName);
+    final phone = _nonEmpty(branding?.branding.phone);
+
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.all(AppSpacing.sm),
@@ -239,19 +261,10 @@ class _DrawerHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-            child: const Icon(
-              Icons.storefront_outlined,
-              color: AppColors.primary,
-              size: 25,
-            ),
+          ShopLogoMark(
+            shopName: shopName,
+            logoBytes: branding?.logoBytes,
+            isLoading: brandingAsync.isLoading && branding == null,
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(
@@ -259,7 +272,9 @@ class _DrawerHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'ShopMate',
+                  shopName ?? 'ShopMate',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTypography.textTheme.titleMedium!.copyWith(
                     fontWeight: FontWeight.w800,
                     color: AppColors.textPrimary,
@@ -267,7 +282,7 @@ class _DrawerHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  email ?? 'Business Management',
+                  phone ?? email ?? 'Business Management',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.textTheme.bodySmall!.copyWith(
@@ -281,6 +296,11 @@ class _DrawerHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _nonEmpty(String? value) {
+  final trimmed = value?.trim();
+  return trimmed == null || trimmed.isEmpty ? null : trimmed;
 }
 
 class _DrawerSectionLabel extends StatelessWidget {

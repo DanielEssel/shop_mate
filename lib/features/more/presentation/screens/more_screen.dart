@@ -154,7 +154,7 @@ class MoreScreen extends StatelessWidget {
                                 'Configure shop details, preferences and system options.',
                             icon: Icons.settings_outlined,
                             onTap: () {
-                              _showComingSoon(context, 'Settings');
+                              context.push('/settings');
                             },
                           ),
                           _MoreItem(
