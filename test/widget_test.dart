@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -16,8 +17,11 @@ void main() {
   });
 
   testWidgets('ShopMate app starts successfully', (tester) async {
+    // Same root as lib/main.dart: the app reads its router from Riverpod.
     await tester.pumpWidget(
-      const ShopInventoryApp(),
+      const ProviderScope(
+        child: ShopInventoryApp(),
+      ),
     );
 
     await tester.pump();
