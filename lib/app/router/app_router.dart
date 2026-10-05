@@ -25,6 +25,7 @@ import '../../features/products/presentation/screens/product_details_screen.dart
 import '../../features/products/presentation/screens/product_edit_screen.dart';
 import '../../features/products/presentation/screens/products_screen.dart';
 import '../../features/reports/presentation/screens/business_performance_screen.dart';
+import '../../features/reports/presentation/screens/inventory_report_screen.dart';
 import '../../features/purchases/presentation/screens/new_purchase_screen.dart';
 import '../../features/purchases/presentation/screens/purchase_details_screen.dart';
 import '../../features/purchases/presentation/screens/purchases_screen.dart';
@@ -386,6 +387,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/reports/business-performance',
         builder: (context, state) {
           return const BusinessPerformanceScreen();
+        },
+      ),
+      GoRoute(
+        path: '/reports/inventory',
+        builder: (context, state) {
+          return const InventoryReportScreen();
         },
       ),
     ],

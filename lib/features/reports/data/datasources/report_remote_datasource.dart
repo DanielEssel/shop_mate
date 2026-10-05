@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../domain/entities/report_date_range.dart';
 import '../models/business_performance_model.dart';
+import '../models/inventory_report_model.dart';
 
 class ReportRemoteDataSource {
   ReportRemoteDataSource(this._client);
@@ -29,6 +30,21 @@ class ReportRemoteDataSource {
     return BusinessPerformanceModel.fromRow(
       Map<String, Object?>.from(response.first as Map),
       range: range,
+    );
+  }
+
+  /// Calls `get_inventory_report`, which scopes every figure to the caller's
+  /// active shop; no shop id is sent.
+  Future<InventoryReportModel> getInventoryReport() async {
+    final response = await _client.rpc('get_inventory_report');
+
+    // The function returns a single-row table.
+    if (response is! List || response.length != 1 || response.first is! Map) {
+      throw const FormatException('Invalid inventory report response.');
+    }
+
+    return InventoryReportModel.fromRow(
+      Map<String, Object?>.from(response.first as Map),
     );
   }
 

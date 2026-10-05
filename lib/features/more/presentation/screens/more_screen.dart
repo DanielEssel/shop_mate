@@ -116,12 +116,12 @@ class MoreScreen extends StatelessWidget {
                             },
                           ),
                           _MoreItem(
-                            title: 'Reports',
+                            title: 'Inventory Report',
                             subtitle:
-                                'View sales, inventory and business performance reports.',
-                            icon: Icons.bar_chart_outlined,
+                                'Current stock position and inventory value.',
+                            icon: Icons.inventory_2_outlined,
                             onTap: () {
-                              _showComingSoon(context, 'Reports');
+                              context.push('/reports/inventory');
                             },
                           ),
                           _MoreItem(
