@@ -12,6 +12,7 @@ class PurchaseModel extends Purchase {
     required super.purchaseDate,
     required super.createdAt,
     required super.updatedAt,
+    super.supplierId,
     super.supplierName,
     super.supplierPhone,
     super.notes,
@@ -22,6 +23,7 @@ class PurchaseModel extends Purchase {
     return PurchaseModel(
       id: json['id'] as String,
       purchaseNumber: json['purchase_number'] as String,
+      supplierId: _optionalString(json['supplier_id'], 'supplier_id'),
       supplierName: json['supplier_name'] as String?,
       supplierPhone: json['supplier_phone'] as String?,
       totalAmount: (json['total_amount'] as num).toDouble(),
@@ -47,6 +49,7 @@ class PurchaseModel extends Purchase {
     return {
       'id': id,
       'purchase_number': purchaseNumber,
+      'supplier_id': supplierId,
       'supplier_name': supplierName,
       'supplier_phone': supplierPhone,
       'total_amount': totalAmount,
@@ -60,5 +63,14 @@ class PurchaseModel extends Purchase {
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
     };
+  }
+
+  /// Null when absent; a non-String value is malformed rather than coerced.
+  static String? _optionalString(Object? value, String field) {
+    if (value == null) return null;
+    if (value is! String) {
+      throw FormatException('Invalid purchase field: $field.');
+    }
+    return value;
   }
 }

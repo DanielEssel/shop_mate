@@ -14,6 +14,7 @@ class CreatePurchase {
     required DateTime purchaseDate,
     String? notes,
     required List<Map<String, dynamic>> items,
+    String? supplierId,
   }) {
     return _repository.createPurchase(
       supplierName: supplierName,
@@ -23,6 +24,7 @@ class CreatePurchase {
       purchaseDate: purchaseDate,
       notes: notes,
       items: items,
+      supplierId: supplierId,
     );
   }
 }

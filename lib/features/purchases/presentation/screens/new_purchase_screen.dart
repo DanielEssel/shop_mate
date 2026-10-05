@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../domain/entities/purchase_cart_item.dart';
 import '../providers/purchases_provider.dart';
 import '../../../products/domain/entities/product.dart';
+import '../../../suppliers/domain/entities/supplier.dart';
+import '../../../suppliers/presentation/providers/supplier_providers.dart';
 
 class NewPurchaseScreen extends ConsumerStatefulWidget {
   const NewPurchaseScreen({super.key});
@@ -26,6 +29,15 @@ class _NewPurchaseScreenState
   String _paymentMethod = 'cash';
   DateTime _purchaseDate = DateTime.now();
   bool _isSaving = false;
+
+  /// Saved supplier linked to this purchase, or null for manual entry. Held
+  /// in local state so provider refreshes never change the selection.
+  Supplier? _selectedSupplier;
+
+  /// What the user had typed before choosing a saved supplier, restored when
+  /// the selection is cleared.
+  String _manualSupplierName = '';
+  String _manualSupplierPhone = '';
 
   @override
   void dispose() {
@@ -51,6 +63,28 @@ class _NewPurchaseScreenState
     }
 
     return balance;
+  }
+
+  void _selectSupplier(Supplier supplier) {
+    setState(() {
+      if (_selectedSupplier == null) {
+        _manualSupplierName = _supplierNameController.text;
+        _manualSupplierPhone = _supplierPhoneController.text;
+      }
+      _selectedSupplier = supplier;
+      _supplierNameController.text = supplier.name;
+      _supplierPhoneController.text = supplier.phone ?? '';
+    });
+  }
+
+  void _clearSupplier() {
+    if (_selectedSupplier == null) return;
+
+    setState(() {
+      _selectedSupplier = null;
+      _supplierNameController.text = _manualSupplierName;
+      _supplierPhoneController.text = _manualSupplierPhone;
+    });
   }
 
   Future<void> _selectDate() async {
@@ -124,17 +158,26 @@ class _NewPurchaseScreenState
         };
       }).toList();
 
+      final selectedSupplier = _selectedSupplier;
+      final supplierName = selectedSupplier != null
+          ? selectedSupplier.name
+          : _supplierNameController.text;
+      final supplierPhone = selectedSupplier != null
+          ? selectedSupplier.phone ?? ''
+          : _supplierPhoneController.text;
+
       final purchase = await ref
           .read(createPurchaseProvider)
           .call(
+            supplierId: selectedSupplier?.id,
             supplierName:
-                _supplierNameController.text.trim().isEmpty
+                supplierName.trim().isEmpty
                     ? null
-                    : _supplierNameController.text.trim(),
+                    : supplierName.trim(),
             supplierPhone:
-                _supplierPhoneController.text.trim().isEmpty
+                supplierPhone.trim().isEmpty
                     ? null
-                    : _supplierPhoneController.text.trim(),
+                    : supplierPhone.trim(),
             paymentMethod: _paymentMethod,
             amountPaid: amountPaid,
             purchaseDate: _purchaseDate,
@@ -159,9 +202,20 @@ class _NewPurchaseScreenState
         'Purchase ${purchase.purchaseNumber} created successfully.',
       );
 
-      context.go('/purchases/${purchase.id}');
+      context.pushReplacement('/purchases/${purchase.id}');
     } catch (error) {
       if (!mounted) {
+        return;
+      }
+
+      if (_selectedSupplier != null &&
+          _isUnavailableSupplierError(error)) {
+        _clearSupplier();
+        ref.invalidate(suppliersProvider);
+        _showMessage(
+          'This supplier is no longer active. Please select another supplier.',
+          isError: true,
+        );
         return;
       }
 
@@ -178,6 +232,15 @@ class _NewPurchaseScreenState
     }
   }
 
+  /// The create_purchase RPC rejects a supplier that is missing, inactive or
+  /// from another shop with this exact message.
+  bool _isUnavailableSupplierError(Object error) {
+    return error is PostgrestException &&
+        error.message.contains(
+          'not found, inactive, or unavailable for this shop',
+        );
+  }
+
   void _showMessage(
     String message, {
     bool isError = false,
@@ -190,6 +253,15 @@ class _NewPurchaseScreenState
           behavior: SnackBarBehavior.floating,
         ),
       );
+  }
+
+  Widget _supplierPicker() {
+    return _SavedSupplierPicker(
+      selected: _selectedSupplier,
+      enabled: !_isSaving,
+      onSelected: _selectSupplier,
+      onCleared: _clearSupplier,
+    );
   }
 
   @override
@@ -274,6 +346,9 @@ class _NewPurchaseScreenState
                                 _supplierNameController,
                             supplierPhoneController:
                                 _supplierPhoneController,
+                            supplierPicker: _supplierPicker(),
+                            supplierLocked:
+                                _selectedSupplier != null,
                             notesController:
                                 _notesController,
                             purchaseDate: _purchaseDate,
@@ -334,6 +409,9 @@ class _NewPurchaseScreenState
                             _supplierNameController,
                         supplierPhoneController:
                             _supplierPhoneController,
+                        supplierPicker: _supplierPicker(),
+                        supplierLocked:
+                            _selectedSupplier != null,
                         notesController:
                             _notesController,
                         purchaseDate: _purchaseDate,
@@ -419,6 +497,8 @@ class _PurchaseForm extends StatelessWidget {
     required this.cart,
     required this.supplierNameController,
     required this.supplierPhoneController,
+    required this.supplierPicker,
+    required this.supplierLocked,
     required this.notesController,
     required this.purchaseDate,
     required this.onDateSelected,
@@ -429,6 +509,13 @@ class _PurchaseForm extends StatelessWidget {
 
   final TextEditingController supplierNameController;
   final TextEditingController supplierPhoneController;
+
+  /// Saved-supplier selector shown above the manual fields.
+  final Widget supplierPicker;
+
+  /// True while a saved supplier is selected: the name/phone snapshot comes
+  /// from that supplier and cannot be edited.
+  final bool supplierLocked;
   final TextEditingController notesController;
 
   final DateTime purchaseDate;
@@ -445,28 +532,51 @@ class _PurchaseForm extends StatelessWidget {
           icon: Icons.business_outlined,
           child: Column(
             children: [
+              supplierPicker,
+              const SizedBox(height: 14),
               TextFormField(
                 controller: supplierNameController,
+                readOnly: supplierLocked,
                 textCapitalization:
                     TextCapitalization.words,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Supplier name',
-                  hintText: 'e.g. ABC Distributors',
-                  prefixIcon: Icon(
+                  hintText: supplierLocked
+                      ? null
+                      : 'e.g. ABC Distributors',
+                  helperText: supplierLocked
+                      ? 'From the selected saved supplier'
+                      : null,
+                  prefixIcon: const Icon(
                     Icons.storefront_outlined,
                   ),
+                  suffixIcon: supplierLocked
+                      ? const Icon(
+                          Icons.lock_outline_rounded,
+                          size: 18,
+                        )
+                      : null,
                 ),
               ),
               const SizedBox(height: 14),
               TextFormField(
                 controller: supplierPhoneController,
+                readOnly: supplierLocked,
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Supplier phone',
-                  hintText: 'e.g. 0240000000',
-                  prefixIcon: Icon(
+                  hintText: supplierLocked
+                      ? 'No phone saved'
+                      : 'e.g. 0240000000',
+                  prefixIcon: const Icon(
                     Icons.phone_outlined,
                   ),
+                  suffixIcon: supplierLocked
+                      ? const Icon(
+                          Icons.lock_outline_rounded,
+                          size: 18,
+                        )
+                      : null,
                 ),
               ),
             ],
@@ -1261,4 +1371,201 @@ String _formatDate(DateTime date) {
       date.month.toString().padLeft(2, '0');
 
   return '$day/$month/${date.year}';
+}
+// =============================================================
+// SAVED SUPPLIER PICKER
+// =============================================================
+
+/// Optional link to a saved, active supplier. Loading, error and empty
+/// states only replace the selector; the manual supplier fields below stay
+/// usable in every state.
+class _SavedSupplierPicker extends ConsumerWidget {
+  const _SavedSupplierPicker({
+    required this.selected,
+    required this.enabled,
+    required this.onSelected,
+    required this.onCleared,
+  });
+
+  final Supplier? selected;
+  final bool enabled;
+  final ValueChanged<Supplier> onSelected;
+  final VoidCallback onCleared;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final suppliersAsync = ref.watch(suppliersProvider);
+    final selected = this.selected;
+
+    final Widget selector = suppliersAsync.when(
+      loading: () => const _PickerMessage(
+        icon: SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+        text: 'Loading saved suppliers...',
+      ),
+      error: (_, _) => _PickerMessage(
+        icon: const Icon(
+          Icons.error_outline_rounded,
+          size: 18,
+          color: Colors.red,
+        ),
+        text:
+            'Could not load saved suppliers. You can still enter '
+            'supplier details below.',
+        action: TextButton(
+          onPressed: () => ref.invalidate(suppliersProvider),
+          child: const Text('Retry'),
+        ),
+      ),
+      data: (suppliers) {
+        if (suppliers.isEmpty && selected == null) {
+          return const _PickerMessage(
+            icon: Icon(Icons.info_outline_rounded, size: 18),
+            text:
+                'No saved suppliers yet. Enter supplier details '
+                'below.',
+          );
+        }
+
+        return _SupplierDropdown(
+          suppliers: suppliers,
+          selected: selected,
+          enabled: enabled,
+          onSelected: onSelected,
+          onCleared: onCleared,
+        );
+      },
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        selector,
+        if (selected != null)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: enabled ? onCleared : null,
+              icon: const Icon(Icons.close_rounded, size: 18),
+              label: const Text('Clear supplier'),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _SupplierDropdown extends StatelessWidget {
+  const _SupplierDropdown({
+    required this.suppliers,
+    required this.selected,
+    required this.enabled,
+    required this.onSelected,
+    required this.onCleared,
+  });
+
+  final List<Supplier> suppliers;
+  final Supplier? selected;
+  final bool enabled;
+  final ValueChanged<Supplier> onSelected;
+  final VoidCallback onCleared;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = this.selected;
+
+    // Keep the current selection listed even if a refresh no longer returns
+    // it, so a background reload never silently drops the user's choice.
+    final options = [
+      ...suppliers,
+      if (selected != null &&
+          suppliers.every((supplier) => supplier.id != selected.id))
+        selected,
+    ];
+
+    return DropdownButtonFormField<String?>(
+      // Re-keyed so a selection cleared outside the dropdown is reflected.
+      key: ValueKey<String?>(selected?.id),
+      initialValue: selected?.id,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Saved supplier',
+        prefixIcon: Icon(Icons.business_outlined),
+      ),
+      items: [
+        const DropdownMenuItem<String?>(
+          value: null,
+          child: Text('No saved supplier'),
+        ),
+        for (final supplier in options)
+          DropdownMenuItem<String?>(
+            value: supplier.id,
+            child: Text(
+              supplier.phone == null
+                  ? supplier.name
+                  : '${supplier.name} · ${supplier.phone}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+      ],
+      onChanged: enabled
+          ? (id) {
+              if (id == null) {
+                onCleared();
+                return;
+              }
+              onSelected(
+                options.firstWhere((supplier) => supplier.id == id),
+              );
+            }
+          : null,
+    );
+  }
+}
+
+class _PickerMessage extends StatelessWidget {
+  const _PickerMessage({
+    required this.icon,
+    required this.text,
+    this.action,
+  });
+
+  final Widget icon;
+  final String text;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 10,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7F8FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        children: [
+          icon,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color: Colors.grey.shade700,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          ?action,
+        ],
+      ),
+    );
+  }
 }

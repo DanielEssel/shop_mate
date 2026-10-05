@@ -13,6 +13,7 @@ class Purchase {
     required this.purchaseDate,
     required this.createdAt,
     required this.updatedAt,
+    this.supplierId,
     this.supplierName,
     this.supplierPhone,
     this.notes,
@@ -22,6 +23,10 @@ class Purchase {
   final String id;
   final String purchaseNumber;
 
+  /// Linked supplier, or null for purchases recorded without one.
+  final String? supplierId;
+
+  /// Snapshot of the supplier name/phone as recorded on the purchase.
   final String? supplierName;
   final String? supplierPhone;
 

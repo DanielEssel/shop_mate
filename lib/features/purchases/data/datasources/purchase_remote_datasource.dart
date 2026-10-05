@@ -19,21 +19,30 @@ class PurchaseRemoteDataSource {
     required DateTime purchaseDate,
     String? notes,
     required List<Map<String, dynamic>> items,
+    String? supplierId,
   }) async {
+    final params = <String, Object?>{
+      'p_supplier_name': supplierName,
+      'p_supplier_phone': supplierPhone,
+      'p_payment_method': paymentMethod,
+      'p_amount_paid': amountPaid,
+      'p_purchase_date': purchaseDate
+          .toIso8601String()
+          .split('T')
+          .first,
+      'p_notes': notes,
+      'p_items': items,
+    };
+
+    // Unlinked purchases keep the original 7-parameter request; the trailing
+    // p_supplier_id is sent only when a supplier is linked.
+    if (supplierId != null) {
+      params['p_supplier_id'] = supplierId;
+    }
+
     final response = await _client.rpc(
       'create_purchase',
-      params: {
-        'p_supplier_name': supplierName,
-        'p_supplier_phone': supplierPhone,
-        'p_payment_method': paymentMethod,
-        'p_amount_paid': amountPaid,
-        'p_purchase_date': purchaseDate
-            .toIso8601String()
-            .split('T')
-            .first,
-        'p_notes': notes,
-        'p_items': items,
-      },
+      params: params,
     );
 
     return response.toString();

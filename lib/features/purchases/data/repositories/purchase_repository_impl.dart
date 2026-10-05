@@ -16,6 +16,7 @@ class PurchaseRepositoryImpl implements PurchaseRepository {
     required DateTime purchaseDate,
     String? notes,
     required List<Map<String, dynamic>> items,
+    String? supplierId,
   }) async {
     final purchaseId = await _remoteDataSource.createPurchase(
       supplierName: supplierName,
@@ -25,6 +26,7 @@ class PurchaseRepositoryImpl implements PurchaseRepository {
       purchaseDate: purchaseDate,
       notes: notes,
       items: items,
+      supplierId: supplierId,
     );
 
     return _remoteDataSource.getPurchaseById(purchaseId);
