@@ -150,8 +150,7 @@ class MoreScreen extends StatelessWidget {
                         items: [
                           _MoreItem(
                             title: 'Settings',
-                            subtitle:
-                                'Configure shop details, preferences and system options.',
+                            subtitle: 'Manage your shop profile and logo.',
                             icon: Icons.settings_outlined,
                             onTap: () {
                               context.push('/settings');

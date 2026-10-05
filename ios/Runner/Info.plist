@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>ShopMate needs access to your camera so you can take product photos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>ShopMate needs access to your photos so you can select a shop logo or product image.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
