@@ -1,6 +1,9 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../products/domain/entities/product.dart';
 import '../../domain/entities/cart_item.dart';
@@ -22,7 +25,10 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
 
   String _searchQuery = '';
   String _paymentMethod = 'cash';
+  String? _initialPaymentMethod;
   String? _customerId;
+  String? _creditRequestFingerprint;
+  String? _creditIdempotencyKey;
   bool _isProcessing = false;
 
   @override
@@ -88,16 +94,13 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
                   subtotal: subtotal,
                   paymentMethod: _paymentMethod,
                   amountPaid: amountPaid,
+                  initialPaymentMethod: _initialPaymentMethod,
                   change: change,
                   amountPaidController: _amountPaidController,
                   isProcessing: _isProcessing,
                   customers: customersAsync.value ?? const [],
                   customerId: _customerId,
-                  onCustomerChanged: (value) {
-                    setState(() {
-                      _customerId = value;
-                    });
-                  },
+                  onCustomerChanged: _changeCustomer,
                   onSearchChanged: (value) {
                     setState(() {
                       _searchQuery = value;
@@ -105,9 +108,8 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
                   },
                   onAddProduct: cartNotifier.addProduct,
                   onPaymentChanged: _changePaymentMethod,
-                  onAmountChanged: (_) {
-                    setState(() {});
-                  },
+                  onInitialPaymentMethodChanged: _changeInitialPaymentMethod,
+                  onAmountChanged: _handleAmountChanged,
                   onCompleteSale: () {
                     _completeSale(
                       cart: cart,
@@ -126,16 +128,13 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
                 subtotal: subtotal,
                 paymentMethod: _paymentMethod,
                 amountPaid: amountPaid,
+                initialPaymentMethod: _initialPaymentMethod,
                 change: change,
                 amountPaidController: _amountPaidController,
                 isProcessing: _isProcessing,
                 customers: customersAsync.value ?? const [],
                 customerId: _customerId,
-                onCustomerChanged: (value) {
-                  setState(() {
-                    _customerId = value;
-                  });
-                },
+                onCustomerChanged: _changeCustomer,
                 onSearchChanged: (value) {
                   setState(() {
                     _searchQuery = value;
@@ -143,9 +142,8 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
                 },
                 onAddProduct: cartNotifier.addProduct,
                 onPaymentChanged: _changePaymentMethod,
-                onAmountChanged: (_) {
-                  setState(() {});
-                },
+                onInitialPaymentMethodChanged: _changeInitialPaymentMethod,
+                onAmountChanged: _handleAmountChanged,
                 onCompleteSale: () {
                   _completeSale(
                     cart: cart,
@@ -164,6 +162,7 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
   void _changePaymentMethod(String value) {
     setState(() {
       _paymentMethod = value;
+      _initialPaymentMethod = null;
 
       if (value == 'credit') {
         _amountPaidController.clear();
@@ -171,26 +170,117 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
     });
   }
 
+  void _changeCustomer(String? customerId) {
+    setState(() {
+      _customerId = customerId;
+    });
+  }
+
+  void _changeInitialPaymentMethod(String? paymentMethod) {
+    setState(() {
+      _initialPaymentMethod = paymentMethod;
+    });
+  }
+
+  void _handleAmountChanged(String value) {
+    final amount = double.tryParse(value.trim());
+
+    setState(() {
+      if (_paymentMethod == 'credit' && (amount == null || amount == 0)) {
+        _initialPaymentMethod = null;
+      }
+    });
+  }
+
+  String _creditIdempotencyKeyFor({
+    required String customerId,
+    required List<CartItem> cart,
+    required double initialPaymentAmount,
+    required String? initialPaymentMethod,
+  }) {
+    final requestFingerprint = [
+      customerId,
+      initialPaymentAmount.toStringAsFixed(2),
+      initialPaymentMethod ?? '',
+      ...cart.map((item) => '${item.product.id}:${item.quantity}'),
+    ].join('|');
+
+    if (_creditRequestFingerprint != requestFingerprint ||
+        _creditIdempotencyKey == null) {
+      _creditRequestFingerprint = requestFingerprint;
+      _creditIdempotencyKey = _generateUuidV4();
+    }
+
+    return _creditIdempotencyKey!;
+  }
+
+  String _generateUuidV4() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(
+      16,
+      (_) => random.nextInt(256),
+      growable: false,
+    );
+
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+    final hex = bytes
+        .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+        .join();
+
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-'
+        '${hex.substring(20)}';
+  }
+
   Future<void> _completeSale({
     required List<CartItem> cart,
     required double subtotal,
     String? customerId,
   }) async {
+    final isCreditSale = _paymentMethod == 'credit';
+
     if (cart.isEmpty) {
       _showMessage('Add at least one product.');
       return;
     }
 
-    final amountPaid = double.tryParse(_amountPaidController.text) ?? 0;
+    final rawAmount = _amountPaidController.text.trim();
+    final parsedAmount = double.tryParse(rawAmount);
+    final amountPaid = parsedAmount ?? 0;
 
-    if (_paymentMethod != 'credit' && amountPaid < subtotal) {
+    if (!isCreditSale && amountPaid < subtotal) {
       _showMessage('Amount paid cannot be less than the total.');
       return;
     }
 
-    if (_paymentMethod == 'credit' && customerId == null) {
-      _showMessage('Please select a customer for a credit sale.');
-      return;
+    if (isCreditSale) {
+      if (customerId == null) {
+        _showMessage('Please select a customer for a credit sale.');
+        return;
+      }
+
+      if (rawAmount.isNotEmpty &&
+          (parsedAmount == null || !parsedAmount.isFinite)) {
+        _showMessage('Enter a valid initial payment amount.');
+        return;
+      }
+
+      if (amountPaid < 0) {
+        _showMessage('Initial payment cannot be negative.');
+        return;
+      }
+
+      if (amountPaid > subtotal) {
+        _showMessage('Initial payment cannot exceed the sale total.');
+        return;
+      }
+
+      if (amountPaid > 0 && _initialPaymentMethod == null) {
+        _showMessage('Select a tender method for the initial payment.');
+        return;
+      }
     }
 
     setState(() {
@@ -198,18 +288,38 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
     });
 
     try {
-      final items = cart.map((item) {
-        return {'product_id': item.product.id, 'quantity': item.quantity};
-      }).toList();
+      final createSale = ref.read(createSaleProvider);
+      final sale = isCreditSale
+          ? await createSale.createCreditSaleWithInitialPayment(
+              customerId: customerId!,
+              items: cart,
+              initialPaymentAmount: amountPaid,
+              initialPaymentMethod: amountPaid > 0
+                  ? _initialPaymentMethod
+                  : null,
+              idempotencyKey: _creditIdempotencyKeyFor(
+                customerId: customerId,
+                cart: cart,
+                initialPaymentAmount: amountPaid,
+                initialPaymentMethod: amountPaid > 0
+                    ? _initialPaymentMethod
+                    : null,
+              ),
+            )
+          : await createSale.call(
+              customerId: customerId,
+              items: cart.map((item) {
+                return {
+                  'product_id': item.product.id,
+                  'quantity': item.quantity,
+                };
+              }).toList(),
+              paymentMethod: _paymentMethod,
+              amountPaid: amountPaid,
+            );
 
-      final sale = await ref
-          .read(createSaleProvider)
-          .call(
-            customerId: customerId,
-            items: items,
-            paymentMethod: _paymentMethod,
-            amountPaid: _paymentMethod == 'credit' ? 0 : amountPaid,
-          );
+      _creditRequestFingerprint = null;
+      _creditIdempotencyKey = null;
 
       ref.read(saleCartProvider.notifier).clearCart();
 
@@ -219,7 +329,7 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
 
       if (!mounted) return;
 
-      await showDialog<void>(
+      final viewReceipt = await showDialog<bool>(
         context: context,
         builder: (dialogContext) {
           return AlertDialog(
@@ -246,11 +356,18 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
               ],
             ),
             actions: [
-              FilledButton(
+              TextButton(
                 onPressed: () {
-                  Navigator.of(dialogContext).pop();
+                  Navigator.of(dialogContext).pop(false);
                 },
                 child: const Text('Done'),
+              ),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop(true);
+                },
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: const Text('View receipt'),
               ),
             ],
           );
@@ -258,12 +375,18 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
       );
 
       if (mounted) {
-        context.go('/sales');
+        context.go(
+          viewReceipt == true ? '/sales/${sale.id}/receipt' : '/sales',
+        );
       }
     } catch (error) {
       if (!mounted) return;
 
-      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+      _showMessage(
+        isCreditSale
+            ? _friendlySaleError(error)
+            : error.toString().replaceFirst('Exception: ', ''),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -271,6 +394,39 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
         });
       }
     }
+  }
+
+  String _friendlySaleError(Object error) {
+    final message = error is PostgrestException
+        ? error.message
+        : error.toString();
+    final normalized = message.toLowerCase();
+
+    if (normalized.contains('customer is required') ||
+        (normalized.contains('customer') &&
+            (normalized.contains('not found') ||
+                normalized.contains('inactive')))) {
+      return 'Select an active customer for this credit sale.';
+    }
+
+    if (normalized.contains('payment method') ||
+        normalized.contains('tender method') ||
+        normalized.contains('initial payment')) {
+      if (normalized.contains('exceeds sale total')) {
+        return 'Initial payment cannot exceed the sale total.';
+      }
+      return 'Check the initial payment amount and tender method.';
+    }
+
+    if (normalized.contains('idempotency key')) {
+      return 'This credit-sale request key was already used with different details. Review the sale and try again.';
+    }
+
+    if (normalized.contains('insufficient stock')) {
+      return 'Stock is insufficient for one or more items in this sale.';
+    }
+
+    return 'Unable to complete the sale. Please try again.';
   }
 
   void _showMessage(String message) {
@@ -293,12 +449,14 @@ class _MobileSaleLayout extends StatelessWidget {
     required this.subtotal,
     required this.paymentMethod,
     required this.amountPaid,
+    required this.initialPaymentMethod,
     required this.change,
     required this.amountPaidController,
     required this.isProcessing,
     required this.onSearchChanged,
     required this.onAddProduct,
     required this.onPaymentChanged,
+    required this.onInitialPaymentMethodChanged,
     required this.onAmountChanged,
     required this.onCompleteSale,
     required this.customers,
@@ -313,6 +471,7 @@ class _MobileSaleLayout extends StatelessWidget {
   final double subtotal;
   final String paymentMethod;
   final double amountPaid;
+  final String? initialPaymentMethod;
   final double change;
   final TextEditingController amountPaidController;
   final bool isProcessing;
@@ -324,6 +483,7 @@ class _MobileSaleLayout extends StatelessWidget {
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<Product> onAddProduct;
   final ValueChanged<String> onPaymentChanged;
+  final ValueChanged<String?> onInitialPaymentMethodChanged;
   final ValueChanged<String> onAmountChanged;
   final VoidCallback onCompleteSale;
 
@@ -372,10 +532,12 @@ class _MobileSaleLayout extends StatelessWidget {
               subtotal: subtotal,
               paymentMethod: paymentMethod,
               amountPaid: amountPaid,
+              initialPaymentMethod: initialPaymentMethod,
               change: change,
               amountPaidController: amountPaidController,
               isProcessing: isProcessing,
               onPaymentChanged: onPaymentChanged,
+              onInitialPaymentMethodChanged: onInitialPaymentMethodChanged,
               onAmountChanged: onAmountChanged,
               onCompleteSale: onCompleteSale,
             ),
@@ -414,6 +576,7 @@ class _DesktopSaleLayout extends StatelessWidget {
     required this.subtotal,
     required this.paymentMethod,
     required this.amountPaid,
+    required this.initialPaymentMethod,
     required this.change,
     required this.amountPaidController,
     required this.isProcessing,
@@ -423,6 +586,7 @@ class _DesktopSaleLayout extends StatelessWidget {
     required this.onSearchChanged,
     required this.onAddProduct,
     required this.onPaymentChanged,
+    required this.onInitialPaymentMethodChanged,
     required this.onAmountChanged,
     required this.onCompleteSale,
   });
@@ -434,6 +598,7 @@ class _DesktopSaleLayout extends StatelessWidget {
   final double subtotal;
   final String paymentMethod;
   final double amountPaid;
+  final String? initialPaymentMethod;
   final double change;
   final TextEditingController amountPaidController;
   final bool isProcessing;
@@ -445,6 +610,7 @@ class _DesktopSaleLayout extends StatelessWidget {
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<Product> onAddProduct;
   final ValueChanged<String> onPaymentChanged;
+  final ValueChanged<String?> onInitialPaymentMethodChanged;
   final ValueChanged<String> onAmountChanged;
   final VoidCallback onCompleteSale;
 
@@ -517,10 +683,12 @@ class _DesktopSaleLayout extends StatelessWidget {
             subtotal: subtotal,
             paymentMethod: paymentMethod,
             amountPaid: amountPaid,
+            initialPaymentMethod: initialPaymentMethod,
             change: change,
             amountPaidController: amountPaidController,
             isProcessing: isProcessing,
             onPaymentChanged: onPaymentChanged,
+            onInitialPaymentMethodChanged: onInitialPaymentMethodChanged,
             onAmountChanged: onAmountChanged,
             onCompleteSale: onCompleteSale,
           ),
@@ -731,10 +899,12 @@ class _MobileCartSection extends StatelessWidget {
     required this.subtotal,
     required this.paymentMethod,
     required this.amountPaid,
+    required this.initialPaymentMethod,
     required this.change,
     required this.amountPaidController,
     required this.isProcessing,
     required this.onPaymentChanged,
+    required this.onInitialPaymentMethodChanged,
     required this.onAmountChanged,
     required this.onCompleteSale,
   });
@@ -743,11 +913,13 @@ class _MobileCartSection extends StatelessWidget {
   final double subtotal;
   final String paymentMethod;
   final double amountPaid;
+  final String? initialPaymentMethod;
   final double change;
   final TextEditingController amountPaidController;
   final bool isProcessing;
 
   final ValueChanged<String> onPaymentChanged;
+  final ValueChanged<String?> onInitialPaymentMethodChanged;
   final ValueChanged<String> onAmountChanged;
   final VoidCallback onCompleteSale;
 
@@ -794,6 +966,35 @@ class _MobileCartSection extends StatelessWidget {
             const SizedBox(height: 10),
             _TotalRow(label: 'Change', value: change),
           ],
+          if (paymentMethod == 'credit') ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: amountPaidController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              onChanged: onAmountChanged,
+              decoration: const InputDecoration(
+                labelText: 'Initial payment',
+                prefixText: 'GHS ',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            if (amountPaid > 0) ...[
+              const SizedBox(height: 12),
+              _InitialPaymentMethodSelector(
+                value: initialPaymentMethod,
+                onChanged: onInitialPaymentMethodChanged,
+              ),
+            ],
+            const SizedBox(height: 10),
+            _TotalRow(
+              label: 'Outstanding',
+              value: (subtotal - amountPaid)
+                  .clamp(0.0, double.infinity)
+                  .toDouble(),
+            ),
+          ],
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -826,10 +1027,12 @@ class _DesktopCartSection extends StatelessWidget {
     required this.subtotal,
     required this.paymentMethod,
     required this.amountPaid,
+    required this.initialPaymentMethod,
     required this.change,
     required this.amountPaidController,
     required this.isProcessing,
     required this.onPaymentChanged,
+    required this.onInitialPaymentMethodChanged,
     required this.onAmountChanged,
     required this.onCompleteSale,
   });
@@ -838,11 +1041,13 @@ class _DesktopCartSection extends StatelessWidget {
   final double subtotal;
   final String paymentMethod;
   final double amountPaid;
+  final String? initialPaymentMethod;
   final double change;
   final TextEditingController amountPaidController;
   final bool isProcessing;
 
   final ValueChanged<String> onPaymentChanged;
+  final ValueChanged<String?> onInitialPaymentMethodChanged;
   final ValueChanged<String> onAmountChanged;
   final VoidCallback onCompleteSale;
 
@@ -889,6 +1094,35 @@ class _DesktopCartSection extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             _TotalRow(label: 'Change', value: change),
+          ],
+          if (paymentMethod == 'credit') ...[
+            const SizedBox(height: 12),
+            TextField(
+              controller: amountPaidController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              onChanged: onAmountChanged,
+              decoration: const InputDecoration(
+                labelText: 'Initial payment',
+                prefixText: 'GHS ',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            if (amountPaid > 0) ...[
+              const SizedBox(height: 12),
+              _InitialPaymentMethodSelector(
+                value: initialPaymentMethod,
+                onChanged: onInitialPaymentMethodChanged,
+              ),
+            ],
+            const SizedBox(height: 8),
+            _TotalRow(
+              label: 'Outstanding',
+              value: (subtotal - amountPaid)
+                  .clamp(0.0, double.infinity)
+                  .toDouble(),
+            ),
           ],
           const SizedBox(height: 16),
           SizedBox(
@@ -1016,6 +1250,36 @@ class _PaymentSelector extends StatelessWidget {
           onChanged(value);
         }
       },
+    );
+  }
+}
+
+class _InitialPaymentMethodSelector extends StatelessWidget {
+  const _InitialPaymentMethodSelector({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Initial payment method',
+        border: OutlineInputBorder(),
+      ),
+      hint: const Text('Select tender method'),
+      items: const [
+        DropdownMenuItem(value: 'cash', child: Text('Cash')),
+        DropdownMenuItem(value: 'mobile_money', child: Text('Mobile Money')),
+        DropdownMenuItem(value: 'card', child: Text('Card')),
+        DropdownMenuItem(value: 'bank_transfer', child: Text('Bank Transfer')),
+      ],
+      onChanged: onChanged,
     );
   }
 }

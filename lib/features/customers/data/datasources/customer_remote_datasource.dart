@@ -19,24 +19,14 @@ class CustomerRemoteDataSource {
         .order('created_at', ascending: false);
 
     return (response as List)
-        .map(
-          (json) => CustomerModel.fromJson(
-            Map<String, dynamic>.from(json),
-          ),
-        )
+        .map((json) => CustomerModel.fromJson(Map<String, dynamic>.from(json)))
         .toList();
   }
 
   Future<CustomerModel> getCustomerById(String id) async {
-    final response = await _client
-        .from(_table)
-        .select()
-        .eq('id', id)
-        .single();
+    final response = await _client.from(_table).select().eq('id', id).single();
 
-    return CustomerModel.fromJson(
-      Map<String, dynamic>.from(response),
-    );
+    return CustomerModel.fromJson(Map<String, dynamic>.from(response));
   }
 
   Future<CustomerCreditStatementModel> getCustomerCreditStatement(
@@ -93,18 +83,10 @@ class CustomerRemoteDataSource {
     );
   }
 
-  Future<CustomerModel> createCustomer(
-    Map<String, dynamic> data,
-  ) async {
-    final response = await _client
-        .from(_table)
-        .insert(data)
-        .select()
-        .single();
+  Future<CustomerModel> createCustomer(Map<String, dynamic> data) async {
+    final response = await _client.from(_table).insert(data).select().single();
 
-    return CustomerModel.fromJson(
-      Map<String, dynamic>.from(response),
-    );
+    return CustomerModel.fromJson(Map<String, dynamic>.from(response));
   }
 
   Future<CustomerModel> updateCustomer(
@@ -113,17 +95,12 @@ class CustomerRemoteDataSource {
   ) async {
     final response = await _client
         .from(_table)
-        .update({
-          ...data,
-          'updated_at': DateTime.now().toIso8601String(),
-        })
+        .update({...data, 'updated_at': DateTime.now().toIso8601String()})
         .eq('id', id)
         .select()
         .single();
 
-    return CustomerModel.fromJson(
-      Map<String, dynamic>.from(response),
-    );
+    return CustomerModel.fromJson(Map<String, dynamic>.from(response));
   }
 
   Future<void> deleteCustomer(String id) async {

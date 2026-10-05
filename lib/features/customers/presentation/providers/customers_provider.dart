@@ -15,23 +15,17 @@ import '../../domain/usecases/record_customer_payment.dart';
 import '../../domain/usecases/update_customer.dart';
 
 final customerRepositoryProvider = Provider<CustomerRepository>((ref) {
-  final dataSource = CustomerRemoteDataSource(
-    SupabaseService.client,
-  );
+  final dataSource = CustomerRemoteDataSource(SupabaseService.client);
 
   return CustomerRepositoryImpl(dataSource);
 });
 
 final getCustomersProvider = Provider<GetCustomers>((ref) {
-  return GetCustomers(
-    ref.read(customerRepositoryProvider),
-  );
+  return GetCustomers(ref.read(customerRepositoryProvider));
 });
 
 final getCustomerProvider = Provider<GetCustomer>((ref) {
-  return GetCustomer(
-    ref.read(customerRepositoryProvider),
-  );
+  return GetCustomer(ref.read(customerRepositoryProvider));
 });
 
 final getCustomerCreditStatementProvider = Provider<GetCustomerCreditStatement>(
@@ -45,27 +39,21 @@ final recordCustomerPaymentProvider = Provider<RecordCustomerPayment>((ref) {
 });
 
 final createCustomerProvider = Provider<CreateCustomer>((ref) {
-  return CreateCustomer(
-    ref.read(customerRepositoryProvider),
-  );
+  return CreateCustomer(ref.read(customerRepositoryProvider));
 });
 
 final updateCustomerProvider = Provider<UpdateCustomer>((ref) {
-  return UpdateCustomer(
-    ref.read(customerRepositoryProvider),
-  );
+  return UpdateCustomer(ref.read(customerRepositoryProvider));
 });
 
 final deleteCustomerProvider = Provider<DeleteCustomer>((ref) {
-  return DeleteCustomer(
-    ref.read(customerRepositoryProvider),
-  );
+  return DeleteCustomer(ref.read(customerRepositoryProvider));
 });
 
 final customersProvider =
     AsyncNotifierProvider<CustomersNotifier, List<Customer>>(
-  CustomersNotifier.new,
-);
+      CustomersNotifier.new,
+    );
 
 class CustomersNotifier extends AsyncNotifier<List<Customer>> {
   @override
@@ -76,9 +64,7 @@ class CustomersNotifier extends AsyncNotifier<List<Customer>> {
   Future<void> refresh() async {
     state = const AsyncLoading();
 
-    state = await AsyncValue.guard(
-      () => ref.read(getCustomersProvider).call(),
-    );
+    state = await AsyncValue.guard(() => ref.read(getCustomersProvider).call());
   }
 
   Future<Customer> createCustomer({
@@ -97,24 +83,17 @@ class CustomersNotifier extends AsyncNotifier<List<Customer>> {
       notes: notes,
     );
 
-    final created = await ref
-        .read(createCustomerProvider)
-        .call(customer);
+    final created = await ref.read(createCustomerProvider).call(customer);
 
     final current = state.value ?? <Customer>[];
 
-    state = AsyncData([
-      created,
-      ...current,
-    ]);
+    state = AsyncData([created, ...current]);
 
     return created;
   }
 
   Future<Customer> updateCustomer(Customer customer) async {
-    final updated = await ref
-        .read(updateCustomerProvider)
-        .call(customer);
+    final updated = await ref.read(updateCustomerProvider).call(customer);
 
     final current = state.value ?? <Customer>[];
 
@@ -128,20 +107,15 @@ class CustomersNotifier extends AsyncNotifier<List<Customer>> {
   }
 
   Future<void> deleteCustomer(String id) async {
-    await ref
-        .read(deleteCustomerProvider)
-        .call(id);
+    await ref.read(deleteCustomerProvider).call(id);
 
     final current = state.value ?? <Customer>[];
 
-    state = AsyncData(
-      current.where((customer) => customer.id != id).toList(),
-    );
+    state = AsyncData(current.where((customer) => customer.id != id).toList());
   }
 }
 
-final customerProvider =
-    FutureProvider.family<Customer, String>((ref, id) {
+final customerProvider = FutureProvider.family<Customer, String>((ref, id) {
   return ref.read(getCustomerProvider).call(id);
 });
 

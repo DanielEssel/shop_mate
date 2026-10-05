@@ -88,7 +88,7 @@ class MoreScreen extends StatelessWidget {
                                 'Track shop expenses and operating costs.',
                             icon: Icons.account_balance_wallet_outlined,
                             onTap: () {
-                              _showComingSoon(context, 'Expenses');
+                              context.push('/expenses');
                             },
                           ),
                         ],
@@ -106,6 +106,15 @@ class MoreScreen extends StatelessWidget {
                       _FeatureGrid(
                         isDesktop: isDesktop,
                         items: [
+                          _MoreItem(
+                            title: 'Business Performance',
+                            subtitle:
+                                'Sales, costs, expenses and profit for any period.',
+                            icon: Icons.insights_outlined,
+                            onTap: () {
+                              context.push('/reports/business-performance');
+                            },
+                          ),
                           _MoreItem(
                             title: 'Reports',
                             subtitle:

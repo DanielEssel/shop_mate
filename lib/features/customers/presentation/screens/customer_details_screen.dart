@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,10 +11,7 @@ import '../providers/customers_provider.dart';
 import '../widgets/customer_credit_section.dart';
 
 class CustomerDetailsScreen extends ConsumerStatefulWidget {
-  const CustomerDetailsScreen({
-    super.key,
-    required this.customerId,
-  });
+  const CustomerDetailsScreen({super.key, required this.customerId});
 
   final String customerId;
 
@@ -24,8 +20,7 @@ class CustomerDetailsScreen extends ConsumerStatefulWidget {
       _CustomerDetailsScreenState();
 }
 
-class _CustomerDetailsScreenState
-    extends ConsumerState<CustomerDetailsScreen> {
+class _CustomerDetailsScreenState extends ConsumerState<CustomerDetailsScreen> {
   final _formKey = GlobalKey<FormState>();
 
   final _nameController = TextEditingController();
@@ -126,9 +121,7 @@ class _CustomerDetailsScreenState
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Unable to update customer: ${_friendlyError(error)}',
-          ),
+          content: Text('Unable to update customer: ${_friendlyError(error)}'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -168,9 +161,7 @@ class _CustomerDetailsScreenState
     if (confirmed != true) return;
 
     try {
-      await ref
-          .read(customersProvider.notifier)
-          .deleteCustomer(customer.id);
+      await ref.read(customersProvider.notifier).deleteCustomer(customer.id);
 
       ref.invalidate(customerProvider(widget.customerId));
 
@@ -211,9 +202,7 @@ class _CustomerDetailsScreenState
       return null;
     }
 
-    final emailRegex = RegExp(
-      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-    );
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
     if (!emailRegex.hasMatch(email)) {
       return 'Enter a valid email address';
@@ -234,9 +223,7 @@ class _CustomerDetailsScreenState
 
   @override
   Widget build(BuildContext context) {
-    final customerAsync = ref.watch(
-      customerProvider(widget.customerId),
-    );
+    final customerAsync = ref.watch(customerProvider(widget.customerId));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -245,9 +232,7 @@ class _CustomerDetailsScreenState
         elevation: 0,
         leading: IconButton(
           tooltip: 'Back',
-          onPressed: _isSaving
-              ? null
-              : () => Navigator.of(context).pop(),
+          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back_rounded),
         ),
         title: Text(
@@ -259,16 +244,17 @@ class _CustomerDetailsScreenState
         ),
         actions: [
           customerAsync.whenOrNull(
-            data: (customer) {
-              if (_isEditing) return null;
+                data: (customer) {
+                  if (_isEditing) return null;
 
-              return IconButton(
-                tooltip: 'Edit customer',
-                onPressed: _startEditing,
-                icon: const Icon(Icons.edit_outlined),
-              );
-            },
-          ) ?? const SizedBox.shrink(),
+                  return IconButton(
+                    tooltip: 'Edit customer',
+                    onPressed: _startEditing,
+                    icon: const Icon(Icons.edit_outlined),
+                  );
+                },
+              ) ??
+              const SizedBox.shrink(),
           const SizedBox(width: AppSpacing.xs),
         ],
       ),
@@ -278,9 +264,7 @@ class _CustomerDetailsScreenState
           return _DetailsError(
             message: error.toString(),
             onRetry: () {
-              ref.invalidate(
-                customerProvider(widget.customerId),
-              );
+              ref.invalidate(customerProvider(widget.customerId));
             },
           );
         },
@@ -294,18 +278,13 @@ class _CustomerDetailsScreenState
 
                 return SingleChildScrollView(
                   padding: EdgeInsets.all(
-                    isDesktop
-                        ? AppSpacing.xl
-                        : AppSpacing.md,
+                    isDesktop ? AppSpacing.xl : AppSpacing.md,
                   ),
                   child: Center(
                     child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: 1000,
-                      ),
+                      constraints: const BoxConstraints(maxWidth: 1000),
                       child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _CustomerHeader(
                             customer: customer,
@@ -326,8 +305,7 @@ class _CustomerDetailsScreenState
                             notesController: _notesController,
                             emailValidator: _emailValidator,
                             onSave: () => _saveCustomer(customer),
-                            onCancel: () =>
-                                _cancelEditing(customer),
+                            onCancel: () => _cancelEditing(customer),
                           ),
                           if (!_isEditing) ...[
                             const SizedBox(height: AppSpacing.xl),
@@ -340,8 +318,7 @@ class _CustomerDetailsScreenState
                           if (!_isEditing)
                             _CustomerActions(
                               customer: customer,
-                              onDeactivate: () =>
-                                  _deactivateCustomer(customer),
+                              onDeactivate: () => _deactivateCustomer(customer),
                             ),
                           const SizedBox(height: 60),
                         ],
@@ -377,15 +354,11 @@ class _CustomerHeader extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(
-        isDesktop ? AppSpacing.xl : AppSpacing.lg,
-      ),
+      padding: EdgeInsets.all(isDesktop ? AppSpacing.xl : AppSpacing.lg),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(
-          color: AppColors.border,
-        ),
+        border: Border.all(color: AppColors.border),
         boxShadow: AppShadows.card,
       ),
       child: Row(
@@ -395,17 +368,12 @@ class _CustomerHeader extends StatelessWidget {
             height: isDesktop ? 78 : 64,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: AppColors.primary.withValues(
-                alpha: 0.10,
-              ),
-              borderRadius: BorderRadius.circular(
-                AppRadius.lg,
-              ),
+              color: AppColors.primary.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
             ),
             child: Text(
               initial,
-              style: AppTypography.textTheme.displayMedium!
-                  .copyWith(
+              style: AppTypography.textTheme.displayMedium!.copyWith(
                 color: AppColors.primary,
                 fontWeight: FontWeight.w800,
               ),
@@ -414,56 +382,41 @@ class _CustomerHeader extends StatelessWidget {
           const SizedBox(width: AppSpacing.lg),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   customer.name,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTypography
-                      .textTheme
-                      .headlineMedium!
-                      .copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                      ),
+                  style: AppTypography.textTheme.headlineMedium!.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
-                if (customer.phone != null &&
-                    customer.phone!.trim().isNotEmpty)
+                if (customer.phone != null && customer.phone!.trim().isNotEmpty)
                   Text(
                     customer.phone!,
-                    style: AppTypography
-                        .textTheme
-                        .bodyMedium!
-                        .copyWith(
-                          color: AppColors.textSecondary,
-                        ),
+                    style: AppTypography.textTheme.bodyMedium!.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   )
                 else
                   Text(
                     'No phone number',
-                    style: AppTypography
-                        .textTheme
-                        .bodyMedium!
-                        .copyWith(
-                          color: AppColors.textSecondary,
-                        ),
+                    style: AppTypography.textTheme.bodyMedium!.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 const SizedBox(height: AppSpacing.sm),
-                _StatusBadge(
-                  isActive: customer.isActive,
-                ),
+                _StatusBadge(isActive: customer.isActive),
               ],
             ),
           ),
           if (isDesktop && !isEditing)
             OutlinedButton.icon(
               onPressed: () {},
-              icon: const Icon(
-                Icons.person_outline_rounded,
-              ),
+              icon: const Icon(Icons.person_outline_rounded),
               label: const Text('Customer'),
             ),
         ],
@@ -509,37 +462,27 @@ class _DetailsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(
-        isDesktop ? AppSpacing.xl : AppSpacing.lg,
-      ),
+      padding: EdgeInsets.all(isDesktop ? AppSpacing.xl : AppSpacing.lg),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(
-          color: AppColors.border,
-        ),
+        border: Border.all(color: AppColors.border),
         boxShadow: AppShadows.card,
       ),
       child: Form(
         key: formKey,
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Expanded(
                   child: Text(
-                    isEditing
-                        ? 'Edit Customer'
-                        : 'Customer Information',
-                    style: AppTypography
-                        .textTheme
-                        .titleLarge!
-                        .copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
-                        ),
+                    isEditing ? 'Edit Customer' : 'Customer Information',
+                    style: AppTypography.textTheme.titleLarge!.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
                 if (!isEditing)
@@ -561,47 +504,29 @@ class _DetailsCard extends StatelessWidget {
                 emailValidator: emailValidator,
               )
             else
-              _ReadOnlyFields(
-                customer: customer,
-                isDesktop: isDesktop,
-              ),
+              _ReadOnlyFields(customer: customer, isDesktop: isDesktop),
             if (isEditing) ...[
               const SizedBox(height: AppSpacing.xl),
-              const Divider(
-                color: AppColors.border,
-                height: 1,
-              ),
+              const Divider(color: AppColors.border, height: 1),
               const SizedBox(height: AppSpacing.lg),
               Row(
-                mainAxisAlignment:
-                    MainAxisAlignment.end,
+                mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   OutlinedButton(
-                    onPressed:
-                        isSaving ? null : onCancel,
+                    onPressed: isSaving ? null : onCancel,
                     child: const Text('Cancel'),
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   FilledButton.icon(
-                    onPressed:
-                        isSaving ? null : onSave,
+                    onPressed: isSaving ? null : onSave,
                     icon: isSaving
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child:
-                                CircularProgressIndicator(
-                              strokeWidth: 2,
-                            ),
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(
-                            Icons.save_outlined,
-                          ),
-                    label: Text(
-                      isSaving
-                          ? 'Saving...'
-                          : 'Save Changes',
-                    ),
+                        : const Icon(Icons.save_outlined),
+                    label: Text(isSaving ? 'Saving...' : 'Save Changes'),
                   ),
                 ],
               ),
@@ -643,11 +568,9 @@ class _EditableFields extends StatelessWidget {
           label: 'Customer Name',
           icon: Icons.person_outline_rounded,
           requiredField: true,
-          textCapitalization:
-              TextCapitalization.words,
+          textCapitalization: TextCapitalization.words,
           validator: (value) {
-            if (value == null ||
-                value.trim().isEmpty) {
+            if (value == null || value.trim().isEmpty) {
               return 'Customer name is required';
             }
 
@@ -667,8 +590,7 @@ class _EditableFields extends StatelessWidget {
                   controller: phoneController,
                   label: 'Phone Number',
                   icon: Icons.phone_outlined,
-                  keyboardType:
-                      TextInputType.phone,
+                  keyboardType: TextInputType.phone,
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
@@ -677,8 +599,7 @@ class _EditableFields extends StatelessWidget {
                   controller: emailController,
                   label: 'Email Address',
                   icon: Icons.email_outlined,
-                  keyboardType:
-                      TextInputType.emailAddress,
+                  keyboardType: TextInputType.emailAddress,
                   validator: emailValidator,
                 ),
               ),
@@ -696,8 +617,7 @@ class _EditableFields extends StatelessWidget {
             controller: emailController,
             label: 'Email Address',
             icon: Icons.email_outlined,
-            keyboardType:
-                TextInputType.emailAddress,
+            keyboardType: TextInputType.emailAddress,
             validator: emailValidator,
           ),
         ],
@@ -707,8 +627,7 @@ class _EditableFields extends StatelessWidget {
           label: 'Address',
           icon: Icons.location_on_outlined,
           maxLines: 2,
-          textCapitalization:
-              TextCapitalization.sentences,
+          textCapitalization: TextCapitalization.sentences,
         ),
         const SizedBox(height: AppSpacing.md),
         _DetailsField(
@@ -716,8 +635,7 @@ class _EditableFields extends StatelessWidget {
           label: 'Notes',
           icon: Icons.notes_outlined,
           maxLines: 4,
-          textCapitalization:
-              TextCapitalization.sentences,
+          textCapitalization: TextCapitalization.sentences,
         ),
       ],
     );
@@ -725,10 +643,7 @@ class _EditableFields extends StatelessWidget {
 }
 
 class _ReadOnlyFields extends StatelessWidget {
-  const _ReadOnlyFields({
-    required this.customer,
-    required this.isDesktop,
-  });
+  const _ReadOnlyFields({required this.customer, required this.isDesktop});
 
   final Customer customer;
   final bool isDesktop;
@@ -768,9 +683,7 @@ class _ReadOnlyFields extends StatelessWidget {
       return Column(
         children: [
           for (int index = 0; index < fields.length; index++) ...[
-            _ReadOnlyField(
-              data: fields[index],
-            ),
+            _ReadOnlyField(data: fields[index]),
             if (index != fields.length - 1)
               const SizedBox(height: AppSpacing.sm),
           ],
@@ -790,9 +703,7 @@ class _ReadOnlyFields extends StatelessWidget {
         childAspectRatio: 4.5,
       ),
       itemBuilder: (context, index) {
-        return _ReadOnlyField(
-          data: fields[index],
-        );
+        return _ReadOnlyField(data: fields[index]);
       },
     );
   }
@@ -811,9 +722,7 @@ class _ReadOnlyFieldData {
 }
 
 class _ReadOnlyField extends StatelessWidget {
-  const _ReadOnlyField({
-    required this.data,
-  });
+  const _ReadOnlyField({required this.data});
 
   final _ReadOnlyFieldData data;
 
@@ -822,68 +731,41 @@ class _ReadOnlyField extends StatelessWidget {
     final value = data.value?.trim();
 
     return Container(
-      padding: const EdgeInsets.all(
-        AppSpacing.md,
-      ),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.background,
-        borderRadius:
-            BorderRadius.circular(AppRadius.md),
-        border: Border.all(
-          color: AppColors.border,
-        ),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
-          Icon(
-            data.icon,
-            size: 20,
-            color: AppColors.textSecondary,
-          ),
+          Icon(data.icon, size: 20, color: AppColors.textSecondary),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              mainAxisAlignment:
-                  MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   data.label,
-                  style: AppTypography
-                      .textTheme
-                      .labelSmall!
-                      .copyWith(
-                        color:
-                            AppColors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                  style: AppTypography.textTheme.labelSmall!.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  value == null || value.isEmpty
-                      ? 'Not provided'
-                      : value,
+                  value == null || value.isEmpty ? 'Not provided' : value,
                   maxLines: 2,
-                  overflow:
-                      TextOverflow.ellipsis,
-                  style: AppTypography
-                      .textTheme
-                      .bodyMedium!
-                      .copyWith(
-                        color:
-                            value == null ||
-                                    value.isEmpty
-                                ? AppColors
-                                    .textSecondary
-                                : AppColors
-                                    .textPrimary,
-                        fontWeight:
-                            value == null ||
-                                    value.isEmpty
-                                ? FontWeight.w400
-                                : FontWeight.w600,
-                      ),
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.textTheme.bodyMedium!.copyWith(
+                    color: value == null || value.isEmpty
+                        ? AppColors.textSecondary
+                        : AppColors.textPrimary,
+                    fontWeight: value == null || value.isEmpty
+                        ? FontWeight.w400
+                        : FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -901,8 +783,7 @@ class _DetailsField extends StatelessWidget {
     required this.icon,
     this.requiredField = false,
     this.keyboardType,
-    this.textCapitalization =
-        TextCapitalization.none,
+    this.textCapitalization = TextCapitalization.none,
     this.maxLines = 1,
     this.validator,
   });
@@ -924,74 +805,37 @@ class _DetailsField extends StatelessWidget {
       textCapitalization: textCapitalization,
       maxLines: maxLines,
       validator: validator,
-      style: AppTypography
-          .textTheme
-          .bodyMedium!
-          .copyWith(
-            color: AppColors.textPrimary,
-          ),
+      style: AppTypography.textTheme.bodyMedium!.copyWith(
+        color: AppColors.textPrimary,
+      ),
       decoration: InputDecoration(
-        labelText: requiredField
-            ? '$label *'
-            : label,
-        prefixIcon: Icon(
-          icon,
-          color: AppColors.textSecondary,
-        ),
+        labelText: requiredField ? '$label *' : label,
+        prefixIcon: Icon(icon, color: AppColors.textSecondary),
         filled: true,
         fillColor: AppColors.background,
-        contentPadding:
-            const EdgeInsets.symmetric(
+        contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
           vertical: AppSpacing.md,
         ),
         border: OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(
-            AppRadius.md,
-          ),
-          borderSide: const BorderSide(
-            color: AppColors.border,
-          ),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: const BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(
-            AppRadius.md,
-          ),
-          borderSide: const BorderSide(
-            color: AppColors.border,
-          ),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: const BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(
-            AppRadius.md,
-          ),
-          borderSide: const BorderSide(
-            color: AppColors.primary,
-            width: 1.5,
-          ),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(
-            AppRadius.md,
-          ),
-          borderSide: const BorderSide(
-            color: AppColors.error,
-          ),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: const BorderSide(color: AppColors.error),
         ),
-        focusedErrorBorder:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(
-            AppRadius.md,
-          ),
-          borderSide: const BorderSide(
-            color: AppColors.error,
-            width: 1.5,
-          ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
         ),
       ),
     );
@@ -999,10 +843,7 @@ class _DetailsField extends StatelessWidget {
 }
 
 class _CustomerActions extends StatelessWidget {
-  const _CustomerActions({
-    required this.customer,
-    required this.onDeactivate,
-  });
+  const _CustomerActions({required this.customer, required this.onDeactivate});
 
   final Customer customer;
   final VoidCallback onDeactivate;
@@ -1011,59 +852,38 @@ class _CustomerActions extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(
-        AppSpacing.lg,
-      ),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius:
-            BorderRadius.circular(
-          AppRadius.lg,
-        ),
-        border: Border.all(
-          color: AppColors.border,
-        ),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Customer Actions',
-            style: AppTypography
-                .textTheme
-                .titleMedium!
-                .copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                ),
+            style: AppTypography.textTheme.titleMedium!.copyWith(
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+            ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             'Manage the status of this customer.',
-            style: AppTypography
-                .textTheme
-                .bodySmall!
-                .copyWith(
-                  color: AppColors.textSecondary,
-                ),
+            style: AppTypography.textTheme.bodySmall!.copyWith(
+              color: AppColors.textSecondary,
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           if (customer.isActive)
             OutlinedButton.icon(
               onPressed: onDeactivate,
-              icon: const Icon(
-                Icons.person_off_outlined,
-              ),
-              label: const Text(
-                'Deactivate Customer',
-              ),
+              icon: const Icon(Icons.person_off_outlined),
+              label: const Text('Deactivate Customer'),
               style: OutlinedButton.styleFrom(
-                foregroundColor:
-                    AppColors.error,
-                side: const BorderSide(
-                  color: AppColors.error,
-                ),
+                foregroundColor: AppColors.error,
+                side: const BorderSide(color: AppColors.error),
               ),
             ),
         ],
@@ -1073,44 +893,29 @@ class _CustomerActions extends StatelessWidget {
 }
 
 class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({
-    required this.isActive,
-  });
+  const _StatusBadge({required this.isActive});
 
   final bool isActive;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(
+      padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.sm,
         vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
         color: isActive
-            ? AppColors.success.withValues(
-                alpha: 0.10,
-              )
-            : AppColors.error.withValues(
-                alpha: 0.10,
-              ),
-        borderRadius:
-            BorderRadius.circular(
-          AppRadius.pill,
-        ),
+            ? AppColors.success.withValues(alpha: 0.10)
+            : AppColors.error.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       child: Text(
         isActive ? 'Active' : 'Inactive',
-        style: AppTypography
-            .textTheme
-            .labelSmall!
-            .copyWith(
-              color: isActive
-                  ? AppColors.success
-                  : AppColors.error,
-              fontWeight: FontWeight.w700,
-            ),
+        style: AppTypography.textTheme.labelSmall!.copyWith(
+          color: isActive ? AppColors.success : AppColors.error,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -1121,17 +926,12 @@ class _DetailsLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: CircularProgressIndicator(),
-    );
+    return const Center(child: CircularProgressIndicator());
   }
 }
 
 class _DetailsError extends StatelessWidget {
-  const _DetailsError({
-    required this.message,
-    required this.onRetry,
-  });
+  const _DetailsError({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
@@ -1140,10 +940,7 @@ class _DetailsError extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding:
-            const EdgeInsets.all(
-          AppSpacing.xl,
-        ),
+        padding: const EdgeInsets.all(AppSpacing.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1152,48 +949,29 @@ class _DetailsError extends StatelessWidget {
               size: 48,
               color: AppColors.error,
             ),
-            const SizedBox(
-              height: AppSpacing.md,
-            ),
+            const SizedBox(height: AppSpacing.md),
             Text(
               'Unable to load customer',
-              style: AppTypography
-                  .textTheme
-                  .titleMedium!
-                  .copyWith(
-                    fontWeight:
-                        FontWeight.w800,
-                    color:
-                        AppColors.textPrimary,
-                  ),
+              style: AppTypography.textTheme.titleMedium!.copyWith(
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+              ),
             ),
-            const SizedBox(
-              height: AppSpacing.xs,
-            ),
+            const SizedBox(height: AppSpacing.xs),
             Text(
               message,
               textAlign: TextAlign.center,
               maxLines: 4,
-              overflow:
-                  TextOverflow.ellipsis,
-              style: AppTypography
-                  .textTheme
-                  .bodySmall!
-                  .copyWith(
-                    color:
-                        AppColors.textSecondary,
-                  ),
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.textTheme.bodySmall!.copyWith(
+                color: AppColors.textSecondary,
+              ),
             ),
-            const SizedBox(
-              height: AppSpacing.md,
-            ),
+            const SizedBox(height: AppSpacing.md),
             OutlinedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(
-                Icons.refresh_rounded,
-              ),
-              label:
-                  const Text('Retry'),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
             ),
           ],
         ),

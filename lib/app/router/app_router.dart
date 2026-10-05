@@ -12,6 +12,8 @@ import '../../features/customers/presentation/screens/add_customer_screen.dart';
 import '../../features/customers/presentation/screens/customer_details_screen.dart';
 import '../../features/customers/presentation/screens/customers_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
+import '../../features/expenses/presentation/screens/expense_details_screen.dart';
+import '../../features/expenses/presentation/screens/expenses_screen.dart';
 import '../../features/inventory/presentation/screens/inventory_screen.dart';
 import '../../features/inventory/presentation/screens/low_stock_screen.dart';
 import '../../features/inventory/presentation/screens/stock_adjustment_screen.dart';
@@ -22,10 +24,12 @@ import '../../features/products/presentation/screens/add_product_screen.dart';
 import '../../features/products/presentation/screens/product_details_screen.dart';
 import '../../features/products/presentation/screens/product_edit_screen.dart';
 import '../../features/products/presentation/screens/products_screen.dart';
+import '../../features/reports/presentation/screens/business_performance_screen.dart';
 import '../../features/purchases/presentation/screens/new_purchase_screen.dart';
 import '../../features/purchases/presentation/screens/purchase_details_screen.dart';
 import '../../features/purchases/presentation/screens/purchases_screen.dart';
 import '../../features/sales/presentation/screens/new_sale_screen.dart';
+import '../../features/sales/presentation/screens/receipt_preview_screen.dart';
 import '../../features/sales/presentation/screens/sale_details_screen.dart';
 import '../../features/sales/presentation/screens/sales_screen.dart';
 import '../../features/shop/domain/entities/shop_access.dart';
@@ -45,6 +49,12 @@ const Set<String> _statusRoutes = {
 };
 
 const String _loadingRoute = '/loading';
+
+/// The app-wide navigator. Detail routes that must open above both the shell
+/// and the root-level screens (e.g. Customer Details) are attached here.
+final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
+  debugLabel: 'root',
+);
 
 /// The app router. It is a provider (not a global) so its redirect can read
 /// the signed-in user's shop access.
@@ -70,6 +80,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 
   final router = GoRouter(
+    navigatorKey: _rootNavigatorKey,
     initialLocation: '/dashboard',
 
     refreshListenable: Listenable.merge([authRefresh, accessRefresh]),
@@ -176,9 +187,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) {
                       final product = state.extra as Product;
 
-                      return EditProductScreen(
-                        product: product,
-                      );
+                      return EditProductScreen(product: product);
                     },
                   ),
                   GoRoute(
@@ -186,9 +195,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) {
                       final productId = state.pathParameters['productId']!;
 
-                      return ProductDetailsScreen(
-                        productId: productId,
-                      );
+                      return ProductDetailsScreen(productId: productId);
                     },
                   ),
                 ],
@@ -249,13 +256,31 @@ final routerProvider = Provider<GoRouter>((ref) {
                       return const NewSaleScreen();
                     },
                   ),
+                  // On the root navigator so it can be pushed from screens
+                  // outside the shell (Customer Details -> Credit Statement)
+                  // without go_router appending a second copy of this
+                  // StatefulShellRoute, whose duplicate GlobalKeys assert.
+                  // Its receipt child must use the same navigator so it opens
+                  // above the details page instead of underneath it.
                   GoRoute(
                     path: ':saleId',
+                    parentNavigatorKey: _rootNavigatorKey,
                     builder: (context, state) {
                       final saleId = state.pathParameters['saleId']!;
 
                       return SaleDetailsScreen(saleId: saleId);
                     },
+                    routes: [
+                      GoRoute(
+                        path: 'receipt',
+                        parentNavigatorKey: _rootNavigatorKey,
+                        builder: (context, state) {
+                          final saleId = state.pathParameters['saleId']!;
+
+                          return ReceiptPreviewScreen(saleId: saleId);
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -328,6 +353,40 @@ final routerProvider = Provider<GoRouter>((ref) {
             },
           ),
         ],
+      ),
+
+      // =============================================================
+      // EXPENSES
+      // =============================================================
+      // Root-level like Customers/Purchases: history and details stack on
+      // the root navigator, outside the StatefulShellRoute.
+      GoRoute(
+        path: '/expenses',
+        builder: (context, state) {
+          return const ExpensesScreen();
+        },
+        routes: [
+          GoRoute(
+            path: ':expenseId',
+            builder: (context, state) {
+              final expenseId = state.pathParameters['expenseId']!;
+
+              return ExpenseDetailsScreen(expenseId: expenseId);
+            },
+          ),
+        ],
+      ),
+
+      // =============================================================
+      // REPORTS
+      // =============================================================
+      // Root-level like Expenses: opened from More and stacked on the root
+      // navigator, outside the StatefulShellRoute.
+      GoRoute(
+        path: '/reports/business-performance',
+        builder: (context, state) {
+          return const BusinessPerformanceScreen();
+        },
       ),
     ],
   );

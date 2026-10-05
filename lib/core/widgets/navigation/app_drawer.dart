@@ -80,7 +80,7 @@ class AppDrawer extends StatelessWidget {
                   _DrawerItem(
                     icon: Icons.account_balance_wallet_outlined,
                     title: 'Expenses',
-                    onTap: () => _showComingSoon(context, 'Expenses'),
+                    onTap: () => _navigate(context, '/expenses'),
                   ),
 
                   _DrawerItem(

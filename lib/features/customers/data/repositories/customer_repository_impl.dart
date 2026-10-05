@@ -45,17 +45,14 @@ class CustomerRepositoryImpl implements CustomerRepository {
 
   @override
   Future<Customer> updateCustomer(Customer customer) {
-    return _remoteDataSource.updateCustomer(
-      customer.id,
-      {
-        'name': customer.name,
-        'phone': customer.phone,
-        'email': customer.email,
-        'address': customer.address,
-        'notes': customer.notes,
-        'is_active': customer.isActive,
-      },
-    );
+    return _remoteDataSource.updateCustomer(customer.id, {
+      'name': customer.name,
+      'phone': customer.phone,
+      'email': customer.email,
+      'address': customer.address,
+      'notes': customer.notes,
+      'is_active': customer.isActive,
+    });
   }
 
   @override
