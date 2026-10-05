@@ -42,6 +42,41 @@ final suppliersProvider = FutureProvider.autoDispose<List<Supplier>>((ref) {
   return ref.read(getSuppliersProvider).call();
 });
 
+/// Which suppliers the supplier list shows.
+enum SupplierStatusFilter {
+  active('Active'),
+  inactive('Inactive'),
+  all('All');
+
+  const SupplierStatusFilter(this.label);
+
+  final String label;
+}
+
+/// Suppliers for one status filter, ordered by name. Inactive and All read
+/// every supplier from the server; Inactive then keeps only inactive ones.
+final suppliersByStatusProvider = FutureProvider.autoDispose
+    .family<List<Supplier>, SupplierStatusFilter>((ref, filter) async {
+      final getSuppliers = ref.read(getSuppliersProvider);
+
+      return switch (filter) {
+        SupplierStatusFilter.active => getSuppliers(),
+        SupplierStatusFilter.all => getSuppliers(includeInactive: true),
+        SupplierStatusFilter.inactive => (await getSuppliers(
+          includeInactive: true,
+        )).where((supplier) => !supplier.isActive).toList(growable: false),
+      };
+    });
+
+/// Refreshes every supplier list and the given supplier after a write.
+void invalidateSupplierData(WidgetRef ref, {String? supplierId}) {
+  ref.invalidate(suppliersProvider);
+  ref.invalidate(suppliersByStatusProvider);
+  if (supplierId != null) {
+    ref.invalidate(supplierProvider(supplierId));
+  }
+}
+
 final supplierProvider = FutureProvider.autoDispose.family<Supplier, String>((
   ref,
   id,

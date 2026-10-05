@@ -37,6 +37,10 @@ import '../../features/shop/domain/entities/shop_access.dart';
 import '../../features/shop/presentation/providers/shop_provider.dart';
 import '../../features/shop/presentation/screens/register_shop_screen.dart';
 import '../../features/shop/presentation/screens/shop_status_screens.dart';
+import '../../features/suppliers/presentation/screens/add_supplier_screen.dart';
+import '../../features/suppliers/presentation/screens/edit_supplier_screen.dart';
+import '../../features/suppliers/presentation/screens/supplier_details_screen.dart';
+import '../../features/suppliers/presentation/screens/suppliers_screen.dart';
 
 const Set<String> _authRoutes = {'/login', '/signup'};
 
@@ -352,6 +356,44 @@ final routerProvider = Provider<GoRouter>((ref) {
 
               return PurchaseDetailsScreen(purchaseId: purchaseId);
             },
+          ),
+        ],
+      ),
+
+      // =============================================================
+      // SUPPLIERS
+      // =============================================================
+      // Root-level like Customers/Purchases. 'new' is declared before
+      // ':supplierId' so it is never read as an id.
+      GoRoute(
+        path: '/suppliers',
+        builder: (context, state) {
+          return const SuppliersScreen();
+        },
+        routes: [
+          GoRoute(
+            path: 'new',
+            builder: (context, state) {
+              return const AddSupplierScreen();
+            },
+          ),
+          GoRoute(
+            path: ':supplierId',
+            builder: (context, state) {
+              final supplierId = state.pathParameters['supplierId']!;
+
+              return SupplierDetailsScreen(supplierId: supplierId);
+            },
+            routes: [
+              GoRoute(
+                path: 'edit',
+                builder: (context, state) {
+                  final supplierId = state.pathParameters['supplierId']!;
+
+                  return EditSupplierScreen(supplierId: supplierId);
+                },
+              ),
+            ],
           ),
         ],
       ),

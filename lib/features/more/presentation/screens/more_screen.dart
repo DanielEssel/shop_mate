@@ -79,7 +79,7 @@ class MoreScreen extends StatelessWidget {
                                 'Manage suppliers and supplier information.',
                             icon: Icons.local_shipping_outlined,
                             onTap: () {
-                              _showComingSoon(context, 'Suppliers');
+                              context.push('/suppliers');
                             },
                           ),
                           _MoreItem(

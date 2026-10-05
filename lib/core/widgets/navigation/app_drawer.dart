@@ -74,7 +74,7 @@ class AppDrawer extends StatelessWidget {
                   _DrawerItem(
                     icon: Icons.local_shipping_outlined,
                     title: 'Suppliers',
-                    onTap: () => _showComingSoon(context, 'Suppliers'),
+                    onTap: () => _navigate(context, '/suppliers'),
                   ),
 
                   _DrawerItem(
@@ -86,7 +86,8 @@ class AppDrawer extends StatelessWidget {
                   _DrawerItem(
                     icon: Icons.bar_chart_outlined,
                     title: 'Reports',
-                    onTap: () => _showComingSoon(context, 'Reports'),
+                    onTap: () =>
+                        _navigate(context, '/reports/business-performance'),
                   ),
 
                   _DrawerItem(
