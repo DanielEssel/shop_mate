@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../product_categories/presentation/widgets/product_category_field.dart';
 import '../../domain/entities/product.dart';
 import '../providers/products_provider.dart';
 
@@ -40,18 +41,8 @@ class _AddProductScreenState
       TextEditingController(text: '10');
   final _descriptionController = TextEditingController();
 
-  String? _selectedCategory;
-
-  final List<String> _categories = [
-    'Groceries',
-    'Beverages',
-    'Dairy',
-    'Grains',
-    'Cooking',
-    'Household',
-    'Personal Care',
-    'Other',
-  ];
+  /// Optional; null saves the product without a category.
+  String? _selectedCategoryId;
 
   @override
   void initState() {
@@ -290,13 +281,6 @@ class _AddProductScreenState
       return;
     }
 
-    if (_selectedCategory == null) {
-      _showMessage(
-        'Please select a category.',
-      );
-      return;
-    }
-
     final costPrice = double.tryParse(
       _costPriceController.text.trim(),
     );
@@ -357,7 +341,7 @@ try {
   final product = Product(
     id: '',
     name: _nameController.text.trim(),
-    category: _selectedCategory!,
+    categoryId: _selectedCategoryId,
     sku: _nullableValue(_skuController.text),
     barcode: _nullableValue(_barcodeController.text),
     description: _nullableValue(_descriptionController.text),
@@ -836,17 +820,13 @@ try {
           const SizedBox(
             height: AppSpacing.lg,
           ),
-          _AppDropdown(
-            value: _selectedCategory,
-            label: 'Category',
-            hint: 'Select category',
-            items: _categories,
+          ProductCategoryField(
+            selectedCategoryId: _selectedCategoryId,
             onChanged: _isSaving
                 ? null
                 : (value) {
                     setState(() {
-                      _selectedCategory =
-                          value;
+                      _selectedCategoryId = value;
                     });
                   },
           ),
@@ -1217,59 +1197,6 @@ class _AppTextField
                 : null,
         prefixText: prefixText,
       ),
-    );
-  }
-}
-
-// =============================================================================
-// DROPDOWN
-// =============================================================================
-
-class _AppDropdown
-    extends StatelessWidget {
-  const _AppDropdown({
-    required this.value,
-    required this.label,
-    required this.hint,
-    required this.items,
-    required this.onChanged,
-  });
-
-  final String? value;
-  final String label;
-  final String hint;
-  final List<String> items;
-  final ValueChanged<String?>? onChanged;
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    return DropdownButtonFormField<String>(
-      initialValue: value,
-      decoration:
-          const InputDecoration(
-        labelText: 'Category',
-        prefixIcon: Icon(
-          Icons.category_outlined,
-        ),
-      ),
-      hint: Text(hint),
-      items: items.map((item) {
-        return DropdownMenuItem(
-          value: item,
-          child: Text(item),
-        );
-      }).toList(),
-      onChanged: onChanged,
-      validator: (value) {
-        if (value == null ||
-            value.isEmpty) {
-          return 'Please select a category.';
-        }
-
-        return null;
-      },
     );
   }
 }

@@ -15,6 +15,7 @@ import 'package:shopmate/features/shop/domain/entities/shop_branding.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_branding_exception.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_branding_result.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_logo_upload.dart';
+import 'package:shopmate/features/shop/domain/entities/shop_profile_update.dart';
 import 'package:shopmate/features/shop/domain/repositories/shop_branding_repository.dart';
 import 'package:shopmate/features/shop/presentation/providers/shop_branding_providers.dart';
 import 'package:shopmate/features/shop/presentation/providers/shop_provider.dart';
@@ -62,6 +63,12 @@ class _Repository implements ShopBrandingRepository {
   @override
   Future<ShopBrandingResult> removeLogo(String shopId) =>
       throw UnimplementedError();
+
+  @override
+  Future<ShopBrandingResult> updateProfile(
+    String shopId,
+    ShopProfileUpdate update,
+  ) => throw UnimplementedError();
 }
 
 final _scaffoldKey = GlobalKey<ScaffoldState>();

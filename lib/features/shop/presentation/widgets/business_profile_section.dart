@@ -8,12 +8,13 @@ import '../../../../app/theme/app_typography.dart';
 import '../../domain/entities/shop_branding_exception.dart';
 import '../../domain/entities/shop_branding_result.dart';
 import '../../domain/entities/shop_logo_upload.dart';
+import '../../domain/entities/shop_profile_update.dart';
 import '../providers/shop_branding_providers.dart';
 import '../providers/shop_logo_picker_provider.dart';
 import '../providers/shop_provider.dart';
 import '../utils/shop_branding_messages.dart';
 
-enum _BusyAction { none, uploading, removing }
+enum _BusyAction { none, uploading, removing, savingProfile }
 
 /// Shop name, phone and logo. Owners can change or remove the logo; staff
 /// see it read-only. The backend remains the authorization boundary.
@@ -113,6 +114,80 @@ class _BusinessProfileSectionState
     }
   }
 
+  Future<void> _editName(ShopBrandingResult result) async {
+    if (_isBusy) return;
+    final branding = result.branding;
+
+    final value = await showDialog<String>(
+      context: context,
+      builder: (_) => _EditProfileFieldDialog(
+        title: 'Edit business name',
+        label: 'Business name',
+        initialValue: branding.name,
+        textCapitalization: TextCapitalization.words,
+        validator: (value) => ShopProfileUpdate.isValidName(value)
+            ? null
+            : 'Business name must be 2 to 80 characters.',
+      ),
+    );
+    if (value == null || !mounted) return;
+    if (value.trim() == branding.name.trim()) return;
+
+    await _saveProfile(name: value, phone: branding.phone);
+  }
+
+  Future<void> _editPhone(ShopBrandingResult result) async {
+    if (_isBusy) return;
+    final branding = result.branding;
+
+    final value = await showDialog<String>(
+      context: context,
+      builder: (_) => _EditProfileFieldDialog(
+        title: 'Edit phone number',
+        label: 'Phone number',
+        initialValue: branding.phone ?? '',
+        helperText: 'Leave blank to remove the phone number.',
+        keyboardType: TextInputType.phone,
+        validator: (value) {
+          final phone = value.trim();
+          return phone.isEmpty || ShopProfileUpdate.isValidPhone(phone)
+              ? null
+              : 'Enter a valid phone number.';
+        },
+      ),
+    );
+    if (value == null || !mounted) return;
+    if (value.trim() == (branding.phone ?? '').trim()) return;
+
+    await _saveProfile(name: branding.name, phone: value);
+  }
+
+  Future<void> _saveProfile({required String name, String? phone}) async {
+    final ShopProfileUpdate update;
+    try {
+      update = ShopProfileUpdate(name: name, phone: phone);
+    } on ShopBrandingException catch (error) {
+      _showMessage(shopProfileErrorMessage(error));
+      return;
+    }
+
+    setState(() => _busy = _BusyAction.savingProfile);
+    try {
+      await ref.read(shopBrandingProvider.notifier).updateProfile(update);
+      if (mounted) _showMessage('Business profile updated.');
+    } on ShopBrandingException catch (error) {
+      if (mounted) _showMessage(shopProfileErrorMessage(error));
+    } catch (_) {
+      if (mounted) {
+        _showMessage(
+          "We couldn't save the business profile. Please try again.",
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = _BusyAction.none);
+    }
+  }
+
   /// The file extension from the picked name, falling back to its MIME type.
   /// [ShopLogoUpload] decides whether it is acceptable.
   static String _extensionOf(String name, String? mimeType) {
@@ -163,6 +238,8 @@ class _BusinessProfileSectionState
             busy: _busy,
             onChangeLogo: _changeLogo,
             onRemoveLogo: _removeLogo,
+            onEditName: () => _editName(result),
+            onEditPhone: () => _editPhone(result),
           );
         },
       ),
@@ -177,6 +254,8 @@ class _ProfileContent extends StatelessWidget {
     required this.busy,
     required this.onChangeLogo,
     required this.onRemoveLogo,
+    required this.onEditName,
+    required this.onEditPhone,
   });
 
   final ShopBrandingResult result;
@@ -184,6 +263,8 @@ class _ProfileContent extends StatelessWidget {
   final _BusyAction busy;
   final VoidCallback onChangeLogo;
   final VoidCallback onRemoveLogo;
+  final VoidCallback onEditName;
+  final VoidCallback onEditPhone;
 
   @override
   Widget build(BuildContext context) {
@@ -214,9 +295,11 @@ class _ProfileContent extends StatelessWidget {
         if (isBusy) ...[
           const SizedBox(height: AppSpacing.sm),
           Text(
-            busy == _BusyAction.uploading
-                ? 'Updating logo...'
-                : 'Removing logo...',
+            switch (busy) {
+              _BusyAction.uploading => 'Updating logo...',
+              _BusyAction.removing => 'Removing logo...',
+              _ => 'Saving business profile...',
+            },
             textAlign: TextAlign.center,
             style: AppTypography.textTheme.bodySmall!.copyWith(
               color: AppColors.textSecondary,
@@ -264,8 +347,20 @@ class _ProfileContent extends StatelessWidget {
         const SizedBox(height: AppSpacing.lg),
         const Divider(height: 1),
         const SizedBox(height: AppSpacing.sm),
-        _InfoRow(label: 'Shop name', value: branding.name),
-        _InfoRow(label: 'Phone', value: branding.phone),
+        _InfoRow(
+          label: 'Business name',
+          value: branding.name,
+          editLabel: 'Edit business name',
+          onEdit: isOwner && !isBusy ? onEditName : null,
+          showEdit: isOwner,
+        ),
+        _InfoRow(
+          label: 'Phone',
+          value: branding.phone,
+          editLabel: 'Edit phone number',
+          onEdit: isOwner && !isBusy ? onEditPhone : null,
+          showEdit: isOwner,
+        ),
       ],
     );
   }
@@ -321,7 +416,7 @@ class _LogoPreview extends StatelessWidget {
                   )
                 : _Initial(initial: initial),
           ),
-          if (busy != _BusyAction.none)
+          if (busy == _BusyAction.uploading || busy == _BusyAction.removing)
             Container(
               width: _size,
               height: _size,
@@ -357,10 +452,23 @@ class _Initial extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    this.editLabel,
+    this.onEdit,
+    this.showEdit = false,
+  });
 
   final String label;
   final String? value;
+
+  /// Accessible description of the Edit action, e.g. "Edit phone number".
+  final String? editLabel;
+
+  /// Null disables the Edit button (e.g. while saving).
+  final VoidCallback? onEdit;
+  final bool showEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -392,8 +500,91 @@ class _InfoRow extends StatelessWidget {
               ),
             ),
           ),
+          if (showEdit) ...[
+            const SizedBox(width: AppSpacing.sm),
+            Semantics(
+              button: true,
+              label: editLabel,
+              excludeSemantics: true,
+              child: TextButton(onPressed: onEdit, child: const Text('Edit')),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// Edits one business profile field. Returns the entered text on Save, or
+/// null on Cancel. Saving happens in the section, not in the dialog.
+class _EditProfileFieldDialog extends StatefulWidget {
+  const _EditProfileFieldDialog({
+    required this.title,
+    required this.label,
+    required this.initialValue,
+    required this.validator,
+    this.helperText,
+    this.keyboardType,
+    this.textCapitalization = TextCapitalization.none,
+  });
+
+  final String title;
+  final String label;
+  final String initialValue;
+  final String? Function(String value) validator;
+  final String? helperText;
+  final TextInputType? keyboardType;
+  final TextCapitalization textCapitalization;
+
+  @override
+  State<_EditProfileFieldDialog> createState() =>
+      _EditProfileFieldDialogState();
+}
+
+class _EditProfileFieldDialogState extends State<_EditProfileFieldDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialValue,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    Navigator.of(context).pop(_controller.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: Form(
+        key: _formKey,
+        child: TextFormField(
+          controller: _controller,
+          autofocus: true,
+          keyboardType: widget.keyboardType,
+          textCapitalization: widget.textCapitalization,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _save(),
+          validator: (value) => widget.validator(value ?? ''),
+          decoration: InputDecoration(
+            labelText: widget.label,
+            helperText: widget.helperText,
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(onPressed: _save, child: const Text('Save')),
+      ],
     );
   }
 }

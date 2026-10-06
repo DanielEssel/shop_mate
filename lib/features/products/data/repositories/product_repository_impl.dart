@@ -28,7 +28,7 @@ class ProductRepositoryImpl implements ProductRepository {
   Future<Product> createProduct(Product product) {
     return _remoteDataSource.createProduct({
       'name': product.name,
-      'category': product.category,
+      'category_id': product.categoryId,
       'sku': product.sku,
       'barcode': product.barcode,
       'description': product.description,
@@ -46,7 +46,7 @@ Future<Product> updateProduct(Product product) {
     product.id,
     {
       'name': product.name,
-      'category': product.category,
+      'category_id': product.categoryId,
       'sku': product.sku,
       'barcode': product.barcode,
       'description': product.description,

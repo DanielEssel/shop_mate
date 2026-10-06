@@ -79,6 +79,15 @@ class ShopBrandingRemoteDataSource {
     return response;
   }
 
+  /// Saves the current shop's business name and phone. The RPC resolves the
+  /// shop from the caller's session and only accepts the shop owner.
+  Future<void> updateShopProfile({required String name, String? phone}) async {
+    await _client.rpc(
+      'update_shop_profile',
+      params: {'p_name': name, 'p_phone': phone},
+    );
+  }
+
   Future<void> deleteLogoObjects(List<String> logoPaths) async {
     await _client.storage.from(bucket).remove(logoPaths);
   }

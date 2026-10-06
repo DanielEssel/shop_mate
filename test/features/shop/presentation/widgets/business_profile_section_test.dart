@@ -14,6 +14,7 @@ import 'package:shopmate/features/shop/domain/entities/shop_branding.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_branding_exception.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_branding_result.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_logo_upload.dart';
+import 'package:shopmate/features/shop/domain/entities/shop_profile_update.dart';
 import 'package:shopmate/features/shop/domain/repositories/shop_branding_repository.dart';
 import 'package:shopmate/features/shop/presentation/providers/shop_branding_providers.dart';
 import 'package:shopmate/features/shop/presentation/providers/shop_logo_picker_provider.dart';
@@ -37,6 +38,8 @@ class _FakeBrandingRepository implements ShopBrandingRepository {
   String? logoPath;
   Uint8List? logoBytes;
   String? phone;
+  String name = "Danny's Shop";
+  ShopBrandingException? profileFailure;
   bool logoDownloadFails = false;
   ShopBrandingException? readFailure;
   ShopBrandingException? uploadFailure;
@@ -50,7 +53,7 @@ class _FakeBrandingRepository implements ShopBrandingRepository {
     return ShopBrandingResult(
       branding: ShopBranding(
         shopId: shopId,
-        name: "Danny's Shop",
+        name: name,
         phone: phone,
         logoPath: logoPath,
       ),
@@ -92,6 +95,20 @@ class _FakeBrandingRepository implements ShopBrandingRepository {
     if (failure != null) throw failure;
     logoPath = null;
     logoBytes = null;
+    return _result(shopId);
+  }
+
+  @override
+  Future<ShopBrandingResult> updateProfile(
+    String shopId,
+    ShopProfileUpdate update,
+  ) async {
+    calls.add('profile:${update.name}|${update.phone}');
+    await writeGate?.future;
+    final failure = profileFailure;
+    if (failure != null) throw failure;
+    name = update.name;
+    phone = update.phone;
     return _result(shopId);
   }
 }
@@ -478,6 +495,202 @@ void main() {
       expect(repository.calls, ['get', 'remove', 'get']);
       expect(_logoImage, findsOneWidget);
       expect(_removeButton, findsOneWidget);
+    });
+  });
+
+  group('business name and phone', () {
+    Finder editButton(int row) =>
+        find.widgetWithText(TextButton, 'Edit').at(row);
+    final dialogField = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.byType(TextFormField),
+    );
+
+    Future<void> openEdit(WidgetTester tester, int row) async {
+      await tester.tap(editButton(row));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+    }
+
+    Future<void> saveDialog(WidgetTester tester, String text) async {
+      await tester.enterText(dialogField, text);
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('owner sees Edit for name and phone', (tester) async {
+      await _pump(tester, _FakeBrandingRepository());
+
+      expect(find.text('Business name'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Edit'), findsNWidgets(2));
+    });
+
+    testWidgets('owner edits the business name, trimmed', (tester) async {
+      final repository = _FakeBrandingRepository();
+      await _pump(tester, repository);
+
+      await openEdit(tester, 0);
+      expect(find.text('Edit business name'), findsOneWidget);
+      await saveDialog(tester, '  ABC Mini Mart  ');
+
+      expect(repository.calls, contains('profile:ABC Mini Mart|0240000001'));
+      expect(find.text('Business profile updated.'), findsOneWidget);
+      expect(find.text('ABC Mini Mart'), findsOneWidget);
+      expect(find.text("Danny's Shop"), findsNothing);
+    });
+
+    testWidgets('owner edits the phone, keeping international format', (
+      tester,
+    ) async {
+      final repository = _FakeBrandingRepository();
+      await _pump(tester, repository);
+
+      await openEdit(tester, 1);
+      expect(find.text('Edit phone number'), findsOneWidget);
+      await saveDialog(tester, ' +233 (24) 123-4567 ');
+
+      expect(
+        repository.calls,
+        contains("profile:Danny's Shop|+233 (24) 123-4567"),
+      );
+      expect(find.text('+233 (24) 123-4567'), findsOneWidget);
+    });
+
+    testWidgets('clearing the phone saves it as not provided', (tester) async {
+      final repository = _FakeBrandingRepository();
+      await _pump(tester, repository);
+
+      await openEdit(tester, 1);
+      await saveDialog(tester, '   ');
+
+      expect(repository.calls, contains("profile:Danny's Shop|null"));
+      expect(find.text('Not provided'), findsOneWidget);
+    });
+
+    testWidgets('an empty name is rejected in the dialog', (tester) async {
+      final repository = _FakeBrandingRepository();
+      await _pump(tester, repository);
+
+      await openEdit(tester, 0);
+      await saveDialog(tester, '    ');
+
+      expect(
+        find.text('Business name must be 2 to 80 characters.'),
+        findsOneWidget,
+      );
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(repository.calls, ['get']);
+    });
+
+    testWidgets('an invalid phone is rejected in the dialog', (tester) async {
+      final repository = _FakeBrandingRepository();
+      await _pump(tester, repository);
+
+      await openEdit(tester, 1);
+      await saveDialog(tester, 'call me');
+
+      expect(find.text('Enter a valid phone number.'), findsOneWidget);
+      expect(repository.calls, ['get']);
+    });
+
+    testWidgets('Cancel and unchanged values save nothing', (tester) async {
+      final repository = _FakeBrandingRepository();
+      await _pump(tester, repository);
+
+      await openEdit(tester, 0);
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      await openEdit(tester, 0);
+      await saveDialog(tester, " Danny's Shop ");
+
+      expect(repository.calls, ['get']);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('saving disables every action and shows progress', (
+      tester,
+    ) async {
+      final repository = _FakeBrandingRepository(logoPath: 'shop-1/logo-1.png')
+        ..writeGate = Completer<void>();
+      await _pump(tester, repository);
+
+      await openEdit(tester, 0);
+      await tester.enterText(dialogField, 'ABC Mini Mart');
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Saving business profile...'), findsOneWidget);
+      expect(_enabled(tester, editButton(0)), isFalse);
+      expect(_enabled(tester, editButton(1)), isFalse);
+      expect(_enabled(tester, _changeButton), isFalse);
+      expect(_enabled(tester, _removeButton), isFalse);
+      expect(find.text("Danny's Shop"), findsOneWidget);
+
+      await tester.tap(editButton(0), warnIfMissed: false);
+      await tester.pump();
+      expect(find.byType(AlertDialog), findsNothing);
+
+      repository.writeGate!.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('Saving business profile...'), findsNothing);
+      expect(_enabled(tester, editButton(0)), isTrue);
+      expect(find.text('ABC Mini Mart'), findsOneWidget);
+    });
+
+    testWidgets('a failed save keeps the previous value', (tester) async {
+      final repository = _FakeBrandingRepository()
+        ..profileFailure = const ShopBrandingException(
+          ShopBrandingErrorKind.profileUpdateFailed,
+          cause: 'PostgrestException: raw',
+        );
+      await _pump(tester, repository);
+
+      await openEdit(tester, 0);
+      await saveDialog(tester, 'ABC Mini Mart');
+
+      expect(
+        find.text("We couldn't save the business profile. Please try again."),
+        findsOneWidget,
+      );
+      expect(find.textContaining('PostgrestException'), findsNothing);
+      expect(find.text("Danny's Shop"), findsOneWidget);
+      expect(find.text('ABC Mini Mart'), findsNothing);
+      expect(_enabled(tester, editButton(0)), isTrue);
+    });
+
+    testWidgets('a backend permission rejection gets a profile message', (
+      tester,
+    ) async {
+      final repository = _FakeBrandingRepository()
+        ..profileFailure = const ShopBrandingException(
+          ShopBrandingErrorKind.permissionDenied,
+        );
+      await _pump(tester, repository);
+
+      await openEdit(tester, 0);
+      await saveDialog(tester, 'ABC Mini Mart');
+
+      expect(
+        find.text("You don't have permission to change the business profile."),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('staff see name and phone without Edit controls', (
+      tester,
+    ) async {
+      final repository = _FakeBrandingRepository();
+      await _pump(tester, repository, role: 'staff');
+
+      expect(find.text("Danny's Shop"), findsOneWidget);
+      expect(find.text('0240000001'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Edit'), findsNothing);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(
+        repository.calls.where((call) => call.startsWith('profile')),
+        isEmpty,
+      );
     });
   });
 

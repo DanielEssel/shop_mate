@@ -56,7 +56,7 @@ class ProductCard extends StatelessWidget {
                     const SizedBox(height: 4),
 
                     Text(
-                      product.category,
+                      product.categoryName ?? 'No category',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: AppColors.textMuted,
                       ),

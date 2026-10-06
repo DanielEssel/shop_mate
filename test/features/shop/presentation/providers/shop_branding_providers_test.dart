@@ -2,11 +2,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:shopmate/features/sales/presentation/services/receipt_branding.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_access.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_branding.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_branding_exception.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_branding_result.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_logo_upload.dart';
+import 'package:shopmate/features/shop/domain/entities/shop_profile_update.dart';
 import 'package:shopmate/features/shop/domain/repositories/shop_branding_repository.dart';
 import 'package:shopmate/features/shop/presentation/providers/shop_branding_providers.dart';
 import 'package:shopmate/features/shop/presentation/providers/shop_provider.dart';
@@ -21,11 +23,18 @@ ShopLogoUpload _pngUpload() {
 class _FakeRepository implements ShopBrandingRepository {
   final calls = <String>[];
   String? logoPath;
+  String name = 'Shop';
+  String? phone;
   ShopBrandingException? failure;
 
   ShopBrandingResult _result(String shopId) {
     return ShopBrandingResult(
-      branding: ShopBranding(shopId: shopId, name: 'Shop', logoPath: logoPath),
+      branding: ShopBranding(
+        shopId: shopId,
+        name: name,
+        phone: phone,
+        logoPath: logoPath,
+      ),
     );
   }
 
@@ -53,6 +62,19 @@ class _FakeRepository implements ShopBrandingRepository {
     final error = failure;
     if (error != null) throw error;
     logoPath = null;
+    return _result(shopId);
+  }
+
+  @override
+  Future<ShopBrandingResult> updateProfile(
+    String shopId,
+    ShopProfileUpdate update,
+  ) async {
+    calls.add('profile:$shopId');
+    final error = failure;
+    if (error != null) throw error;
+    name = update.name;
+    phone = update.phone;
     return _result(shopId);
   }
 }
@@ -176,6 +198,51 @@ void main() {
       expect(repository.calls, ['get:shop-1', 'upload:shop-1', 'get:shop-1']);
     },
   );
+
+  test('profile update uses the current shop and refreshes every consumer '
+      'that reads the branding', () async {
+    final repository = _FakeRepository();
+    final container = _container(repository);
+    await _read(container);
+
+    await container
+        .read(shopBrandingProvider.notifier)
+        .updateProfile(
+          ShopProfileUpdate(name: '  ABC Mini Mart ', phone: '0241234567'),
+        );
+
+    expect(repository.calls, ['get:shop-1', 'profile:shop-1']);
+    final published = container.read(shopBrandingProvider).value;
+    expect(published?.branding.name, 'ABC Mini Mart');
+    expect(published?.branding.phone, '0241234567');
+
+    // Receipts build their branding from the same provider value.
+    final receipt = ReceiptBranding.from(branding: published);
+    expect(receipt.shopName, 'ABC Mini Mart');
+    expect(receipt.phone, '0241234567');
+  });
+
+  test('a failed profile update rethrows and reloads', () async {
+    final repository = _FakeRepository()
+      ..failure = const ShopBrandingException(
+        ShopBrandingErrorKind.profileUpdateFailed,
+      );
+    final container = _container(repository);
+    final subscription = container.listen(shopBrandingProvider, (_, _) {});
+    addTearDown(subscription.close);
+    await _read(container);
+
+    await expectLater(
+      container
+          .read(shopBrandingProvider.notifier)
+          .updateProfile(ShopProfileUpdate(name: 'New Name')),
+      throwsA(isA<ShopBrandingException>()),
+    );
+    final reloaded = await container.read(shopBrandingProvider.future);
+
+    expect(repository.calls, ['get:shop-1', 'profile:shop-1', 'get:shop-1']);
+    expect(reloaded?.branding.name, 'Shop');
+  });
 
   test('changes are refused without an active shop', () async {
     final repository = _FakeRepository();

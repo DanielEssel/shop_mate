@@ -19,7 +19,7 @@ import '../../../suppliers/presentation/supplier_test_harness.dart';
 const _rice = Product(
   id: 'product-rice',
   name: 'Rice 5kg',
-  category: 'Food',
+  categoryName: 'Food',
   costPrice: 20,
   sellingPrice: 30,
   stockQuantity: 10,

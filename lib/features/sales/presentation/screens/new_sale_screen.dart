@@ -559,7 +559,7 @@ class _MobileSaleLayout extends StatelessWidget {
 
     return products.where((product) {
       return product.name.toLowerCase().contains(query) ||
-          product.category.toLowerCase().contains(query) ||
+          (product.categoryName?.toLowerCase().contains(query) ?? false) ||
           (product.sku?.toLowerCase().contains(query) ?? false) ||
           (product.barcode?.toLowerCase().contains(query) ?? false);
     }).toList();
@@ -709,7 +709,7 @@ class _DesktopSaleLayout extends StatelessWidget {
 
     return products.where((product) {
       return product.name.toLowerCase().contains(query) ||
-          product.category.toLowerCase().contains(query) ||
+          (product.categoryName?.toLowerCase().contains(query) ?? false) ||
           (product.sku?.toLowerCase().contains(query) ?? false) ||
           (product.barcode?.toLowerCase().contains(query) ?? false);
     }).toList();

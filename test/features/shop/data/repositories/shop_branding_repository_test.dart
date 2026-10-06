@@ -9,6 +9,7 @@ import 'package:shopmate/features/shop/data/datasources/shop_branding_remote_dat
 import 'package:shopmate/features/shop/data/repositories/shop_branding_repository_impl.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_branding_exception.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_logo_upload.dart';
+import 'package:shopmate/features/shop/domain/entities/shop_profile_update.dart';
 
 const _shopId = 'aaaaaaaa-0000-4000-8000-000000000000';
 const _oldPath = '$_shopId/logo-1000.png';
@@ -46,6 +47,8 @@ class _FakeBackend {
   bool failClear = false;
   bool failDelete = false;
   bool failDownload = false;
+  String? profileError;
+  final profileParams = <Map<String, Object?>>[];
 
   String get url => 'http://${_server.address.host}:${_server.port}';
 
@@ -91,6 +94,19 @@ class _FakeBackend {
       }
       shopRow['logo_path'] = logoPath;
       return _json(request, 200, logoPath);
+    }
+
+    if (path == '/rest/v1/rpc/update_shop_profile') {
+      final params = Map<String, Object?>.from(jsonDecode(body) as Map);
+      calls.add('profile');
+      profileParams.add(params);
+      final error = profileError;
+      if (error != null) {
+        return _json(request, 400, {'message': error, 'code': 'P0001'});
+      }
+      shopRow['name'] = params['p_name'];
+      shopRow['phone'] = params['p_phone'];
+      return _json(request, 200, null);
     }
 
     if (path == '/rest/v1/rpc/clear_shop_logo') {
@@ -384,6 +400,63 @@ void main() {
 
       expect(backend.calls, ['clear']);
       expect(backend.objects.containsKey(_oldPath), isTrue);
+    });
+  });
+
+  group('business profile', () {
+    test('sends the validated name and phone, then re-reads', () async {
+      final result = await repository.updateProfile(
+        _shopId,
+        ShopProfileUpdate(name: '  ABC Mini Mart ', phone: ' 0241234567 '),
+      );
+
+      expect(backend.calls, ['profile', 'read']);
+      expect(backend.profileParams.single, {
+        'p_name': 'ABC Mini Mart',
+        'p_phone': '0241234567',
+      });
+      expect(result.branding.name, 'ABC Mini Mart');
+      expect(result.branding.phone, '0241234567');
+    });
+
+    test('a cleared phone is sent as null', () async {
+      await repository.updateProfile(
+        _shopId,
+        ShopProfileUpdate(name: 'ABC Mini Mart', phone: ''),
+      );
+
+      expect(backend.profileParams.single['p_phone'], isNull);
+    });
+
+    test('an owner-only rejection is a permission failure', () async {
+      backend.profileError =
+          'Only the shop owner can change the business profile';
+
+      await expectLater(
+        repository.updateProfile(_shopId, ShopProfileUpdate(name: 'X Shop')),
+        _throwsKind(ShopBrandingErrorKind.permissionDenied),
+      );
+      expect(backend.calls, ['profile']);
+    });
+
+    test('backend validation errors map to typed kinds', () async {
+      backend.profileError = 'Business name must be 2 to 80 characters';
+      await expectLater(
+        repository.updateProfile(_shopId, ShopProfileUpdate(name: 'X Shop')),
+        _throwsKind(ShopBrandingErrorKind.invalidName),
+      );
+
+      backend.profileError = 'Invalid phone number';
+      await expectLater(
+        repository.updateProfile(_shopId, ShopProfileUpdate(name: 'X Shop')),
+        _throwsKind(ShopBrandingErrorKind.invalidPhone),
+      );
+
+      backend.profileError = 'something unexpected';
+      await expectLater(
+        repository.updateProfile(_shopId, ShopProfileUpdate(name: 'X Shop')),
+        _throwsKind(ShopBrandingErrorKind.profileUpdateFailed),
+      );
     });
   });
 }

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../product_categories/domain/entities/product_category.dart';
+import '../../../product_categories/presentation/providers/product_category_providers.dart';
 import '../../domain/entities/product.dart';
 import '../providers/products_provider.dart';
 import '../widgets/product_card.dart';
@@ -18,8 +20,12 @@ class ProductsScreen extends ConsumerStatefulWidget {
 class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   final _searchController = TextEditingController();
 
+  /// Filter keys: [_allFilter], [_noneFilter], or a category id.
+  static const _allFilter = '__all__';
+  static const _noneFilter = '__none__';
+
   String _searchQuery = '';
-  String _selectedCategory = 'All';
+  String _selectedFilter = _allFilter;
 
   @override
   void dispose() {
@@ -61,21 +67,39 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   }
 
   Widget _buildContent(BuildContext context, List<Product> products) {
-    final categories = <String>{
-      'All',
-      ...products.map((product) => product.category),
-    }.toList();
+    // Active categories only; products in archived categories stay visible
+    // under "All". A failed category load just leaves "All".
+    final categories =
+        ref.watch(activeProductCategoriesProvider).value ??
+        const <ProductCategory>[];
+
+    // A selected category that is no longer active falls back to "All".
+    final filter =
+        _selectedFilter == _allFilter ||
+            _selectedFilter == _noneFilter ||
+            categories.any((category) => category.id == _selectedFilter)
+        ? _selectedFilter
+        : _allFilter;
 
     final filteredProducts = products.where((product) {
       final matchesSearch = product.name.toLowerCase().contains(
         _searchQuery.toLowerCase(),
       );
 
-      final matchesCategory =
-          _selectedCategory == 'All' || product.category == _selectedCategory;
+      final matchesCategory = switch (filter) {
+        _allFilter => true,
+        _noneFilter => product.categoryId == null,
+        _ => product.categoryId == filter,
+      };
 
       return matchesSearch && matchesCategory;
     }).toList();
+
+    final filters = <(String, String)>[
+      (_allFilter, 'All'),
+      for (final category in categories) (category.id, category.name),
+      (_noneFilter, 'No category'),
+    ];
 
     return CustomScrollView(
       slivers: [
@@ -89,7 +113,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
           sliver: SliverToBoxAdapter(child: _buildHeader(context, products)),
         ),
 
-        SliverToBoxAdapter(child: _buildFilters(categories)),
+        SliverToBoxAdapter(child: _buildFilters(filters, filter)),
 
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(
@@ -169,26 +193,25 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     );
   }
 
-  Widget _buildFilters(List<String> categories) {
+  Widget _buildFilters(List<(String, String)> filters, String selectedKey) {
     return SizedBox(
       height: 44,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
         scrollDirection: Axis.horizontal,
-        itemCount: categories.length,
+        itemCount: filters.length,
         separatorBuilder: (_, _) {
           return const SizedBox(width: AppSpacing.sm);
         },
         itemBuilder: (context, index) {
-          final category = categories[index];
-          final selected = category == _selectedCategory;
+          final (key, label) = filters[index];
 
           return FilterChip(
-            selected: selected,
-            label: Text(category),
+            selected: key == selectedKey,
+            label: Text(label),
             onSelected: (_) {
               setState(() {
-                _selectedCategory = category;
+                _selectedFilter = key;
               });
             },
           );

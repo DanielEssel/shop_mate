@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/entities/shop_branding_exception.dart';
 import '../../domain/entities/shop_branding_result.dart';
 import '../../domain/entities/shop_logo_upload.dart';
+import '../../domain/entities/shop_profile_update.dart';
 import '../../domain/repositories/shop_branding_repository.dart';
 import '../datasources/shop_branding_remote_datasource.dart';
 
@@ -78,6 +79,23 @@ class ShopBrandingRepositoryImpl implements ShopBrandingRepository {
     return _load(shopId, cleanupError: cleanupError);
   }
 
+  @override
+  Future<ShopBrandingResult> updateProfile(
+    String shopId,
+    ShopProfileUpdate update,
+  ) async {
+    try {
+      await _remoteDataSource.updateShopProfile(
+        name: update.name,
+        phone: update.phone,
+      );
+    } catch (error) {
+      throw _translate(error, ShopBrandingErrorKind.profileUpdateFailed);
+    }
+
+    return _load(shopId);
+  }
+
   /// Reads the shop row, then the logo. A logo that fails to download is
   /// reported on the result instead of failing the whole read.
   Future<ShopBrandingResult> _load(
@@ -143,6 +161,18 @@ class ShopBrandingRepositoryImpl implements ShopBrandingRepository {
           error.message.contains('Only the shop owner')) {
         return ShopBrandingException(
           ShopBrandingErrorKind.permissionDenied,
+          cause: error,
+        );
+      }
+      if (error.message.contains('Business name must be')) {
+        return ShopBrandingException(
+          ShopBrandingErrorKind.invalidName,
+          cause: error,
+        );
+      }
+      if (error.message.contains('Invalid phone number')) {
+        return ShopBrandingException(
+          ShopBrandingErrorKind.invalidPhone,
           cause: error,
         );
       }

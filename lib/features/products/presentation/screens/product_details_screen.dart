@@ -121,7 +121,14 @@ class _ProductDetailsContent extends StatelessWidget {
                 icon: Icons.info_outline_rounded,
                 child: Column(
                   children: [
-                    _DetailRow(label: 'Category', value: product.category),
+                    _DetailRow(
+                      label: 'Category',
+                      value: product.categoryName == null
+                          ? 'No category'
+                          : product.categoryIsActive
+                          ? product.categoryName!
+                          : '${product.categoryName!} (archived)',
+                    ),
                     _DetailRow(
                       label: 'SKU',
                       value: product.sku?.isNotEmpty == true
@@ -288,7 +295,7 @@ class _ProductHeroText extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          product.category,
+          product.categoryName ?? 'No category',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: AppColors.textSecondary,
           ),

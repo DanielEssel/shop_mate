@@ -10,6 +10,11 @@ enum ShopBrandingErrorKind {
   permissionDenied('Only the shop owner can change the shop logo.'),
   cleanupFailed(
     'The logo was updated, but the previous image could not be deleted.',
+  ),
+  invalidName('Business name must be 2 to 80 characters.'),
+  invalidPhone('Enter a valid phone number.'),
+  profileUpdateFailed(
+    'The business profile could not be saved. Please try again.',
   );
 
   const ShopBrandingErrorKind(this.message);

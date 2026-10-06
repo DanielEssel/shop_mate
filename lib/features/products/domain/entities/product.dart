@@ -5,11 +5,13 @@ class Product {
   const Product({
     required this.id,
     required this.name,
-    required this.category,
     required this.costPrice,
     required this.sellingPrice,
     required this.stockQuantity,
     required this.lowStockThreshold,
+    this.categoryId,
+    this.categoryName,
+    this.categoryIsActive = true,
     this.sku,
     this.barcode,
     this.description,
@@ -21,7 +23,15 @@ class Product {
 
   final String id;
   final String name;
-  final String category;
+
+  /// Optional category of the product's shop; null for no category.
+  final String? categoryId;
+
+  /// Display name of the category, or null when the product has none.
+  final String? categoryName;
+
+  /// False when the product's category has since been archived.
+  final bool categoryIsActive;
 
   final String? sku;
   final String? barcode;

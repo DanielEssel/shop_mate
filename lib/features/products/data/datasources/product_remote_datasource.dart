@@ -15,7 +15,7 @@ class ProductRemoteDataSource {
   Future<List<ProductModel>> getProducts() async {
     final response = await _client
         .from(_table)
-        .select()
+        .select(ProductModel.selectColumns)
         .eq('is_active', true)
         .order('created_at', ascending: false);
 
@@ -34,7 +34,7 @@ class ProductRemoteDataSource {
     final response = await _client
         .from(_table)
         .insert(data)
-        .select()
+        .select(ProductModel.selectColumns)
         .single();
 
     return ProductModel.fromJson(
@@ -47,7 +47,7 @@ class ProductRemoteDataSource {
   ) async {
     final response = await _client
         .from(_table)
-        .select()
+        .select(ProductModel.selectColumns)
         .eq('id', id)
         .single();
 
@@ -59,7 +59,7 @@ class ProductRemoteDataSource {
   Future<List<ProductModel>> getLowStockProducts() async {
   final response = await _client
       .from(_table)
-      .select()
+      .select(ProductModel.selectColumns)
       .eq('is_active', true)
       .order(
         'stock_quantity',
@@ -89,7 +89,7 @@ Future<ProductModel> updateProduct(
       .from(_table)
       .update(data)
       .eq('id', id)
-      .select()
+      .select(ProductModel.selectColumns)
       .single();
 
   return ProductModel.fromJson(

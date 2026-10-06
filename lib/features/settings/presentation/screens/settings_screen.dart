@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../shop/presentation/providers/shop_provider.dart';
 import '../../../shop/presentation/widgets/business_profile_section.dart';
 
 /// App settings. Currently holds the Business Profile (shop information and
@@ -60,6 +64,7 @@ class SettingsScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: AppSpacing.md),
                         const BusinessProfileSection(),
+                        const _ProductCategoriesEntry(),
                       ],
                     ),
                   ),
@@ -68,6 +73,54 @@ class SettingsScreen extends StatelessWidget {
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+/// Owner-only link to category management. Staff do not see it; the
+/// database also limits category changes to the owner.
+class _ProductCategoriesEntry extends ConsumerWidget {
+  const _ProductCategoriesEntry();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isOwner = ref.watch(
+      shopAccessProvider.select((access) => access.value?.isOwner ?? false),
+    );
+    if (!isOwner) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Products',
+            style: AppTypography.textTheme.titleMedium!.copyWith(
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Material(
+            color: AppColors.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              side: const BorderSide(color: AppColors.border),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: ListTile(
+              leading: const Icon(Icons.category_outlined),
+              title: const Text('Product categories'),
+              subtitle: const Text(
+                'Create, rename and archive your product categories.',
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => context.push('/settings/categories'),
+            ),
+          ),
+        ],
       ),
     );
   }

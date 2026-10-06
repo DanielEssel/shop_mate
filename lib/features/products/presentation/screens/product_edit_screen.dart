@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../product_categories/presentation/widgets/product_category_field.dart';
 import '../../domain/entities/product.dart';
 import '../providers/products_provider.dart';
 
@@ -38,18 +39,8 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
   final _lowStockController = TextEditingController();
   final _descriptionController = TextEditingController();
 
-  String? _selectedCategory;
-
-  final List<String> _categories = [
-    'Groceries',
-    'Beverages',
-    'Dairy',
-    'Grains',
-    'Cooking',
-    'Household',
-    'Personal Care',
-    'Other',
-  ];
+  /// Optional; null clears the product's category.
+  String? _selectedCategoryId;
 
   @override
   void initState() {
@@ -66,7 +57,7 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
     _lowStockController.text = product.lowStockThreshold.toString();
     _descriptionController.text = product.description ?? '';
 
-    _selectedCategory = product.category;
+    _selectedCategoryId = product.categoryId;
 
     _costPriceController.addListener(_refresh);
     _sellingPriceController.addListener(_refresh);
@@ -226,11 +217,6 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
       return;
     }
 
-    if (_selectedCategory == null) {
-      _showMessage('Please select a category.');
-      return;
-    }
-
     final costPrice = double.tryParse(_costPriceController.text.trim());
 
     final sellingPrice = double.tryParse(_sellingPriceController.text.trim());
@@ -268,7 +254,7 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
       final product = Product(
         id: widget.product.id,
         name: _nameController.text.trim(),
-        category: _selectedCategory!,
+        categoryId: _selectedCategoryId,
         sku: _nullableValue(_skuController.text),
         barcode: _nullableValue(_barcodeController.text),
         description: _nullableValue(_descriptionController.text),
@@ -387,34 +373,22 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
                           },
                         ),
                         const SizedBox(height: 16),
-                        DropdownButtonFormField<String>(
-                          initialValue: _selectedCategory,
+                        ProductCategoryField(
+                          selectedCategoryId: _selectedCategoryId,
+                          currentCategoryName: widget.product.categoryName,
+                          currentCategoryIsActive:
+                              widget.product.categoryIsActive,
                           decoration: _inputDecoration(
                             label: 'Category',
                             icon: Icons.category_outlined,
                           ),
-                          items: _categories
-                              .map(
-                                (category) => DropdownMenuItem(
-                                  value: category,
-                                  child: Text(category),
-                                ),
-                              )
-                              .toList(),
                           onChanged: _isSaving
                               ? null
                               : (value) {
                                   setState(() {
-                                    _selectedCategory = value;
+                                    _selectedCategoryId = value;
                                   });
                                 },
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please select a category.';
-                            }
-
-                            return null;
-                          },
                         ),
                         const SizedBox(height: 16),
                         _textField(

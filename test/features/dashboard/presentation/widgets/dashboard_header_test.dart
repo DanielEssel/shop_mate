@@ -13,6 +13,7 @@ import 'package:shopmate/features/shop/domain/entities/shop_branding.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_branding_exception.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_branding_result.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_logo_upload.dart';
+import 'package:shopmate/features/shop/domain/entities/shop_profile_update.dart';
 import 'package:shopmate/features/shop/domain/repositories/shop_branding_repository.dart';
 import 'package:shopmate/features/shop/presentation/providers/shop_branding_providers.dart';
 import 'package:shopmate/features/shop/presentation/providers/shop_provider.dart';
@@ -25,7 +26,7 @@ final _pngLogo = base64Decode(
 class _Repository implements ShopBrandingRepository {
   _Repository({this.name = "Danny's Shop", this.logo});
 
-  final String name;
+  String name;
   final Uint8List? logo;
   Completer<void>? gate;
   bool fail = false;
@@ -53,6 +54,15 @@ class _Repository implements ShopBrandingRepository {
   @override
   Future<ShopBrandingResult> removeLogo(String shopId) =>
       throw UnimplementedError();
+
+  @override
+  Future<ShopBrandingResult> updateProfile(
+    String shopId,
+    ShopProfileUpdate update,
+  ) async {
+    name = update.name;
+    return getShopBranding(shopId);
+  }
 }
 
 Future<void> _pump(
@@ -139,6 +149,21 @@ void main() {
     expect(_fallback, findsOneWidget);
     expect(find.textContaining('unavailable'), findsNothing);
     expect(find.byTooltip('Open menu'), findsOneWidget);
+  });
+
+  testWidgets('a saved business name flows into the header', (tester) async {
+    await _pump(tester, _Repository());
+    expect(tester.widget<Text>(_shopName).data, "Danny's Shop");
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(DashboardHeader)),
+    );
+    await container
+        .read(shopBrandingProvider.notifier)
+        .updateProfile(ShopProfileUpdate(name: 'ABC Mini Mart'));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<Text>(_shopName).data, 'ABC Mini Mart');
   });
 
   testWidgets('a long shop name is truncated without overflow', (tester) async {

@@ -10,7 +10,7 @@ class ProductLocalDataSource {
       ProductModel(
         id: '1',
         name: 'Peak Milk',
-        category: 'Dairy',
+        categoryName: 'Dairy',
         sellingPrice: 12.50,
         costPrice: 9.80,
         stockQuantity: 24,
@@ -20,7 +20,7 @@ class ProductLocalDataSource {
       ProductModel(
         id: '2',
         name: 'Milo 500g',
-        category: 'Beverages',
+        categoryName: 'Beverages',
         sellingPrice: 38.00,
         costPrice: 31.00,
         stockQuantity: 8,
@@ -30,7 +30,7 @@ class ProductLocalDataSource {
       ProductModel(
         id: '3',
         name: 'Rice 5kg',
-        category: 'Grains',
+        categoryName: 'Grains',
         sellingPrice: 85.00,
         costPrice: 70.00,
         stockQuantity: 42,
@@ -40,7 +40,7 @@ class ProductLocalDataSource {
       ProductModel(
         id: '4',
         name: 'Cooking Oil 1L',
-        category: 'Cooking',
+        categoryName: 'Cooking',
         sellingPrice: 32.00,
         costPrice: 27.50,
         stockQuantity: 5,
@@ -50,7 +50,7 @@ class ProductLocalDataSource {
       ProductModel(
         id: '5',
         name: 'Sugar 1kg',
-        category: 'Groceries',
+        categoryName: 'Groceries',
         sellingPrice: 18.00,
         costPrice: 15.00,
         stockQuantity: 31,

@@ -18,5 +18,19 @@ String shopBrandingErrorMessage(ShopBrandingException error) {
     ShopBrandingErrorKind.logoUnavailable => "Logo couldn't be loaded.",
     ShopBrandingErrorKind.cleanupFailed =>
       'The logo was updated, but the previous image could not be deleted.',
+    ShopBrandingErrorKind.invalidName =>
+      'Business name must be 2 to 80 characters.',
+    ShopBrandingErrorKind.invalidPhone => 'Enter a valid phone number.',
+    ShopBrandingErrorKind.profileUpdateFailed =>
+      "We couldn't save the business profile. Please try again.",
   };
+}
+
+/// Wording for business name/phone failures; a permission failure names the
+/// business profile rather than the logo.
+String shopProfileErrorMessage(ShopBrandingException error) {
+  if (error.kind == ShopBrandingErrorKind.permissionDenied) {
+    return "You don't have permission to change the business profile.";
+  }
+  return shopBrandingErrorMessage(error);
 }

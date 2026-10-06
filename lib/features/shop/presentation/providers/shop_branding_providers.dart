@@ -6,9 +6,11 @@ import '../../data/repositories/shop_branding_repository_impl.dart';
 import '../../domain/entities/shop_access.dart';
 import '../../domain/entities/shop_branding_result.dart';
 import '../../domain/entities/shop_logo_upload.dart';
+import '../../domain/entities/shop_profile_update.dart';
 import '../../domain/repositories/shop_branding_repository.dart';
 import '../../domain/usecases/get_shop_branding.dart';
 import '../../domain/usecases/remove_shop_logo.dart';
+import '../../domain/usecases/update_shop_profile.dart';
 import '../../domain/usecases/upload_shop_logo.dart';
 import 'shop_provider.dart';
 
@@ -28,6 +30,10 @@ final uploadShopLogoProvider = Provider<UploadShopLogo>((ref) {
 
 final removeShopLogoProvider = Provider<RemoveShopLogo>((ref) {
   return RemoveShopLogo(ref.read(shopBrandingRepositoryProvider));
+});
+
+final updateShopProfileProvider = Provider<UpdateShopProfile>((ref) {
+  return UpdateShopProfile(ref.read(shopBrandingRepositoryProvider));
 });
 
 /// The active shop's id, or null when there is no active shop.
@@ -74,6 +80,15 @@ class ShopBrandingNotifier extends AsyncNotifier<ShopBrandingResult?> {
   /// Throws `ShopBrandingException` on failure.
   Future<ShopBrandingResult> removeLogo() {
     return _mutate((shopId) => ref.read(removeShopLogoProvider).call(shopId));
+  }
+
+  /// Saves the business name and phone for the current shop and publishes
+  /// the refreshed branding, so every consumer (drawer, dashboard, receipts,
+  /// Settings) shows the new values. Throws `ShopBrandingException`.
+  Future<ShopBrandingResult> updateProfile(ShopProfileUpdate update) {
+    return _mutate(
+      (shopId) => ref.read(updateShopProfileProvider).call(shopId, update),
+    );
   }
 
   Future<ShopBrandingResult> _mutate(

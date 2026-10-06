@@ -163,7 +163,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
     return products.where((product) {
       return product.name.toLowerCase().contains(_searchQuery) ||
-          product.category.toLowerCase().contains(_searchQuery) ||
+          (product.categoryName?.toLowerCase().contains(_searchQuery) ??
+              false) ||
           (product.sku?.toLowerCase().contains(_searchQuery) ?? false) ||
           (product.barcode?.toLowerCase().contains(_searchQuery) ?? false);
     }).toList();
