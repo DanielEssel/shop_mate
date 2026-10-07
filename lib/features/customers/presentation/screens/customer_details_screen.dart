@@ -7,6 +7,7 @@ import '../../../../app/theme/app_shadows.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../domain/entities/customer.dart';
+import '../../../shop/presentation/providers/shop_provider.dart';
 import '../providers/customers_provider.dart';
 import '../widgets/customer_credit_section.dart';
 
@@ -224,6 +225,10 @@ class _CustomerDetailsScreenState extends ConsumerState<CustomerDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final customerAsync = ref.watch(customerProvider(widget.customerId));
+    // Deactivating a customer is deleting it: owner-only.
+    final canDeactivate = ref.watch(
+      shopAccessProvider.select(selectIsShopOwner),
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -315,7 +320,7 @@ class _CustomerDetailsScreenState extends ConsumerState<CustomerDetailsScreen> {
                             ),
                           ],
                           const SizedBox(height: AppSpacing.lg),
-                          if (!_isEditing)
+                          if (!_isEditing && canDeactivate)
                             _CustomerActions(
                               customer: customer,
                               onDeactivate: () => _deactivateCustomer(customer),

@@ -17,6 +17,20 @@ enum ShopAccessStatus {
   unavailable,
 }
 
+/// The signed-in account's role in its shop.
+///
+/// Only 'owner' is an owner. Every other value ('staff' today, the future
+/// 'shop_attendant', or anything unexpected) is an attendant, so an unknown
+/// role can never gain owner access.
+enum ShopRole {
+  owner,
+  attendant;
+
+  static ShopRole fromValue(String? value) {
+    return value == 'owner' ? ShopRole.owner : ShopRole.attendant;
+  }
+}
+
 class ShopAccess {
   const ShopAccess({
     required this.userId,
@@ -37,8 +51,13 @@ class ShopAccess {
 
   final String? shopName;
 
-  /// 'owner' or 'staff' when the user belongs to a shop.
+  /// The stored role value ('owner' or 'staff') when the user belongs to a
+  /// shop. Use [shopRole] for decisions.
   final String? role;
 
-  bool get isOwner => role == 'owner';
+  ShopRole get shopRole => ShopRole.fromValue(role);
+
+  bool get isOwner => shopRole == ShopRole.owner;
+
+  bool get isAttendant => shopRole == ShopRole.attendant;
 }

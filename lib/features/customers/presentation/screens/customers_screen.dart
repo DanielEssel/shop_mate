@@ -7,6 +7,7 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
 import '../../domain/entities/customer.dart';
+import '../../../shop/presentation/providers/shop_provider.dart';
 import '../providers/customers_provider.dart';
 import '../widgets/customer_card.dart';
 import '../widgets/customer_search_bar.dart';
@@ -53,6 +54,10 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
   @override
   Widget build(BuildContext context) {
     final customersAsync = ref.watch(customersProvider);
+    // Deactivating a customer is deleting it: owner-only.
+    final canDeactivate = ref.watch(
+      shopAccessProvider.select(selectIsShopOwner),
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -160,9 +165,15 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                       if (filteredCustomers.isEmpty)
                         const _EmptyCustomers()
                       else if (isDesktop)
-                        _DesktopCustomerGrid(customers: filteredCustomers)
+                        _DesktopCustomerGrid(
+                          customers: filteredCustomers,
+                          canDeactivate: canDeactivate,
+                        )
                       else
-                        _MobileCustomerList(customers: filteredCustomers),
+                        _MobileCustomerList(
+                          customers: filteredCustomers,
+                          canDeactivate: canDeactivate,
+                        ),
 
                       const SizedBox(height: 80),
                     ],
@@ -312,9 +323,13 @@ class _SummarySection extends StatelessWidget {
 }
 
 class _DesktopCustomerGrid extends StatelessWidget {
-  const _DesktopCustomerGrid({required this.customers});
+  const _DesktopCustomerGrid({
+    required this.customers,
+    required this.canDeactivate,
+  });
 
   final List<Customer> customers;
+  final bool canDeactivate;
 
   @override
   Widget build(BuildContext context) {
@@ -339,9 +354,11 @@ class _DesktopCustomerGrid extends StatelessWidget {
           onEdit: () {
             context.push('/customers/${customer.id}');
           },
-          onDelete: () {
-            _confirmDelete(context, customer);
-          },
+          onDelete: canDeactivate
+              ? () {
+                  _confirmDelete(context, customer);
+                }
+              : null,
         );
       },
     );
@@ -380,9 +397,13 @@ class _DesktopCustomerGrid extends StatelessWidget {
 }
 
 class _MobileCustomerList extends StatelessWidget {
-  const _MobileCustomerList({required this.customers});
+  const _MobileCustomerList({
+    required this.customers,
+    required this.canDeactivate,
+  });
 
   final List<Customer> customers;
+  final bool canDeactivate;
 
   @override
   Widget build(BuildContext context) {
@@ -402,9 +423,11 @@ class _MobileCustomerList extends StatelessWidget {
           onEdit: () {
             context.push('/customers/${customer.id}');
           },
-          onDelete: () {
-            _confirmDelete(context, customer);
-          },
+          onDelete: canDeactivate
+              ? () {
+                  _confirmDelete(context, customer);
+                }
+              : null,
         );
       },
     );

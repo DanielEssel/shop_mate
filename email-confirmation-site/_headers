@@ -1,0 +1,15 @@
+# Cloudflare Pages custom headers. This site has a single page, so one rule
+# covers every response (the page, the trailing-slash redirect and 404s).
+# "! Access-Control-Allow-Origin" removes the CORS header Pages adds by default.
+# The script-src hash must match the inline <script> in
+# shopmate/email-confirmed/index.html (see README.md).
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'sha256-Bth9ljM+GnLtEQyfQ6Gy3JE5S04J1F7V5YeLWI+b5s8='; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Permissions-Policy: accelerometer=(), camera=(), display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+  X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-store
+  ! Access-Control-Allow-Origin

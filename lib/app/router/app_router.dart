@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/widgets/navigation/app_shell.dart';
+import '../../features/admin/presentation/providers/admin_providers.dart';
+import '../../features/admin/presentation/screens/admin_screen.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/providers/password_recovery_provider.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
@@ -39,12 +41,16 @@ import '../../features/shop/domain/entities/shop_access.dart';
 import '../../features/shop/presentation/providers/shop_provider.dart';
 import '../../features/shop/presentation/screens/register_shop_screen.dart';
 import '../../features/shop/presentation/screens/shop_status_screens.dart';
+import '../../features/shop_members/presentation/screens/shop_members_screen.dart';
 import '../../features/suppliers/presentation/screens/add_supplier_screen.dart';
 import '../../features/suppliers/presentation/screens/edit_supplier_screen.dart';
 import '../../features/suppliers/presentation/screens/supplier_details_screen.dart';
 import '../../features/suppliers/presentation/screens/suppliers_screen.dart';
 
 const String _recoveryRoute = '/forgot-password';
+
+/// Platform administration. Not tied to the signed-in account's own shop.
+const String adminRoute = '/admin';
 
 const Set<String> _authRoutes = {'/login', '/signup', _recoveryRoute};
 
@@ -71,6 +77,8 @@ final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
 /// Access rules:
 ///   signed out            -> /login, /signup or /forgot-password only
 ///   recovering a password -> /forgot-password until the new password is set
+///   platform admin        -> /admin as well, whatever its own shop's status
+///   shop not owner        -> owner-only areas send them to /dashboard
 ///   signed in, no shop    -> /register-shop
 ///   shop pending          -> /pending
 ///   shop or member paused -> /suspended
@@ -85,6 +93,10 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.listen<String?>(currentUserIdProvider, (_, _) => refresh.notify());
   ref.listen<PasswordRecovery?>(
     passwordRecoveryProvider,
+    (_, _) => refresh.notify(),
+  );
+  ref.listen<AsyncValue<bool>>(
+    isPlatformAdminProvider,
     (_, _) => refresh.notify(),
   );
   ref.listen<AsyncValue<ShopAccess>>(
@@ -460,6 +472,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // =============================================================
+      // PLATFORM ADMIN
+      // =============================================================
+      // Root-level and outside the shop gate: a platform admin may have no
+      // active shop of their own. The redirect only lets confirmed admins
+      // in; the database checks every admin call regardless.
+      GoRoute(
+        path: adminRoute,
+        builder: (context, state) {
+          return const AdminScreen();
+        },
+      ),
+
+      // =============================================================
       // SETTINGS
       // =============================================================
       // Root-level like Reports: opened from More or the drawer and stacked
@@ -477,6 +502,17 @@ final routerProvider = Provider<GoRouter>((ref) {
             },
           ),
         ],
+      ),
+
+      // =============================================================
+      // USERS & PERMISSIONS
+      // =============================================================
+      // Root-level like Settings; owner-only through _ownerOnlyRoutes.
+      GoRoute(
+        path: '/users',
+        builder: (context, state) {
+          return const ShopMembersScreen();
+        },
       ),
     ],
   );
@@ -496,13 +532,14 @@ String? _redirect(Ref ref, GoRouterState state) {
     userEmail: ref.read(authSessionProvider)?.email,
     access: ref.read(shopAccessProvider),
     recovery: ref.read(passwordRecoveryProvider),
+    platformAdmin: ref.read(isPlatformAdminProvider),
   );
 }
 
 /// Where the app gate sends [location], or null to stay. [userId] and
 /// [userEmail] are the signed-in account (null when signed out), [access] is
-/// the current shop access answer and [recovery] a password recovery in
-/// progress.
+/// the current shop access answer, [recovery] a password recovery in
+/// progress and [platformAdmin] whether the account is a platform admin.
 @visibleForTesting
 String? resolveAppRedirect({
   required String location,
@@ -510,6 +547,7 @@ String? resolveAppRedirect({
   String? userEmail,
   required AsyncValue<ShopAccess> access,
   PasswordRecovery? recovery,
+  AsyncValue<bool>? platformAdmin,
 }) {
   final isAuthRoute = _authRoutes.contains(location);
 
@@ -524,6 +562,23 @@ String? resolveAppRedirect({
   if (recovery != null &&
       recovery.belongsTo(userId: userId, email: userEmail)) {
     return location == _recoveryRoute ? null : _recoveryRoute;
+  }
+
+  // Platform admin: open to confirmed admins whatever their own shop's
+  // status. While the check is still running the screen shows a spinner;
+  // anyone else is treated as if they had asked for the dashboard.
+  if (location == adminRoute) {
+    final admin = platformAdmin;
+    if (admin != null && (admin.isLoading || admin.isConfirmedAdmin)) {
+      return null;
+    }
+    return resolveAppRedirect(
+          location: '/dashboard',
+          userId: userId,
+          userEmail: userEmail,
+          access: access,
+        ) ??
+        '/dashboard';
   }
 
   final data = access.value;
@@ -561,7 +616,29 @@ String? resolveAppRedirect({
     return '/dashboard';
   }
 
+  // Owner-only areas: anyone else lands on the dashboard. The database
+  // refuses these operations for non-owners regardless.
+  if (!data.isOwner && _isOwnerOnly(location)) {
+    return '/dashboard';
+  }
+
   return null;
+}
+
+/// Areas only the shop owner may open; each covers its sub-routes too
+/// (e.g. /expenses/:id, /settings/categories).
+const List<String> _ownerOnlyRoutes = [
+  '/expenses',
+  '/reports',
+  '/settings',
+  '/users',
+  '/inventory/adjust',
+];
+
+bool _isOwnerOnly(String location) {
+  return _ownerOnlyRoutes.any(
+    (route) => location == route || location.startsWith('$route/'),
+  );
 }
 
 /// Lets the provider listener above poke the router to re-run its redirect.

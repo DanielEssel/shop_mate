@@ -8,7 +8,11 @@ import 'dashboard_section_header.dart';
 class DashboardQuickActions extends StatelessWidget {
   const DashboardQuickActions({
     super.key,
+    required this.canAdjustStock,
   });
+
+  /// Stock adjustment is owner-only.
+  final bool canAdjustStock;
 
   @override
   Widget build(BuildContext context) {
@@ -25,12 +29,13 @@ class DashboardQuickActions extends StatelessWidget {
         description: 'Create a product',
         onTap: () => context.push('/products/new'),
       ),
-      _QuickAction(
-        icon: Icons.inventory_2_rounded,
-        title: 'Adjust Stock',
-        description: 'Update inventory',
-        onTap: () => context.push('/inventory/adjust'),
-      ),
+      if (canAdjustStock)
+        _QuickAction(
+          icon: Icons.inventory_2_rounded,
+          title: 'Adjust Stock',
+          description: 'Update inventory',
+          onTap: () => context.push('/inventory/adjust'),
+        ),
       _QuickAction(
         icon: Icons.shopping_bag_rounded,
         title: 'New Purchase',
@@ -50,7 +55,7 @@ class DashboardQuickActions extends StatelessWidget {
         LayoutBuilder(
           builder: (context, constraints) {
             final columns = constraints.maxWidth >= 900
-                ? 4
+                ? actions.length
                 : constraints.maxWidth >= 560
                     ? 2
                     : 1;

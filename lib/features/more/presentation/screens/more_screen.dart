@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -6,12 +7,17 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_shadows.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../shop/presentation/providers/shop_provider.dart';
 
-class MoreScreen extends StatelessWidget {
+class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Owner-only options are hidden from attendants; the router and the
+    // database refuse them as well.
+    final isOwner = ref.watch(shopAccessProvider.select(selectIsShopOwner));
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -82,59 +88,62 @@ class MoreScreen extends StatelessWidget {
                               context.push('/suppliers');
                             },
                           ),
-                          _MoreItem(
-                            title: 'Expenses',
-                            subtitle:
-                                'Track shop expenses and operating costs.',
-                            icon: Icons.account_balance_wallet_outlined,
-                            onTap: () {
-                              context.push('/expenses');
-                            },
-                          ),
+                          if (isOwner)
+                            _MoreItem(
+                              title: 'Expenses',
+                              subtitle:
+                                  'Track shop expenses and operating costs.',
+                              icon: Icons.account_balance_wallet_outlined,
+                              onTap: () {
+                                context.push('/expenses');
+                              },
+                            ),
                         ],
                       ),
 
-                      const SizedBox(height: AppSpacing.xxl),
+                      if (isOwner) ...[
+                        const SizedBox(height: AppSpacing.xxl),
 
-                      _SectionTitle(
-                        title: 'Business & Insights',
-                        subtitle: 'Understand how your shop is performing.',
-                      ),
+                        _SectionTitle(
+                          title: 'Business & Insights',
+                          subtitle: 'Understand how your shop is performing.',
+                        ),
 
-                      const SizedBox(height: AppSpacing.md),
+                        const SizedBox(height: AppSpacing.md),
 
-                      _FeatureGrid(
-                        isDesktop: isDesktop,
-                        items: [
-                          _MoreItem(
-                            title: 'Business Performance',
-                            subtitle:
-                                'Sales, costs, expenses and profit for any period.',
-                            icon: Icons.insights_outlined,
-                            onTap: () {
-                              context.push('/reports/business-performance');
-                            },
-                          ),
-                          _MoreItem(
-                            title: 'Inventory Report',
-                            subtitle:
-                                'Current stock position and inventory value.',
-                            icon: Icons.inventory_2_outlined,
-                            onTap: () {
-                              context.push('/reports/inventory');
-                            },
-                          ),
-                          _MoreItem(
-                            title: 'Analytics',
-                            subtitle:
-                                'Understand sales trends, profit and customer activity.',
-                            icon: Icons.analytics_outlined,
-                            onTap: () {
-                              _showComingSoon(context, 'Analytics');
-                            },
-                          ),
-                        ],
-                      ),
+                        _FeatureGrid(
+                          isDesktop: isDesktop,
+                          items: [
+                            _MoreItem(
+                              title: 'Business Performance',
+                              subtitle:
+                                  'Sales, costs, expenses and profit for any period.',
+                              icon: Icons.insights_outlined,
+                              onTap: () {
+                                context.push('/reports/business-performance');
+                              },
+                            ),
+                            _MoreItem(
+                              title: 'Inventory Report',
+                              subtitle:
+                                  'Current stock position and inventory value.',
+                              icon: Icons.inventory_2_outlined,
+                              onTap: () {
+                                context.push('/reports/inventory');
+                              },
+                            ),
+                            _MoreItem(
+                              title: 'Analytics',
+                              subtitle:
+                                  'Understand sales trends, profit and customer activity.',
+                              icon: Icons.analytics_outlined,
+                              onTap: () {
+                                _showComingSoon(context, 'Analytics');
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
 
                       const SizedBox(height: AppSpacing.xxl),
 
@@ -148,23 +157,25 @@ class MoreScreen extends StatelessWidget {
                       _FeatureGrid(
                         isDesktop: isDesktop,
                         items: [
-                          _MoreItem(
-                            title: 'Settings',
-                            subtitle: 'Manage your shop profile and logo.',
-                            icon: Icons.settings_outlined,
-                            onTap: () {
-                              context.push('/settings');
-                            },
-                          ),
-                          _MoreItem(
-                            title: 'Users & Permissions',
-                            subtitle:
-                                'Manage staff accounts and access permissions.',
-                            icon: Icons.admin_panel_settings_outlined,
-                            onTap: () {
-                              _showComingSoon(context, 'Users & Permissions');
-                            },
-                          ),
+                          if (isOwner) ...[
+                            _MoreItem(
+                              title: 'Settings',
+                              subtitle: 'Manage your shop profile and logo.',
+                              icon: Icons.settings_outlined,
+                              onTap: () {
+                                context.push('/settings');
+                              },
+                            ),
+                            _MoreItem(
+                              title: 'Users & Permissions',
+                              subtitle:
+                                  'Add shop attendants and manage their access.',
+                              icon: Icons.admin_panel_settings_outlined,
+                              onTap: () {
+                                context.push('/users');
+                              },
+                            ),
+                          ],
                           _MoreItem(
                             title: 'Notifications',
                             subtitle:

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../shop/presentation/providers/shop_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../widgets/dashboard_header.dart';
 import '../widgets/dashboard_quick_actions.dart';
@@ -18,6 +19,9 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dashboardAsync = ref.watch(dashboardSummaryProvider);
+    // Attendants get an operational dashboard: no profit, no stock
+    // adjustment (the database omits their profit figure as well).
+    final isOwner = ref.watch(shopAccessProvider.select(selectIsShopOwner));
 
     return Container(
       color: AppColors.background,
@@ -35,7 +39,8 @@ class DashboardScreen extends ConsumerWidget {
                 ref.invalidate(dashboardSummaryProvider);
               },
             ),
-            data: (summary) => _DashboardContent(summary: summary),
+            data: (summary) =>
+                _DashboardContent(summary: summary, isOwner: isOwner),
           ),
         ),
       ),
@@ -44,9 +49,10 @@ class DashboardScreen extends ConsumerWidget {
 }
 
 class _DashboardContent extends StatelessWidget {
-  const _DashboardContent({required this.summary});
+  const _DashboardContent({required this.summary, required this.isOwner});
 
   final DashboardSummary summary;
+  final bool isOwner;
 
   @override
   Widget build(BuildContext context) {
@@ -78,11 +84,11 @@ class _DashboardContent extends StatelessWidget {
                     const SizedBox(height: AppSpacing.xl),
                   ],
 
-                  _DashboardStats(summary: summary),
+                  _DashboardStats(summary: summary, showProfit: isOwner),
 
                   const SizedBox(height: AppSpacing.xxxl),
 
-                  const DashboardQuickActions(),
+                  DashboardQuickActions(canAdjustStock: isOwner),
 
                   const SizedBox(height: AppSpacing.xxxl),
 
@@ -120,9 +126,13 @@ class _DashboardContent extends StatelessWidget {
 }
 
 class _DashboardStats extends StatelessWidget {
-  const _DashboardStats({required this.summary});
+  const _DashboardStats({required this.summary, required this.showProfit});
 
   final DashboardSummary summary;
+
+  /// Owners only: an attendant's summary carries no profit figure, and a
+  /// placeholder 0 would be misleading.
+  final bool showProfit;
 
   @override
   Widget build(BuildContext context) {
@@ -130,7 +140,8 @@ class _DashboardStats extends StatelessWidget {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
 
-        final columns = width >= 1100 ? 4 : 2;
+        // One row on wide screens, however many cards this role sees.
+        final columns = width >= 1100 ? (showProfit ? 4 : 3) : 2;
 
         final spacing = width < 500 ? AppSpacing.sm : AppSpacing.lg;
 
@@ -153,19 +164,20 @@ class _DashboardStats extends StatelessWidget {
               ),
             ),
 
-            SizedBox(
-              width: cardWidth,
-              child: DashboardStatCard(
-                title: "Today's Profit",
-                value: _formatCurrency(summary.todayProfit),
-                subtitle: 'Estimated profit today',
-                icon: Icons.trending_up_rounded,
-                iconBackgroundColor: AppColors.successLight,
-                iconColor: AppColors.success,
-                valueColor: AppColors.success,
-                onTap: () => context.go('/sales'),
+            if (showProfit)
+              SizedBox(
+                width: cardWidth,
+                child: DashboardStatCard(
+                  title: "Today's Profit",
+                  value: _formatCurrency(summary.todayProfit),
+                  subtitle: 'Estimated profit today',
+                  icon: Icons.trending_up_rounded,
+                  iconBackgroundColor: AppColors.successLight,
+                  iconColor: AppColors.success,
+                  valueColor: AppColors.success,
+                  onTap: () => context.go('/sales'),
+                ),
               ),
-            ),
 
             SizedBox(
               width: cardWidth,

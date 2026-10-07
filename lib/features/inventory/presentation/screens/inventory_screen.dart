@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../products/domain/entities/product.dart';
 import '../../../products/presentation/providers/products_provider.dart';
+import '../../../shop/presentation/providers/shop_provider.dart';
 import '../providers/inventory_provider.dart';
 import '../widgets/inventory_product_card.dart';
 import '../widgets/inventory_summary_card.dart';
@@ -49,6 +50,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(productsProvider);
     final summaryAsync = ref.watch(inventorySummaryProvider);
+    // Everyone can view inventory; stock adjustment is owner-only.
+    final canAdjustStock = ref.watch(
+      shopAccessProvider.select(selectIsShopOwner),
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
@@ -102,6 +107,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
                       _InventoryQuickActions(
                         isDesktop: isDesktop,
+                        canAdjustStock: canAdjustStock,
                         onStockAdjusted: () {
                           ref.invalidate(productsProvider);
                           ref.invalidate(inventorySummaryProvider);
@@ -142,9 +148,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       if (filteredProducts.isEmpty)
                         const _EmptyInventory()
                       else if (isDesktop)
-                        _DesktopProductGrid(products: filteredProducts)
+                        _DesktopProductGrid(
+                          products: filteredProducts,
+                          canAdjustStock: canAdjustStock,
+                        )
                       else
-                        _MobileProductList(products: filteredProducts),
+                        _MobileProductList(
+                          products: filteredProducts,
+                          canAdjustStock: canAdjustStock,
+                        ),
                     ],
                   ),
                 );
@@ -328,9 +340,13 @@ class _SearchBar extends StatelessWidget {
 }
 
 class _DesktopProductGrid extends StatelessWidget {
-  const _DesktopProductGrid({required this.products});
+  const _DesktopProductGrid({
+    required this.products,
+    required this.canAdjustStock,
+  });
 
   final List<Product> products;
+  final bool canAdjustStock;
 
   @override
   Widget build(BuildContext context) {
@@ -347,30 +363,29 @@ class _DesktopProductGrid extends StatelessWidget {
       itemBuilder: (context, index) {
         final product = products[index];
 
+        // Tapping a card opens stock adjustment, so only for owners.
         return InventoryProductCard(
-  product: product,
-  onTap: () {
-    context.push(
-      '/inventory/adjust',
-      extra: product,
-    );
-  },
-  onAdjustStock: () {
-    context.push(
-      '/inventory/adjust',
-      extra: product,
-    );
-  },
-);
+          product: product,
+          onTap: canAdjustStock
+              ? () => context.push('/inventory/adjust', extra: product)
+              : null,
+          onAdjustStock: canAdjustStock
+              ? () => context.push('/inventory/adjust', extra: product)
+              : null,
+        );
       },
     );
   }
 }
 
 class _MobileProductList extends StatelessWidget {
-  const _MobileProductList({required this.products});
+  const _MobileProductList({
+    required this.products,
+    required this.canAdjustStock,
+  });
 
   final List<Product> products;
+  final bool canAdjustStock;
 
   @override
   Widget build(BuildContext context) {
@@ -382,21 +397,16 @@ class _MobileProductList extends StatelessWidget {
       itemBuilder: (context, index) {
         final product = products[index];
 
+        // Tapping a card opens stock adjustment, so only for owners.
         return InventoryProductCard(
-  product: product,
-  onTap: () {
-    context.push(
-      '/inventory/adjust',
-      extra: product,
-    );
-  },
-  onAdjustStock: () {
-    context.push(
-      '/inventory/adjust',
-      extra: product,
-    );
-  },
-);
+          product: product,
+          onTap: canAdjustStock
+              ? () => context.push('/inventory/adjust', extra: product)
+              : null,
+          onAdjustStock: canAdjustStock
+              ? () => context.push('/inventory/adjust', extra: product)
+              : null,
+        );
       },
     );
   }
@@ -463,27 +473,30 @@ class _InventoryError extends StatelessWidget {
 class _InventoryQuickActions extends StatelessWidget {
   const _InventoryQuickActions({
     required this.isDesktop,
+    required this.canAdjustStock,
     required this.onStockAdjusted,
   });
 
   final bool isDesktop;
+  final bool canAdjustStock;
   final VoidCallback onStockAdjusted;
 
   @override
   Widget build(BuildContext context) {
     final actions = [
-      _InventoryAction(
-        icon: Icons.swap_vert_rounded,
-        title: 'Adjust Stock',
-        subtitle: 'Correct or update stock quantities',
-        onTap: () async {
-          final result = await context.push<bool>('/inventory/adjust');
+      if (canAdjustStock)
+        _InventoryAction(
+          icon: Icons.swap_vert_rounded,
+          title: 'Adjust Stock',
+          subtitle: 'Correct or update stock quantities',
+          onTap: () async {
+            final result = await context.push<bool>('/inventory/adjust');
 
-          if (result == true) {
-            onStockAdjusted();
-          }
-        },
-      ),
+            if (result == true) {
+              onStockAdjusted();
+            }
+          },
+        ),
       _InventoryAction(
         icon: Icons.history_rounded,
         title: 'Stock History',
@@ -497,7 +510,7 @@ class _InventoryQuickActions extends StatelessWidget {
         children: actions.map((action) {
           return Expanded(
             child: Padding(
-              padding: EdgeInsets.only(right: action == actions.first ? 12 : 0),
+              padding: EdgeInsets.only(right: action == actions.last ? 0 : 12),
               child: action,
             ),
           );
@@ -505,8 +518,14 @@ class _InventoryQuickActions extends StatelessWidget {
       );
     }
 
+    // The number of actions depends on the role.
     return Column(
-      children: [actions[0], const SizedBox(height: 12), actions[1]],
+      children: [
+        for (final action in actions) ...[
+          if (action != actions.first) const SizedBox(height: 12),
+          action,
+        ],
+      ],
     );
   }
 }

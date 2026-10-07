@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_shadows.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../admin/presentation/providers/admin_providers.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
 /// Page frame shared by the shop gate screens (register, pending, suspended,
@@ -308,6 +310,16 @@ class SignedInFooter extends ConsumerWidget {
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: AppColors.textSecondary,
                 ),
+          ),
+        // A platform admin may be waiting on their own shop's approval.
+        if (ref.watch(isPlatformAdminProvider).isConfirmedAdmin)
+          TextButton.icon(
+            onPressed: () => context.go('/admin'),
+            icon: const Icon(Icons.shield_outlined, size: 18),
+            label: const Text(
+              'Open Platform Admin',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
         TextButton(
           onPressed: () => ref.read(authSessionProvider.notifier).signOut(),

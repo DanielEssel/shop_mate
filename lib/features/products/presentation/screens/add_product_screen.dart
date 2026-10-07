@@ -9,6 +9,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../product_categories/presentation/widgets/product_category_field.dart';
 import '../../domain/entities/product.dart';
+import '../../../shop/presentation/providers/shop_provider.dart';
 import '../providers/products_provider.dart';
 
 class AddProductScreen extends ConsumerStatefulWidget {
@@ -21,6 +22,10 @@ class AddProductScreen extends ConsumerStatefulWidget {
 
 class _AddProductScreenState
     extends ConsumerState<AddProductScreen> {
+  /// Only the owner may set opening stock (the database enforces it too).
+  /// Read once when saving; the form watches it while building.
+  bool get _isOwner => selectIsShopOwner(ref.read(shopAccessProvider));
+
   final _formKey = GlobalKey<FormState>();
 
   final ImagePicker _imagePicker = ImagePicker();
@@ -289,9 +294,13 @@ class _AddProductScreenState
       _sellingPriceController.text.trim(),
     );
 
-    final stockQuantity = int.tryParse(
-      _stockController.text.trim(),
-    );
+    // Opening stock is owner-only; an attendant's product starts at 0 and
+    // gets stock through purchases.
+    final stockQuantity = _isOwner
+        ? int.tryParse(
+            _stockController.text.trim(),
+          )
+        : 0;
 
     final lowStockThreshold = int.tryParse(
           _lowStockController.text.trim(),
@@ -952,36 +961,45 @@ try {
   // ---------------------------------------------------------------------------
 
   Widget _buildInventory() {
+    final isOwner = ref.watch(shopAccessProvider.select(selectIsShopOwner));
+
     return _SectionCard(
       title: 'Inventory',
       icon: Icons.inventory_2_outlined,
       child: Row(
         children: [
-          Expanded(
-            child: _AppTextField(
-              controller: _stockController,
-              label: 'Opening Stock',
-              hint: '0',
-              required: true,
-              keyboardType:
-                  TextInputType.number,
-              prefixIcon:
-                  Icons.numbers_rounded,
-              validator: (value) {
-                final quantity =
-                    int.tryParse(
-                  value ?? '',
-                );
+          if (!isOwner)
+            const Expanded(
+              child: Text(
+                'Stock starts at 0. Add stock by recording a purchase.',
+              ),
+            )
+          else
+            Expanded(
+              child: _AppTextField(
+                controller: _stockController,
+                label: 'Opening Stock',
+                hint: '0',
+                required: true,
+                keyboardType:
+                    TextInputType.number,
+                prefixIcon:
+                    Icons.numbers_rounded,
+                validator: (value) {
+                  final quantity =
+                      int.tryParse(
+                    value ?? '',
+                  );
 
-                if (quantity == null ||
-                    quantity < 0) {
-                  return 'Enter quantity.';
-                }
+                  if (quantity == null ||
+                      quantity < 0) {
+                    return 'Enter quantity.';
+                  }
 
-                return null;
-              },
+                  return null;
+                },
+              ),
             ),
-          ),
           const SizedBox(
             width: AppSpacing.md,
           ),

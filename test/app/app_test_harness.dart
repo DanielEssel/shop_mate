@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:shopmate/app/app.dart';
 import 'package:shopmate/app/router/app_router.dart';
+import 'package:shopmate/features/admin/presentation/providers/admin_providers.dart';
 import 'package:shopmate/features/auth/domain/entities/auth_user.dart';
 import 'package:shopmate/features/auth/presentation/providers/auth_provider.dart';
 import 'package:shopmate/features/dashboard/domain/entities/dashboard_summary.dart';
@@ -20,15 +21,22 @@ import 'package:shopmate/features/shop/domain/entities/shop_branding_result.dart
 import 'package:shopmate/features/shop/domain/repositories/shop_repository.dart';
 import 'package:shopmate/features/shop/presentation/providers/shop_branding_providers.dart';
 import 'package:shopmate/features/shop/presentation/providers/shop_provider.dart';
+import 'package:shopmate/features/shop_members/presentation/providers/shop_members_providers.dart';
 
+import '../features/admin/fake_admin_repository.dart';
 import '../features/auth/fake_auth_repository.dart';
+import '../features/shop_members/fake_shop_members_repository.dart';
 
-ShopAccess shopAccessFor(String userId, ShopAccessStatus status) {
+ShopAccess shopAccessFor(
+  String userId,
+  ShopAccessStatus status, {
+  String role = 'owner',
+}) {
   return ShopAccess(
     userId: userId,
     status: status,
     shopId: status == ShopAccessStatus.active ? 'shop-$userId' : null,
-    role: 'owner',
+    role: role,
   );
 }
 
@@ -36,18 +44,29 @@ ShopAccess shopAccessFor(String userId, ShopAccessStatus status) {
 /// until [complete] is called.
 class FakeShopRepository implements ShopRepository {
   final answers = <String, ShopAccessStatus>{};
+
+  /// Shop role per user; anyone not listed is the owner.
+  final roles = <String, String>{};
   final _pending = <String, Completer<ShopAccess>>{};
   final fetchedFor = <String>[];
 
   void complete(String userId, ShopAccessStatus status) {
-    _pending.remove(userId)!.complete(shopAccessFor(userId, status));
+    _pending
+        .remove(userId)!
+        .complete(
+          shopAccessFor(userId, status, role: roles[userId] ?? 'owner'),
+        );
   }
 
   @override
   Future<ShopAccess> fetchAccess(String userId) {
     fetchedFor.add(userId);
     final status = answers[userId];
-    if (status != null) return Future.value(shopAccessFor(userId, status));
+    if (status != null) {
+      return Future.value(
+        shopAccessFor(userId, status, role: roles[userId] ?? 'owner'),
+      );
+    }
     return (_pending[userId] = Completer<ShopAccess>()).future;
   }
 
@@ -81,11 +100,12 @@ Future<void> settleApp(WidgetTester tester) async {
 }
 
 class AppHarness {
-  AppHarness(this.container, this.auth, this.shops);
+  AppHarness(this.container, this.auth, this.shops, this.admin);
 
   final ProviderContainer container;
   final FakeAuthRepository auth;
   final FakeShopRepository shops;
+  final FakeAdminRepository admin;
 
   GoRouter get router => container.read(routerProvider);
 
@@ -96,18 +116,31 @@ Future<AppHarness> pumpApp(
   WidgetTester tester, {
   AuthUser? user,
   Map<String, ShopAccessStatus> answers = const {},
+  Map<String, String> roles = const {},
+  Set<String> platformAdminIds = const {},
 }) async {
   tester.view.physicalSize = const Size(1280, 900);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
 
   final auth = FakeAuthRepository(user);
-  final shops = FakeShopRepository()..answers.addAll(answers);
+  final shops = FakeShopRepository()
+    ..answers.addAll(answers)
+    ..roles.addAll(roles);
+  // Platform admin is decided per signed-in account, like the database.
+  final admin = FakeAdminRepository(
+    currentUserId: () => auth.currentUser?.id,
+    adminUserIds: platformAdminIds,
+  );
   final container = ProviderContainer(
     retry: (_, _) => null,
     overrides: [
       authRepositoryProvider.overrideWithValue(auth),
       shopRepositoryProvider.overrideWithValue(shops),
+      adminRepositoryProvider.overrideWithValue(admin),
+      shopMembersRepositoryProvider.overrideWithValue(
+        FakeShopMembersRepository(),
+      ),
       shopBrandingProvider.overrideWith(NoBranding.new),
       dashboardSummaryProvider.overrideWith(
         (ref) async => emptyDashboardSummary,
@@ -126,5 +159,5 @@ Future<AppHarness> pumpApp(
     ),
   );
   await settleApp(tester);
-  return AppHarness(container, auth, shops);
+  return AppHarness(container, auth, shops, admin);
 }

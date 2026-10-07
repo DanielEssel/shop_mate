@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../products/presentation/providers/products_provider.dart';
+import '../../../shop/presentation/providers/shop_provider.dart';
 import '../widgets/low_stock_product_card.dart';
 import '../widgets/low_stock_summary_header.dart';
 import '../../../products/domain/entities/product.dart';
@@ -15,6 +16,10 @@ class LowStockScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final productsAsync = ref.watch(lowStockProductsProvider);
+    // Stock adjustment is owner-only; everyone can see what is running low.
+    final canAdjustStock = ref.watch(
+      shopAccessProvider.select(selectIsShopOwner),
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -75,6 +80,7 @@ class LowStockScreen extends ConsumerWidget {
                               _ProductGrid(
                                 products: products,
                                 isDesktop: isDesktop,
+                                canAdjustStock: canAdjustStock,
                               ),
                           ],
                         ),
@@ -138,10 +144,15 @@ class _Header extends StatelessWidget {
 }
 
 class _ProductGrid extends StatelessWidget {
-  const _ProductGrid({required this.products, required this.isDesktop});
+  const _ProductGrid({
+    required this.products,
+    required this.isDesktop,
+    required this.canAdjustStock,
+  });
 
   final List<Product> products;
   final bool isDesktop;
+  final bool canAdjustStock;
 
   @override
   Widget build(BuildContext context) {
@@ -170,9 +181,11 @@ class _ProductGrid extends StatelessWidget {
                 width: cardWidth,
                 child: LowStockProductCard(
                   product: product,
-                  onAdjustStock: () {
-                    context.push('/inventory/adjust', extra: product);
-                  },
+                  onAdjustStock: canAdjustStock
+                      ? () {
+                          context.push('/inventory/adjust', extra: product);
+                        }
+                      : null,
                 ),
               ),
           ],

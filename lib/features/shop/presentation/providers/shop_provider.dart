@@ -45,3 +45,16 @@ final shopAccessProvider = FutureProvider<ShopAccess>((ref) async {
     );
   }
 });
+
+/// Selector for `ref.watch(shopAccessProvider.select(selectIsShopOwner))`:
+/// true only for the owner of an active shop. Loading, errors, gate states
+/// and every non-owner role are false, so owner-only UI fails closed.
+///
+/// This reads the one source of the role ([shopAccessProvider]); it is UI
+/// only, and the database enforces every owner-only operation itself.
+bool selectIsShopOwner(AsyncValue<ShopAccess> access) {
+  final value = access.value;
+  return value != null &&
+      value.status == ShopAccessStatus.active &&
+      value.isOwner;
+}

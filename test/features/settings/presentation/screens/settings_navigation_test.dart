@@ -54,6 +54,11 @@ Future<GoRouter> _pumpMore(WidgetTester tester) async {
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
       ),
+      GoRoute(
+        path: '/users',
+        builder: (context, state) =>
+            const Scaffold(body: Text('Users & Permissions page')),
+      ),
     ],
   );
   addTearDown(router.dispose);
@@ -111,12 +116,17 @@ void main() {
     expect(find.byType(MoreScreen), findsOneWidget);
   });
 
-  for (final title in const [
-    'Analytics',
-    'Users & Permissions',
-    'Notifications',
-    'Help & Support',
-  ]) {
+  testWidgets('More -> Users & Permissions opens /users', (tester) async {
+    final router = await _pumpMore(tester);
+
+    await _tapMoreItem(tester, 'Users & Permissions');
+
+    expect(router.state.uri.path, '/users');
+    expect(find.text('Users & Permissions page'), findsOneWidget);
+    expect(find.text('Users & Permissions is coming soon.'), findsNothing);
+  });
+
+  for (final title in const ['Analytics', 'Notifications', 'Help & Support']) {
     testWidgets('More -> $title is still "coming soon"', (tester) async {
       final router = await _pumpMore(tester);
 

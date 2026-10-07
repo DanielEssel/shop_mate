@@ -9,6 +9,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../product_categories/presentation/widgets/product_category_field.dart';
 import '../../domain/entities/product.dart';
+import '../../../shop/presentation/providers/shop_provider.dart';
 import '../providers/products_provider.dart';
 
 class EditProductScreen extends ConsumerStatefulWidget {
@@ -217,11 +218,22 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
       return;
     }
 
-    final costPrice = double.tryParse(_costPriceController.text.trim());
+    // Prices and stock are owner-only on an existing product; for anyone
+    // else the stored values are sent back unchanged (the database refuses
+    // a change anyway).
+    final isOwner = selectIsShopOwner(ref.read(shopAccessProvider));
 
-    final sellingPrice = double.tryParse(_sellingPriceController.text.trim());
+    final costPrice = isOwner
+        ? double.tryParse(_costPriceController.text.trim())
+        : widget.product.costPrice;
 
-    final stockQuantity = int.tryParse(_stockController.text.trim());
+    final sellingPrice = isOwner
+        ? double.tryParse(_sellingPriceController.text.trim())
+        : widget.product.sellingPrice;
+
+    final stockQuantity = isOwner
+        ? int.tryParse(_stockController.text.trim())
+        : widget.product.stockQuantity;
 
     final lowStockThreshold =
         int.tryParse(_lowStockController.text.trim()) ?? 10;
@@ -328,6 +340,8 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isOwner = ref.watch(shopAccessProvider.select(selectIsShopOwner));
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -424,6 +438,8 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
                           controller: _costPriceController,
                           label: 'Cost Price',
                           icon: Icons.shopping_cart_outlined,
+                          locked: !isOwner,
+                          lockedHint: _ownerOnlyPriceHint,
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
@@ -442,6 +458,8 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
                           controller: _sellingPriceController,
                           label: 'Selling Price',
                           icon: Icons.sell_outlined,
+                          locked: !isOwner,
+                          lockedHint: _ownerOnlyPriceHint,
                           keyboardType: const TextInputType.numberWithOptions(
                             decimal: true,
                           ),
@@ -507,6 +525,9 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
                           controller: _stockController,
                           label: 'Stock Quantity',
                           icon: Icons.numbers_outlined,
+                          locked: !isOwner,
+                          lockedHint:
+                              'Stock changes through sales and purchases.',
                           keyboardType: TextInputType.number,
                           validator: (value) {
                             final number = int.tryParse(value?.trim() ?? '');
@@ -586,6 +607,10 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
     );
   }
 
+  static const _ownerOnlyPriceHint = 'Only the shop owner can change prices.';
+
+  /// [locked] shows the value without allowing edits (owner-only fields for
+  /// an attendant), with [lockedHint] explaining why.
   Widget _textField({
     required TextEditingController controller,
     required String label,
@@ -593,14 +618,19 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
     TextInputType? keyboardType,
     String? Function(String?)? validator,
     int maxLines = 1,
+    bool locked = false,
+    String? lockedHint,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
-      validator: validator,
+      validator: locked ? null : validator,
       maxLines: maxLines,
-      enabled: !_isSaving,
-      decoration: _inputDecoration(label: label, icon: icon),
+      enabled: !_isSaving && !locked,
+      decoration: _inputDecoration(
+        label: label,
+        icon: icon,
+      ).copyWith(helperText: locked ? lockedHint : null),
     );
   }
 }

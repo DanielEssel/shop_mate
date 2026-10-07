@@ -13,6 +13,8 @@ import 'package:shopmate/features/reports/domain/entities/report_date_range.dart
 import 'package:shopmate/features/reports/domain/repositories/report_repository.dart';
 import 'package:shopmate/features/reports/presentation/providers/reports_provider.dart';
 import 'package:shopmate/features/reports/presentation/screens/inventory_report_screen.dart';
+import 'package:shopmate/features/shop/domain/entities/shop_access.dart';
+import 'package:shopmate/features/shop/presentation/providers/shop_provider.dart';
 
 const _populated = InventoryReport(
   totalProducts: 1250,
@@ -283,6 +285,15 @@ void main() {
         overrides: [
           reportRepositoryProvider.overrideWithValue(
             _FakeReportRepository([_populated]),
+          ),
+          // Reports are owner-only; More only lists them for the owner.
+          shopAccessProvider.overrideWith(
+            (ref) async => const ShopAccess(
+              userId: 'user-1',
+              status: ShopAccessStatus.active,
+              shopId: 'shop-1',
+              role: 'owner',
+            ),
           ),
         ],
         child: MaterialApp.router(routerConfig: router),

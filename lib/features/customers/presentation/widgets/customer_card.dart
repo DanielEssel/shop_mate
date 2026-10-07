@@ -106,8 +106,8 @@ class CustomerCard extends StatelessWidget {
                       break;
                   }
                 },
-                itemBuilder: (context) => const [
-                  PopupMenuItem(
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
                     value: 'edit',
                     child: ListTile(
                       leading: Icon(Icons.edit_outlined),
@@ -115,14 +115,16 @@ class CustomerCard extends StatelessWidget {
                       contentPadding: EdgeInsets.zero,
                     ),
                   ),
-                  PopupMenuItem(
-                    value: 'delete',
-                    child: ListTile(
-                      leading: Icon(Icons.delete_outline),
-                      title: Text('Deactivate customer'),
-                      contentPadding: EdgeInsets.zero,
+                  // Only offered when a delete action is provided (owners).
+                  if (onDelete != null)
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: ListTile(
+                        leading: Icon(Icons.delete_outline),
+                        title: Text('Deactivate customer'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ),
-                  ),
                 ],
                 child: const Icon(
                   Icons.more_vert_rounded,

@@ -8,11 +8,13 @@ class LowStockProductCard extends StatelessWidget {
   const LowStockProductCard({
     super.key,
     required this.product,
-    required this.onAdjustStock,
+    this.onAdjustStock,
   });
 
   final Product product;
-  final VoidCallback onAdjustStock;
+
+  /// Null hides the Adjust button (stock adjustment is owner-only).
+  final VoidCallback? onAdjustStock;
 
   @override
   Widget build(BuildContext context) {
@@ -143,30 +145,32 @@ class LowStockProductCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                OutlinedButton.icon(
-                  onPressed: onAdjustStock,
-                  icon: const Icon(
-                    Icons.add_box_outlined,
-                    size: 17,
+                if (onAdjustStock != null) ...[
+                  const SizedBox(width: AppSpacing.sm),
+                  OutlinedButton.icon(
+                    onPressed: onAdjustStock,
+                    icon: const Icon(
+                      Icons.add_box_outlined,
+                      size: 17,
+                    ),
+                    label: const Text('Adjust'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(
+                        color: AppColors.borderStrong,
+                      ),
+                      padding:
+                          const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.sm,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(10),
+                      ),
+                    ),
                   ),
-                  label: const Text('Adjust'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primary,
-                    side: const BorderSide(
-                      color: AppColors.borderStrong,
-                    ),
-                    padding:
-                        const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.sm,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
+                ],
               ],
             ),
           ],

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../domain/entities/product.dart';
+import '../../../shop/presentation/providers/shop_provider.dart';
 import '../providers/products_provider.dart';
 import 'package:go_router/go_router.dart';
 
@@ -54,13 +55,17 @@ class ProductDetailsScreen extends ConsumerWidget {
 // MAIN CONTENT
 // -----------------------------------------------------------------------------
 
-class _ProductDetailsContent extends StatelessWidget {
+class _ProductDetailsContent extends ConsumerWidget {
   const _ProductDetailsContent({required this.product});
 
   final Product product;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Cost and margin are owner-level information; attendants see the
+    // selling price only.
+    final isOwner = ref.watch(shopAccessProvider.select(selectIsShopOwner));
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppSpacing.xxl),
       child: Center(
@@ -81,18 +86,20 @@ class _ProductDetailsContent extends StatelessWidget {
                     label: 'Selling Price',
                     value: 'GH₵ ${product.sellingPrice.toStringAsFixed(2)}',
                   ),
-                  _InfoItem(
-                    label: 'Cost Price',
-                    value: 'GH₵ ${product.costPrice.toStringAsFixed(2)}',
-                  ),
-                  _InfoItem(
-                    label: 'Profit / Unit',
-                    value: 'GH₵ ${product.profitPerUnit.toStringAsFixed(2)}',
-                  ),
-                  _InfoItem(
-                    label: 'Profit Margin',
-                    value: '${product.profitMargin.toStringAsFixed(1)}%',
-                  ),
+                  if (isOwner) ...[
+                    _InfoItem(
+                      label: 'Cost Price',
+                      value: 'GH₵ ${product.costPrice.toStringAsFixed(2)}',
+                    ),
+                    _InfoItem(
+                      label: 'Profit / Unit',
+                      value: 'GH₵ ${product.profitPerUnit.toStringAsFixed(2)}',
+                    ),
+                    _InfoItem(
+                      label: 'Profit Margin',
+                      value: '${product.profitMargin.toStringAsFixed(1)}%',
+                    ),
+                  ],
                 ],
               ),
 
@@ -605,6 +612,10 @@ class _ProductActions extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Stock adjustment and deletion are owner-only; attendants can still
+    // edit a product's basic details.
+    final isOwner = ref.watch(shopAccessProvider.select(selectIsShopOwner));
+
     return Column(
       children: [
         Row(
@@ -633,53 +644,57 @@ class _ProductActions extends ConsumerWidget {
               ),
             ),
 
-            const SizedBox(width: AppSpacing.md),
+            if (isOwner) ...[
+              const SizedBox(width: AppSpacing.md),
 
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: () async {
-                  final updated = await context.push<bool>(
-                    '/inventory/adjust',
-                    extra: product,
-                  );
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    final updated = await context.push<bool>(
+                      '/inventory/adjust',
+                      extra: product,
+                    );
 
-                  if (updated == true && context.mounted) {
-                    ref.invalidate(productByIdProvider(product.id));
+                    if (updated == true && context.mounted) {
+                      ref.invalidate(productByIdProvider(product.id));
 
-                    ref.invalidate(productsProvider);
+                      ref.invalidate(productsProvider);
 
-                    ref.invalidate(lowStockProductsProvider);
-                  }
-                },
-                icon: const Icon(Icons.swap_vert_rounded),
-                label: const Text('Adjust Stock'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
+                      ref.invalidate(lowStockProductsProvider);
+                    }
+                  },
+                  icon: const Icon(Icons.swap_vert_rounded),
+                  label: const Text('Adjust Stock'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                  ),
                 ),
               ),
-            ),
+            ],
           ],
         ),
 
-        const SizedBox(height: AppSpacing.lg),
+        if (isOwner) ...[
+          const SizedBox(height: AppSpacing.lg),
 
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () {
-              _showDeleteDialog(context, ref, product);
-            },
-            icon: const Icon(Icons.delete_outline_rounded),
-            label: const Text('Delete Product'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.error,
-              side: BorderSide(color: AppColors.error.withValues(alpha: 0.35)),
-              padding: const EdgeInsets.symmetric(vertical: 15),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                _showDeleteDialog(context, ref, product);
+              },
+              icon: const Icon(Icons.delete_outline_rounded),
+              label: const Text('Delete Product'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.error,
+                side: BorderSide(color: AppColors.error.withValues(alpha: 0.35)),
+                padding: const EdgeInsets.symmetric(vertical: 15),
+              ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }

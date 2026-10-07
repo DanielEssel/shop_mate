@@ -7,6 +7,7 @@ import '../../../app/theme/app_radius.dart';
 import '../../../app/theme/app_shadows.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../features/admin/presentation/providers/admin_providers.dart';
 import '../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../features/shop/presentation/providers/shop_branding_providers.dart';
 import '../../../features/shop/presentation/providers/shop_provider.dart';
@@ -18,6 +19,9 @@ class AppDrawer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.read(authRepositoryProvider).currentUser;
+    // Owner-only destinations are hidden from attendants; the router and the
+    // database refuse them as well.
+    final isOwner = ref.watch(shopAccessProvider.select(selectIsShopOwner));
 
     return Drawer(
       backgroundColor: AppColors.surface,
@@ -81,47 +85,59 @@ class AppDrawer extends ConsumerWidget {
                     onTap: () => _navigate(context, '/suppliers'),
                   ),
 
-                  _DrawerItem(
-                    icon: Icons.account_balance_wallet_outlined,
-                    title: 'Expenses',
-                    onTap: () => _navigate(context, '/expenses'),
-                  ),
+                  if (isOwner) ...[
+                    _DrawerItem(
+                      icon: Icons.account_balance_wallet_outlined,
+                      title: 'Expenses',
+                      onTap: () => _navigate(context, '/expenses'),
+                    ),
 
-                  _DrawerItem(
-                    icon: Icons.bar_chart_outlined,
-                    title: 'Reports',
-                    onTap: () =>
-                        _navigate(context, '/reports/business-performance'),
-                  ),
+                    _DrawerItem(
+                      icon: Icons.bar_chart_outlined,
+                      title: 'Reports',
+                      onTap: () =>
+                          _navigate(context, '/reports/business-performance'),
+                    ),
 
-                  _DrawerItem(
-                    icon: Icons.assessment_outlined,
-                    title: 'Inventory Report',
-                    onTap: () => _navigate(context, '/reports/inventory'),
-                  ),
+                    _DrawerItem(
+                      icon: Icons.assessment_outlined,
+                      title: 'Inventory Report',
+                      onTap: () => _navigate(context, '/reports/inventory'),
+                    ),
 
-                  _DrawerItem(
-                    icon: Icons.analytics_outlined,
-                    title: 'Analytics',
-                    onTap: () => _showComingSoon(context, 'Analytics'),
-                  ),
+                    _DrawerItem(
+                      icon: Icons.analytics_outlined,
+                      title: 'Analytics',
+                      onTap: () => _showComingSoon(context, 'Analytics'),
+                    ),
+                  ],
 
                   const _DrawerDivider(),
 
                   const _DrawerSectionLabel(title: 'SYSTEM'),
 
-                  _DrawerItem(
-                    icon: Icons.settings_outlined,
-                    title: 'Settings',
-                    onTap: () => _navigate(context, '/settings'),
-                  ),
+                  if (isOwner)
+                    _DrawerItem(
+                      icon: Icons.settings_outlined,
+                      title: 'Settings',
+                      onTap: () => _navigate(context, '/settings'),
+                    ),
 
-                  _DrawerItem(
-                    icon: Icons.admin_panel_settings_outlined,
-                    title: 'Users & Permissions',
-                    onTap: () =>
-                        _showComingSoon(context, 'Users & Permissions'),
-                  ),
+                  // Platform admins only; the database still checks every
+                  // admin action.
+                  if (ref.watch(isPlatformAdminProvider).isConfirmedAdmin)
+                    _DrawerItem(
+                      icon: Icons.shield_outlined,
+                      title: 'Platform Admin',
+                      onTap: () => _navigate(context, '/admin'),
+                    ),
+
+                  if (isOwner)
+                    _DrawerItem(
+                      icon: Icons.admin_panel_settings_outlined,
+                      title: 'Users & Permissions',
+                      onTap: () => _navigate(context, '/users'),
+                    ),
 
                   _DrawerItem(
                     icon: Icons.notifications_none_rounded,

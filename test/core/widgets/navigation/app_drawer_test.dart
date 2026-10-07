@@ -56,6 +56,7 @@ const _topLevelRoutes = [
   '/reports/business-performance',
   '/reports/inventory',
   '/settings',
+  '/users',
 ];
 
 final _shellScaffoldKey = GlobalKey<ScaffoldState>();
@@ -189,6 +190,7 @@ void main() {
     'Reports': '/reports/business-performance',
     'Inventory Report': '/reports/inventory',
     'Settings': '/settings',
+    'Users & Permissions': '/users',
   };
 
   topLevelItems.forEach((title, path) {
@@ -234,12 +236,7 @@ void main() {
     );
   });
 
-  for (final title in const [
-    'Analytics',
-    'Users & Permissions',
-    'Notifications',
-    'Help & Support',
-  ]) {
+  for (final title in const ['Analytics', 'Notifications', 'Help & Support']) {
     testWidgets('$title still shows "coming soon" and does not navigate', (
       tester,
     ) async {
