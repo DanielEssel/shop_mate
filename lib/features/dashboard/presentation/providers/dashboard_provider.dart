@@ -33,8 +33,9 @@ final getDashboardSummaryProvider =
 
 final dashboardSummaryProvider =
     FutureProvider<DashboardSummary>((ref) {
-  // Rebuild the dashboard whenever the authenticated account changes.
-  ref.watch(authStateProvider);
+  // Rebuild the dashboard whenever the authenticated account changes (not
+  // on token refreshes for the same account).
+  ref.watch(currentUserIdProvider);
 
   return ref
       .read(getDashboardSummaryProvider)

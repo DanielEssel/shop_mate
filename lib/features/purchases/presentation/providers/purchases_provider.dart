@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../products/domain/entities/product.dart';
 import '../../../products/presentation/providers/products_provider.dart';
@@ -50,17 +51,25 @@ final getPurchaseProvider =
 
 final purchasesProvider =
     FutureProvider<List<Purchase>>((ref) {
+  // Session-scoped: these providers and the draft cart below are rebuilt
+  // (the draft emptied) when the signed-in account changes.
+  ref.watch(currentUserIdProvider);
+
   return ref.read(getPurchasesProvider).call();
 });
 
 final purchaseProvider =
     FutureProvider.family<Purchase, String>((ref, id) {
+  ref.watch(currentUserIdProvider);
+
   return ref.read(getPurchaseProvider).call(id);
 });
 
 final purchaseItemsProvider =
     FutureProvider.family<List<PurchaseItem>, String>(
   (ref, purchaseId) async {
+    ref.watch(currentUserIdProvider);
+
     final dataSource =
         ref.read(purchaseRemoteDataSourceProvider);
 
@@ -77,6 +86,8 @@ class PurchaseCartNotifier
     extends Notifier<List<PurchaseCartItem>> {
   @override
   List<PurchaseCartItem> build() {
+    ref.watch(currentUserIdProvider);
+
     return [];
   }
 

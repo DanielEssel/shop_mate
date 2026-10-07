@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../data/datasources/customer_remote_datasource.dart';
 import '../../data/repositories/customer_repository_impl.dart';
@@ -58,6 +59,8 @@ final customersProvider =
 class CustomersNotifier extends AsyncNotifier<List<Customer>> {
   @override
   Future<List<Customer>> build() {
+    // Session-scoped: rebuilt when the signed-in account changes.
+    ref.watch(currentUserIdProvider);
     return ref.read(getCustomersProvider).call();
   }
 
@@ -85,7 +88,7 @@ class CustomersNotifier extends AsyncNotifier<List<Customer>> {
 
     final created = await ref.read(createCustomerProvider).call(customer);
 
-    final current = state.value ?? <Customer>[];
+    final current = _currentCustomers();
 
     state = AsyncData([created, ...current]);
 
@@ -95,7 +98,7 @@ class CustomersNotifier extends AsyncNotifier<List<Customer>> {
   Future<Customer> updateCustomer(Customer customer) async {
     final updated = await ref.read(updateCustomerProvider).call(customer);
 
-    final current = state.value ?? <Customer>[];
+    final current = _currentCustomers();
 
     state = AsyncData(
       current.map((item) {
@@ -109,13 +112,20 @@ class CustomersNotifier extends AsyncNotifier<List<Customer>> {
   Future<void> deleteCustomer(String id) async {
     await ref.read(deleteCustomerProvider).call(id);
 
-    final current = state.value ?? <Customer>[];
+    final current = _currentCustomers();
 
     state = AsyncData(current.where((customer) => customer.id != id).toList());
+  }
+
+  /// The loaded list, ignoring one kept from a previous account while the
+  /// list reloads for the account signed in now.
+  List<Customer> _currentCustomers() {
+    return state.unwrapPrevious().value ?? <Customer>[];
   }
 }
 
 final customerProvider = FutureProvider.family<Customer, String>((ref, id) {
+  ref.watch(currentUserIdProvider);
   return ref.read(getCustomerProvider).call(id);
 });
 

@@ -98,7 +98,7 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
                   change: change,
                   amountPaidController: _amountPaidController,
                   isProcessing: _isProcessing,
-                  customers: customersAsync.value ?? const [],
+                  customers: customersAsync.unwrapPrevious().value ?? const [],
                   customerId: _customerId,
                   onCustomerChanged: _changeCustomer,
                   onSearchChanged: (value) {
@@ -132,7 +132,7 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
                 change: change,
                 amountPaidController: _amountPaidController,
                 isProcessing: _isProcessing,
-                customers: customersAsync.value ?? const [],
+                customers: customersAsync.unwrapPrevious().value ?? const [],
                 customerId: _customerId,
                 onCustomerChanged: _changeCustomer,
                 onSearchChanged: (value) {

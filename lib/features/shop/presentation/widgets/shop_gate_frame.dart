@@ -296,7 +296,7 @@ class SignedInFooter extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final email = ref.read(supabaseClientProvider).auth.currentUser?.email;
+    final email = ref.read(authRepositoryProvider).currentUser?.email;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -310,7 +310,7 @@ class SignedInFooter extends ConsumerWidget {
                 ),
           ),
         TextButton(
-          onPressed: () => ref.read(authRepositoryProvider).signOut(),
+          onPressed: () => ref.read(authSessionProvider.notifier).signOut(),
           child: const Text(
             'Sign out',
             style: TextStyle(fontWeight: FontWeight.w700),

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/datasources/product_remote_datasource.dart';
 import '../../data/repositories/product_repository_impl.dart';
 import '../../domain/entities/product.dart';
@@ -40,6 +41,9 @@ final getLowStockProductsProvider =
 
 final lowStockProductsProvider =
     FutureProvider<List<Product>>((ref) {
+  // Session-scoped: rebuilt when the signed-in account changes.
+  ref.watch(currentUserIdProvider);
+
   return ref
       .read(getLowStockProductsProvider)
       .call();
@@ -63,6 +67,8 @@ final createProductProvider =
 
 final productsProvider =
     FutureProvider<List<Product>>((ref) async {
+  ref.watch(currentUserIdProvider);
+
   final repository = ref.read(productRepositoryProvider);
 
   return repository.getProducts();
@@ -70,6 +76,8 @@ final productsProvider =
 
 final productByIdProvider =
     FutureProvider.family<Product, String>((ref, id) async {
+  ref.watch(currentUserIdProvider);
+
   final repository =
       ref.read(productRepositoryProvider);
 

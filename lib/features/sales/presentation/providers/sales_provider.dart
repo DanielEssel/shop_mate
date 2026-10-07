@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../core/services/supabase_service.dart';
 import '../../../products/domain/entities/product.dart';
 import '../../../products/presentation/providers/products_provider.dart';
@@ -34,11 +35,15 @@ final getSaleProvider = Provider<GetSale>((ref) {
   return GetSale(ref.read(salesRepositoryProvider));
 });
 
+// Session-scoped: the data providers and the cart below are rebuilt (the
+// cart emptied) when the signed-in account changes.
 final salesProvider = FutureProvider<List<Sale>>((ref) {
+  ref.watch(currentUserIdProvider);
   return ref.read(getSalesProvider).call();
 });
 
 final saleProvider = FutureProvider.family<Sale, String>((ref, id) {
+  ref.watch(currentUserIdProvider);
   return ref.read(getSaleProvider).call(id);
 });
 
@@ -46,6 +51,7 @@ final saleItemsProvider = FutureProvider.family<List<SaleItem>, String>((
   ref,
   saleId,
 ) async {
+  ref.watch(currentUserIdProvider);
   final dataSource = ref.read(salesRemoteDataSourceProvider);
 
   return dataSource.getSaleItems(saleId);
@@ -53,6 +59,7 @@ final saleItemsProvider = FutureProvider.family<List<SaleItem>, String>((
 
 final salePaymentSummaryProvider =
     FutureProvider.family<SalePaymentSummary, String>((ref, saleId) {
+      ref.watch(currentUserIdProvider);
       return ref.read(salesRepositoryProvider).getSalePaymentSummary(saleId);
     });
 
@@ -63,6 +70,7 @@ final salesProductsProvider = FutureProvider<List<Product>>((ref) async {
 class SaleCartNotifier extends Notifier<List<CartItem>> {
   @override
   List<CartItem> build() {
+    ref.watch(currentUserIdProvider);
     return [];
   }
 

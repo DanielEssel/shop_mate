@@ -1,23 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_radius.dart';
 import '../../../app/theme/app_shadows.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_typography.dart';
+import '../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../../features/shop/presentation/providers/shop_branding_providers.dart';
 import '../../../features/shop/presentation/providers/shop_provider.dart';
 import '../../../features/shop/presentation/widgets/shop_logo_mark.dart';
 
-class AppDrawer extends StatelessWidget {
+class AppDrawer extends ConsumerWidget {
   const AppDrawer({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final user = Supabase.instance.client.auth.currentUser;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.read(authRepositoryProvider).currentUser;
 
     return Drawer(
       backgroundColor: AppColors.surface,
@@ -151,7 +151,7 @@ class AppDrawer extends StatelessWidget {
                 icon: Icons.logout_rounded,
                 title: 'Sign Out',
                 isDestructive: true,
-                onTap: () => _confirmSignOut(context),
+                onTap: () => _confirmSignOut(context, ref),
               ),
             ),
           ],
@@ -189,7 +189,10 @@ class AppDrawer extends StatelessWidget {
     );
   }
 
-  static Future<void> _confirmSignOut(BuildContext context) async {
+  static Future<void> _confirmSignOut(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
     final shouldSignOut = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -218,15 +221,9 @@ class AppDrawer extends StatelessWidget {
       return;
     }
 
-    await Supabase.instance.client.auth.signOut();
-
-    if (!context.mounted) {
-      return;
-    }
-
-    Navigator.of(context).pop();
-
-    context.go('/login');
+    // Clearing the session resets every account-scoped provider, and the
+    // router then replaces the whole app (drawer included) with Login.
+    await ref.read(authSessionProvider.notifier).signOut();
   }
 }
 
@@ -241,7 +238,9 @@ class _DrawerHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final brandingAsync = ref.watch(shopBrandingProvider);
-    final branding = brandingAsync.value;
+    // unwrapPrevious: while reloading for a new account or shop, never show
+    // the branding kept from the previous one.
+    final branding = brandingAsync.unwrapPrevious().value;
     final accessName = ref.watch(
       shopAccessProvider.select((access) => access.value?.shopName),
     );

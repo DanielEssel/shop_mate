@@ -73,7 +73,7 @@ class _ReceiptCustomerContent extends ConsumerWidget {
     // Branding is non-blocking: until it loads (or if it fails) the receipt
     // uses the shop access name and no logo.
     final branding = ReceiptBranding.from(
-      branding: ref.watch(shopBrandingProvider).value,
+      branding: ref.watch(shopBrandingProvider).unwrapPrevious().value,
       fallbackShopName: ref.watch(shopAccessProvider).value?.shopName,
     );
     final customerId = sale.customerId;

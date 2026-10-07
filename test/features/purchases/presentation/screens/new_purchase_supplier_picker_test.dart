@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:shopmate/features/auth/presentation/providers/auth_provider.dart';
 import 'package:shopmate/features/products/domain/entities/product.dart';
 import 'package:shopmate/features/purchases/domain/entities/purchase.dart';
 import 'package:shopmate/features/purchases/domain/repositories/purchase_repository.dart';
@@ -124,6 +125,8 @@ Future<_Harness> _pump(
     ProviderScope(
       retry: (_, _) => null,
       overrides: [
+        // The purchase draft is scoped to the signed-in account.
+        currentUserIdProvider.overrideWithValue('user-1'),
         purchaseProductsProvider.overrideWith((ref) async => [_rice]),
         purchaseRepositoryProvider.overrideWithValue(purchaseRepository),
         supplierRepositoryProvider.overrideWithValue(supplierRepository),

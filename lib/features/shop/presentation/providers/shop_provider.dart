@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/supabase_service.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/repositories/shop_repository_impl.dart';
 import '../../domain/entities/shop_access.dart';
@@ -22,11 +23,7 @@ final shopRepositoryProvider = Provider<ShopRepository>((ref) {
 /// It never throws: a failure becomes [ShopAccessStatus.unavailable], so the
 /// router can show a retry screen instead of an endless spinner.
 final shopAccessProvider = FutureProvider<ShopAccess>((ref) async {
-  ref.watch(
-    authStateProvider.select((state) => state.value?.session?.user.id),
-  );
-
-  final userId = ref.watch(supabaseClientProvider).auth.currentUser?.id;
+  final userId = ref.watch(currentUserIdProvider);
 
   // Signed out. The router never reads this in that case, but the provider
   // must still return something.
