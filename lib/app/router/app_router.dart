@@ -1,12 +1,12 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/widgets/navigation/app_shell.dart';
+import '../../features/auth/presentation/providers/auth_provider.dart';
+import '../../features/auth/presentation/providers/password_recovery_provider.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
+import '../../features/auth/presentation/screens/password_recovery_screen.dart';
 import '../../features/auth/presentation/screens/signup_screen.dart';
 import '../../features/customers/presentation/screens/add_customer_screen.dart';
 import '../../features/customers/presentation/screens/customer_details_screen.dart';
@@ -44,7 +44,9 @@ import '../../features/suppliers/presentation/screens/edit_supplier_screen.dart'
 import '../../features/suppliers/presentation/screens/supplier_details_screen.dart';
 import '../../features/suppliers/presentation/screens/suppliers_screen.dart';
 
-const Set<String> _authRoutes = {'/login', '/signup'};
+const String _recoveryRoute = '/forgot-password';
+
+const Set<String> _authRoutes = {'/login', '/signup', _recoveryRoute};
 
 /// Screens a signed-in user can be parked on while their shop access is
 /// sorted out. None of them show business data.
@@ -67,30 +69,34 @@ final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
 /// the signed-in user's shop access.
 ///
 /// Access rules:
-///   signed out            -> /login or /signup only
+///   signed out            -> /login, /signup or /forgot-password only
+///   recovering a password -> /forgot-password until the new password is set
 ///   signed in, no shop    -> /register-shop
 ///   shop pending          -> /pending
 ///   shop or member paused -> /suspended
 ///   status unknown        -> /access-error (retry)
 ///   shop active           -> the app
 final routerProvider = Provider<GoRouter>((ref) {
-  final authRefresh = GoRouterRefreshStream(
-    Supabase.instance.client.auth.onAuthStateChange,
-  );
-  final accessRefresh = _RouterRefresh();
+  final refresh = _RouterRefresh();
 
-  // Re-run the redirect whenever the shop access answer changes. Only
-  // listen here (never watch), so the router itself is created once.
+  // Re-run the redirect whenever the signed-in account or its shop access
+  // answer changes. Only listen here (never watch), so the router itself is
+  // created once. Token refreshes keep the same account and don't re-run it.
+  ref.listen<String?>(currentUserIdProvider, (_, _) => refresh.notify());
+  ref.listen<PasswordRecovery?>(
+    passwordRecoveryProvider,
+    (_, _) => refresh.notify(),
+  );
   ref.listen<AsyncValue<ShopAccess>>(
     shopAccessProvider,
-    (_, _) => accessRefresh.notify(),
+    (_, _) => refresh.notify(),
   );
 
   final router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/dashboard',
 
-    refreshListenable: Listenable.merge([authRefresh, accessRefresh]),
+    refreshListenable: refresh,
 
     redirect: (context, state) => _redirect(ref, state),
 
@@ -101,7 +107,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/login',
         builder: (context, state) {
-          return const LoginScreen();
+          return LoginScreen(
+            passwordUpdated: state.uri.queryParameters['reset'] == 'done',
+          );
         },
       ),
 
@@ -109,6 +117,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/signup',
         builder: (context, state) {
           return const SignupScreen();
+        },
+      ),
+
+      GoRoute(
+        path: _recoveryRoute,
+        builder: (context, state) {
+          final email = state.extra;
+
+          return PasswordRecoveryScreen(
+            initialEmail: email is String ? email : null,
+          );
         },
       ),
 
@@ -464,30 +483,55 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   ref.onDispose(() {
     router.dispose();
-    authRefresh.dispose();
-    accessRefresh.dispose();
+    refresh.dispose();
   });
 
   return router;
 });
 
 String? _redirect(Ref ref, GoRouterState state) {
-  final session = Supabase.instance.client.auth.currentSession;
-  final location = state.matchedLocation;
+  return resolveAppRedirect(
+    location: state.matchedLocation,
+    userId: ref.read(currentUserIdProvider),
+    userEmail: ref.read(authSessionProvider)?.email,
+    access: ref.read(shopAccessProvider),
+    recovery: ref.read(passwordRecoveryProvider),
+  );
+}
+
+/// Where the app gate sends [location], or null to stay. [userId] and
+/// [userEmail] are the signed-in account (null when signed out), [access] is
+/// the current shop access answer and [recovery] a password recovery in
+/// progress.
+@visibleForTesting
+String? resolveAppRedirect({
+  required String location,
+  required String? userId,
+  String? userEmail,
+  required AsyncValue<ShopAccess> access,
+  PasswordRecovery? recovery,
+}) {
   final isAuthRoute = _authRoutes.contains(location);
 
   // Signed out: only the auth screens.
-  if (session == null) {
+  if (userId == null) {
     return isAuthRoute ? null : '/login';
   }
 
-  final access = ref.read(shopAccessProvider);
+  // A verified reset code signs the account in with a recovery session. It
+  // stays on the recovery screen until the new password is set (then it is
+  // signed out); a recovery for any other account is ignored.
+  if (recovery != null &&
+      recovery.belongsTo(userId: userId, email: userEmail)) {
+    return location == _recoveryRoute ? null : _recoveryRoute;
+  }
+
   final data = access.value;
 
   // Only trust an answer that is finished loading AND belongs to the
   // account that is signed in right now. Anything else could be a leftover
   // from a previous user and must never grant (or wrongly deny) access.
-  if (access.isLoading || data == null || data.userId != session.user.id) {
+  if (access.isLoading || data == null || data.userId != userId) {
     // Still working it out. Status screens stay put (e.g. while "Check
     // status" reloads); everything else waits on the splash so no business
     // screen builds before we know the account may see it.
@@ -523,20 +567,4 @@ String? _redirect(Ref ref, GoRouterState state) {
 /// Lets the provider listener above poke the router to re-run its redirect.
 class _RouterRefresh extends ChangeNotifier {
   void notify() => notifyListeners();
-}
-
-class GoRouterRefreshStream extends ChangeNotifier {
-  GoRouterRefreshStream(Stream<dynamic> stream) {
-    _subscription = stream.asBroadcastStream().listen((_) {
-      notifyListeners();
-    });
-  }
-
-  late final StreamSubscription<dynamic> _subscription;
-
-  @override
-  void dispose() {
-    _subscription.cancel();
-    super.dispose();
-  }
 }

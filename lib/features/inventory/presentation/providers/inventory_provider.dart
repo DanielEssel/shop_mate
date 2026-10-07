@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/datasources/inventory_remote_datasource.dart';
 import '../../data/repositories/inventory_repository_impl.dart';
 import '../../domain/entities/inventory_summary.dart';
@@ -47,6 +48,9 @@ final getStockMovementsProvider =
 
 final inventorySummaryProvider =
     FutureProvider<InventorySummary>((ref) {
+  // Session-scoped: rebuilt when the signed-in account changes.
+  ref.watch(currentUserIdProvider);
+
   return ref
       .read(getInventorySummaryProvider)
       .call();
@@ -54,6 +58,8 @@ final inventorySummaryProvider =
 
 final stockMovementsProvider =
     FutureProvider<List<StockMovement>>((ref) {
+  ref.watch(currentUserIdProvider);
+
   return ref
       .read(getStockMovementsProvider)
       .call();
@@ -62,6 +68,8 @@ final stockMovementsProvider =
 final productStockMovementsProvider =
     FutureProvider.family<List<StockMovement>, String>(
   (ref, productId) {
+    ref.watch(currentUserIdProvider);
+
     return ref
         .read(getStockMovementsProvider)
         .call(productId: productId);

@@ -31,7 +31,9 @@ class DashboardHeader extends ConsumerWidget {
     // Branding never blocks the dashboard: while it loads or if it fails,
     // the shop access name and the initial/icon fallback are shown.
     final brandingAsync = ref.watch(shopBrandingProvider);
-    final branding = brandingAsync.value;
+    // unwrapPrevious: while reloading for a new account or shop, never show
+    // the branding kept from the previous one.
+    final branding = brandingAsync.unwrapPrevious().value;
     final accessName = ref.watch(
       shopAccessProvider.select((access) => access.value?.shopName),
     );

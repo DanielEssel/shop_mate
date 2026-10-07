@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../../core/services/supabase_service.dart';
 import '../../data/datasources/shop_branding_remote_datasource.dart';
 import '../../data/repositories/shop_branding_repository_impl.dart';
 import '../../domain/entities/shop_access.dart';
