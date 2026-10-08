@@ -14,24 +14,18 @@ class StockMovementModel extends StockMovement {
     required super.createdAt,
   });
 
-  factory StockMovementModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory StockMovementModel.fromJson(Map<String, dynamic> json) {
     return StockMovementModel(
       id: json['id'] as String,
       productId: json['product_id'] as String,
       movementType: json['movement_type'] as String,
       quantity: (json['quantity'] as num).toInt(),
-      previousQuantity:
-          (json['previous_quantity'] as num).toInt(),
-      newQuantity:
-          (json['new_quantity'] as num).toInt(),
+      previousQuantity: (json['previous_quantity'] as num).toInt(),
+      newQuantity: (json['new_quantity'] as num).toInt(),
       referenceId: json['reference_id'] as String?,
       note: json['note'] as String?,
       createdBy: json['created_by'] as String?,
-      createdAt: DateTime.parse(
-        json['created_at'] as String,
-      ),
+      createdAt: DateTime.parse(json['created_at'] as String),
     );
   }
 }

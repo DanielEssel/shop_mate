@@ -29,11 +29,7 @@ class InventoryRepositoryImpl implements InventoryRepository {
   }
 
   @override
-  Future<List<StockMovement>> getStockMovements({
-    String? productId,
-  }) {
-    return _remoteDataSource.getStockMovements(
-      productId: productId,
-    );
+  Future<List<StockMovement>> getStockMovements({String? productId}) {
+    return _remoteDataSource.getStockMovements(productId: productId);
   }
 }

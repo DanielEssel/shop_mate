@@ -9,18 +9,13 @@ import '../providers/products_provider.dart';
 import 'package:go_router/go_router.dart';
 
 class ProductDetailsScreen extends ConsumerWidget {
-  const ProductDetailsScreen({
-    required this.productId,
-    super.key,
-  });
+  const ProductDetailsScreen({required this.productId, super.key});
 
   final String productId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final productAsync = ref.watch(
-      productByIdProvider(productId),
-    );
+    final productAsync = ref.watch(productByIdProvider(productId));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -29,22 +24,16 @@ class ProductDetailsScreen extends ConsumerWidget {
         error: (error, stackTrace) {
           return Scaffold(
             backgroundColor: AppColors.background,
-            appBar: AppBar(
-              title: const Text('Product Details'),
-            ),
+            appBar: AppBar(title: const Text('Product Details')),
             body: _ErrorView(
               onRetry: () {
-                ref.invalidate(
-                  productByIdProvider(productId),
-                );
+                ref.invalidate(productByIdProvider(productId));
               },
             ),
           );
         },
         data: (product) {
-          return _ProductDetailsLoaded(
-            product: product,
-          );
+          return _ProductDetailsLoaded(product: product);
         },
       ),
     );
@@ -182,9 +171,7 @@ class _ProductDetailsContent extends ConsumerWidget {
 }
 
 class _ProductDetailsLoaded extends ConsumerWidget {
-  const _ProductDetailsLoaded({
-    required this.product,
-  });
+  const _ProductDetailsLoaded({required this.product});
 
   final Product product;
 
@@ -204,29 +191,19 @@ class _ProductDetailsLoaded extends ConsumerWidget {
               );
 
               if (updated == true && context.mounted) {
-                ref.invalidate(
-                  productByIdProvider(product.id),
-                );
+                ref.invalidate(productByIdProvider(product.id));
 
-                ref.invalidate(
-                  productsProvider,
-                );
+                ref.invalidate(productsProvider);
 
-                ref.invalidate(
-                  lowStockProductsProvider,
-                );
+                ref.invalidate(lowStockProductsProvider);
               }
             },
-            icon: const Icon(
-              Icons.edit_outlined,
-            ),
+            icon: const Icon(Icons.edit_outlined),
           ),
           const SizedBox(width: 8),
         ],
       ),
-      body: _ProductDetailsContent(
-        product: product,
-      ),
+      body: _ProductDetailsContent(product: product),
     );
   }
 }
@@ -689,7 +666,9 @@ class _ProductActions extends ConsumerWidget {
               label: const Text('Delete Product'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.error,
-                side: BorderSide(color: AppColors.error.withValues(alpha: 0.35)),
+                side: BorderSide(
+                  color: AppColors.error.withValues(alpha: 0.35),
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 15),
               ),
             ),

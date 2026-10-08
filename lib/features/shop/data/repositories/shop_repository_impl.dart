@@ -19,10 +19,7 @@ class ShopRepositoryImpl implements ShopRepository {
         .maybeSingle();
 
     if (row == null) {
-      return ShopAccess(
-        userId: userId,
-        status: ShopAccessStatus.noShop,
-      );
+      return ShopAccess(userId: userId, status: ShopAccessStatus.noShop);
     }
 
     final shop = row['shops'];
@@ -32,15 +29,15 @@ class ShopRepositoryImpl implements ShopRepository {
     }
 
     return ShopAccess(
-  userId: userId,
-  status: _resolveStatus(
-    memberStatus: row['status'] as String?,
-    shopStatus: shop['status'] as String?,
-  ),
-  shopId: shop['id'] as String?,
-  shopName: shop['name'] as String?,
-  role: row['role'] as String?,
-);
+      userId: userId,
+      status: _resolveStatus(
+        memberStatus: row['status'] as String?,
+        shopStatus: shop['status'] as String?,
+      ),
+      shopId: shop['id'] as String?,
+      shopName: shop['name'] as String?,
+      role: row['role'] as String?,
+    );
   }
 
   /// Fails closed: anything that is not clearly "active" or "pending" is
@@ -67,10 +64,7 @@ class ShopRepositoryImpl implements ShopRepository {
   }) async {
     await _client.rpc(
       'register_shop',
-      params: {
-        'p_name': name,
-        'p_phone': phone,
-      },
+      params: {'p_name': name, 'p_phone': phone},
     );
   }
 }

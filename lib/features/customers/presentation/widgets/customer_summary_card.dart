@@ -28,9 +28,7 @@ class CustomerSummaryCard extends StatelessWidget {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.lg),
         boxShadow: AppShadows.card,
-        border: Border.all(
-          color: AppColors.border,
-        ),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
@@ -41,11 +39,7 @@ class CustomerSummaryCard extends StatelessWidget {
               color: AppColors.primary.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
-            child: Icon(
-              icon,
-              color: AppColors.primary,
-              size: 23,
-            ),
+            child: Icon(icon, color: AppColors.primary, size: 23),
           ),
           const SizedBox(width: AppSpacing.md),
           Expanded(

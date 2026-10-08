@@ -13,11 +13,7 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 /// unavailable, loading). Mirrors the login/signup look: brand lockup above a
 /// bordered card, constrained width, keyboard-safe scrolling.
 class ShopGateFrame extends StatelessWidget {
-  const ShopGateFrame({
-    super.key,
-    required this.child,
-    this.footer,
-  });
+  const ShopGateFrame({super.key, required this.child, this.footer});
 
   final Widget child;
   final Widget? footer;
@@ -33,13 +29,10 @@ class ShopGateFrame extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            keyboardDismissBehavior:
-                ScrollViewKeyboardDismissBehavior.onDrag,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: _maxContentWidth,
-              ),
+              constraints: const BoxConstraints(maxWidth: _maxContentWidth),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -53,9 +46,7 @@ class ShopGateFrame extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: AppColors.surface,
                       borderRadius: BorderRadius.circular(AppRadius.xl),
-                      border: Border.all(
-                        color: AppColors.border,
-                      ),
+                      border: Border.all(color: AppColors.border),
                       boxShadow: AppShadows.card,
                     ),
                     child: child,
@@ -104,9 +95,9 @@ class _BrandLockup extends StatelessWidget {
         const SizedBox(width: AppSpacing.md),
         Text(
           'ShopMate',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
         ),
       ],
     );
@@ -148,11 +139,7 @@ class GateHeading extends StatelessWidget {
                 color: iconBackground,
                 borderRadius: BorderRadius.circular(AppRadius.lg),
               ),
-              child: Icon(
-                icon,
-                size: 28,
-                color: iconColor,
-              ),
+              child: Icon(icon, size: 28, color: iconColor),
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -169,9 +156,7 @@ class GateHeading extends StatelessWidget {
         const SizedBox(height: AppSpacing.sm),
         Text(
           message,
-          style: textTheme.bodyMedium?.copyWith(
-            color: AppColors.textSecondary,
-          ),
+          style: textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
         ),
       ],
     );
@@ -199,9 +184,7 @@ class GatePrimaryButton extends StatelessWidget {
       onPressed: isLoading ? null : onPressed,
       style: FilledButton.styleFrom(
         textStyle: Theme.of(context).textTheme.titleMedium,
-        padding: const EdgeInsets.symmetric(
-          vertical: AppSpacing.lg,
-        ),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
         // Keep the button green (not greyed out) while loading.
         disabledBackgroundColor: isLoading ? AppColors.primary : null,
         disabledForegroundColor: isLoading ? AppColors.textOnPrimary : null,
@@ -225,10 +208,7 @@ class GatePrimaryButton extends StatelessWidget {
                   Text(loadingLabel ?? label),
                 ],
               )
-            : Text(
-                label,
-                key: const ValueKey('label'),
-              ),
+            : Text(label, key: const ValueKey('label')),
       ),
     );
   }
@@ -276,9 +256,7 @@ class GateErrorBanner extends StatelessWidget {
                       Expanded(
                         child: Text(
                           text,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
+                          style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(color: AppColors.textPrimary),
                         ),
                       ),
@@ -307,9 +285,9 @@ class SignedInFooter extends ConsumerWidget {
           Text(
             'Signed in as $email',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
           ),
         // A platform admin may be waiting on their own shop's approval.
         if (ref.watch(isPlatformAdminProvider).isConfirmedAdmin)

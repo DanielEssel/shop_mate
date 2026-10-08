@@ -71,6 +71,12 @@ final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
 );
 
+/// Navigator for the secondary areas (Customers, Purchases, Suppliers,
+/// Expenses, Reports, Admin, Settings, Users). Their shell keeps the tablet
+/// rail / desktop sidebar on screen; on phones they are full-screen pages.
+final GlobalKey<NavigatorState> _secondaryNavigatorKey =
+    GlobalKey<NavigatorState>(debugLabel: 'secondary');
+
 /// The app router. It is a provider (not a global) so its redirect can read
 /// the signed-in user's shop access.
 ///
@@ -185,8 +191,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       // MAIN APPLICATION
       // =============================================================
       StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) {
-          return AppShell(navigationShell: navigationShell);
+        pageBuilder: (context, state, navigationShell) {
+          return adaptiveShellPage(
+            key: state.pageKey,
+            child: AppShell(
+              navigationShell: navigationShell,
+              currentPath: state.uri.path,
+            ),
+          );
         },
         branches: [
           // =========================================================
@@ -342,177 +354,193 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // =============================================================
-      // CUSTOMERS
+      // SECONDARY AREAS
       // =============================================================
-      GoRoute(
-        path: '/customers',
-        builder: (context, state) {
-          return const CustomersScreen();
+      // Opened above the tabs (from More, the drawer or the sidebar). The
+      // shell keeps the rail / sidebar visible from tablet width up.
+      ShellRoute(
+        navigatorKey: _secondaryNavigatorKey,
+        pageBuilder: (context, state, child) {
+          return adaptiveShellPage(
+            key: state.pageKey,
+            child: SecondaryShell(currentPath: state.uri.path, child: child),
+          );
         },
         routes: [
+          // =============================================================
+          // CUSTOMERS
+          // =============================================================
           GoRoute(
-            path: 'add',
+            path: '/customers',
             builder: (context, state) {
-              return const AddCustomerScreen();
-            },
-          ),
-          GoRoute(
-            path: ':customerId',
-            builder: (context, state) {
-              final customerId = state.pathParameters['customerId']!;
-
-              return CustomerDetailsScreen(customerId: customerId);
-            },
-          ),
-        ],
-      ),
-
-      // =============================================================
-      // PURCHASES
-      // =============================================================
-      GoRoute(
-        path: '/purchases',
-        builder: (context, state) {
-          return const PurchasesScreen();
-        },
-        routes: [
-          GoRoute(
-            path: 'new',
-            builder: (context, state) {
-              return const NewPurchaseScreen();
-            },
-          ),
-          GoRoute(
-            path: ':purchaseId',
-            builder: (context, state) {
-              final purchaseId = state.pathParameters['purchaseId']!;
-
-              return PurchaseDetailsScreen(purchaseId: purchaseId);
-            },
-          ),
-        ],
-      ),
-
-      // =============================================================
-      // SUPPLIERS
-      // =============================================================
-      // Root-level like Customers/Purchases. 'new' is declared before
-      // ':supplierId' so it is never read as an id.
-      GoRoute(
-        path: '/suppliers',
-        builder: (context, state) {
-          return const SuppliersScreen();
-        },
-        routes: [
-          GoRoute(
-            path: 'new',
-            builder: (context, state) {
-              return const AddSupplierScreen();
-            },
-          ),
-          GoRoute(
-            path: ':supplierId',
-            builder: (context, state) {
-              final supplierId = state.pathParameters['supplierId']!;
-
-              return SupplierDetailsScreen(supplierId: supplierId);
+              return const CustomersScreen();
             },
             routes: [
               GoRoute(
-                path: 'edit',
+                path: 'add',
                 builder: (context, state) {
-                  final supplierId = state.pathParameters['supplierId']!;
+                  return const AddCustomerScreen();
+                },
+              ),
+              GoRoute(
+                path: ':customerId',
+                builder: (context, state) {
+                  final customerId = state.pathParameters['customerId']!;
 
-                  return EditSupplierScreen(supplierId: supplierId);
+                  return CustomerDetailsScreen(customerId: customerId);
                 },
               ),
             ],
           ),
-        ],
-      ),
 
-      // =============================================================
-      // EXPENSES
-      // =============================================================
-      // Root-level like Customers/Purchases: history and details stack on
-      // the root navigator, outside the StatefulShellRoute.
-      GoRoute(
-        path: '/expenses',
-        builder: (context, state) {
-          return const ExpensesScreen();
-        },
-        routes: [
+          // =============================================================
+          // PURCHASES
+          // =============================================================
           GoRoute(
-            path: ':expenseId',
+            path: '/purchases',
             builder: (context, state) {
-              final expenseId = state.pathParameters['expenseId']!;
+              return const PurchasesScreen();
+            },
+            routes: [
+              GoRoute(
+                path: 'new',
+                builder: (context, state) {
+                  return const NewPurchaseScreen();
+                },
+              ),
+              GoRoute(
+                path: ':purchaseId',
+                builder: (context, state) {
+                  final purchaseId = state.pathParameters['purchaseId']!;
 
-              return ExpenseDetailsScreen(expenseId: expenseId);
+                  return PurchaseDetailsScreen(purchaseId: purchaseId);
+                },
+              ),
+            ],
+          ),
+
+          // =============================================================
+          // SUPPLIERS
+          // =============================================================
+          // Root-level like Customers/Purchases. 'new' is declared before
+          // ':supplierId' so it is never read as an id.
+          GoRoute(
+            path: '/suppliers',
+            builder: (context, state) {
+              return const SuppliersScreen();
+            },
+            routes: [
+              GoRoute(
+                path: 'new',
+                builder: (context, state) {
+                  return const AddSupplierScreen();
+                },
+              ),
+              GoRoute(
+                path: ':supplierId',
+                builder: (context, state) {
+                  final supplierId = state.pathParameters['supplierId']!;
+
+                  return SupplierDetailsScreen(supplierId: supplierId);
+                },
+                routes: [
+                  GoRoute(
+                    path: 'edit',
+                    builder: (context, state) {
+                      final supplierId = state.pathParameters['supplierId']!;
+
+                      return EditSupplierScreen(supplierId: supplierId);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          // =============================================================
+          // EXPENSES
+          // =============================================================
+          // Root-level like Customers/Purchases: history and details stack on
+          // the root navigator, outside the StatefulShellRoute.
+          GoRoute(
+            path: '/expenses',
+            builder: (context, state) {
+              return const ExpensesScreen();
+            },
+            routes: [
+              GoRoute(
+                path: ':expenseId',
+                builder: (context, state) {
+                  final expenseId = state.pathParameters['expenseId']!;
+
+                  return ExpenseDetailsScreen(expenseId: expenseId);
+                },
+              ),
+            ],
+          ),
+
+          // =============================================================
+          // REPORTS
+          // =============================================================
+          // Root-level like Expenses: opened from More and stacked on the root
+          // navigator, outside the StatefulShellRoute.
+          GoRoute(
+            path: '/reports/business-performance',
+            builder: (context, state) {
+              return const BusinessPerformanceScreen();
+            },
+          ),
+          GoRoute(
+            path: '/reports/inventory',
+            builder: (context, state) {
+              return const InventoryReportScreen();
+            },
+          ),
+
+          // =============================================================
+          // PLATFORM ADMIN
+          // =============================================================
+          // Root-level and outside the shop gate: a platform admin may have no
+          // active shop of their own. The redirect only lets confirmed admins
+          // in; the database checks every admin call regardless.
+          GoRoute(
+            path: adminRoute,
+            builder: (context, state) {
+              return const AdminScreen();
+            },
+          ),
+
+          // =============================================================
+          // SETTINGS
+          // =============================================================
+          // Root-level like Reports: opened from More or the drawer and stacked
+          // on the root navigator, outside the StatefulShellRoute.
+          GoRoute(
+            path: '/settings',
+            builder: (context, state) {
+              return const SettingsScreen();
+            },
+            routes: [
+              GoRoute(
+                path: 'categories',
+                builder: (context, state) {
+                  return const ProductCategoriesScreen();
+                },
+              ),
+            ],
+          ),
+
+          // =============================================================
+          // USERS & PERMISSIONS
+          // =============================================================
+          // Root-level like Settings; owner-only through _ownerOnlyRoutes.
+          GoRoute(
+            path: '/users',
+            builder: (context, state) {
+              return const ShopMembersScreen();
             },
           ),
         ],
-      ),
-
-      // =============================================================
-      // REPORTS
-      // =============================================================
-      // Root-level like Expenses: opened from More and stacked on the root
-      // navigator, outside the StatefulShellRoute.
-      GoRoute(
-        path: '/reports/business-performance',
-        builder: (context, state) {
-          return const BusinessPerformanceScreen();
-        },
-      ),
-      GoRoute(
-        path: '/reports/inventory',
-        builder: (context, state) {
-          return const InventoryReportScreen();
-        },
-      ),
-
-      // =============================================================
-      // PLATFORM ADMIN
-      // =============================================================
-      // Root-level and outside the shop gate: a platform admin may have no
-      // active shop of their own. The redirect only lets confirmed admins
-      // in; the database checks every admin call regardless.
-      GoRoute(
-        path: adminRoute,
-        builder: (context, state) {
-          return const AdminScreen();
-        },
-      ),
-
-      // =============================================================
-      // SETTINGS
-      // =============================================================
-      // Root-level like Reports: opened from More or the drawer and stacked
-      // on the root navigator, outside the StatefulShellRoute.
-      GoRoute(
-        path: '/settings',
-        builder: (context, state) {
-          return const SettingsScreen();
-        },
-        routes: [
-          GoRoute(
-            path: 'categories',
-            builder: (context, state) {
-              return const ProductCategoriesScreen();
-            },
-          ),
-        ],
-      ),
-
-      // =============================================================
-      // USERS & PERMISSIONS
-      // =============================================================
-      // Root-level like Settings; owner-only through _ownerOnlyRoutes.
-      GoRoute(
-        path: '/users',
-        builder: (context, state) {
-          return const ShopMembersScreen();
-        },
       ),
     ],
   );

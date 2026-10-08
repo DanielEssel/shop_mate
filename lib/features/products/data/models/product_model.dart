@@ -24,45 +24,42 @@ class ProductModel extends Product {
   /// name and status through the `category_id` relationship.
   static const selectColumns = '*, product_categories(name, is_active)';
 
-  factory ProductModel.fromJson(
-  Map<String, dynamic> json,
-) {
-  final category = _CategoryFields.from(
-    json['category_id'],
-    json['product_categories'],
-    json['category'],
-  );
+  factory ProductModel.fromJson(Map<String, dynamic> json) {
+    final category = _CategoryFields.from(
+      json['category_id'],
+      json['product_categories'],
+      json['category'],
+    );
 
-  return ProductModel(
-    id: json['id'] as String,
-    name: json['name'] as String,
-    categoryId: category.id,
-    categoryName: category.name,
-    categoryIsActive: category.isActive,
-    sku: json['sku'] as String?,
-    barcode: json['barcode'] as String?,
-    description: json['description'] as String?,
-    costPrice: (json['cost_price'] as num?)?.toDouble() ?? 0,
-    sellingPrice: (json['selling_price'] as num?)?.toDouble() ?? 0,
-    stockQuantity: (json['stock_quantity'] as num?)?.toInt() ?? 0,
-    lowStockThreshold:
-        (json['low_stock_threshold'] as num?)?.toInt() ?? 10,
+    return ProductModel(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      categoryId: category.id,
+      categoryName: category.name,
+      categoryIsActive: category.isActive,
+      sku: json['sku'] as String?,
+      barcode: json['barcode'] as String?,
+      description: json['description'] as String?,
+      costPrice: (json['cost_price'] as num?)?.toDouble() ?? 0,
+      sellingPrice: (json['selling_price'] as num?)?.toDouble() ?? 0,
+      stockQuantity: (json['stock_quantity'] as num?)?.toInt() ?? 0,
+      lowStockThreshold: (json['low_stock_threshold'] as num?)?.toInt() ?? 10,
 
-    imageUrl: json['image_url'] as String?,
+      imageUrl: json['image_url'] as String?,
 
-    // Fix bool?
-    isActive: json['is_active'] as bool? ?? true,
+      // Fix bool?
+      isActive: json['is_active'] as bool? ?? true,
 
-    // Fix String? → DateTime?
-    createdAt: json['created_at'] != null
-        ? DateTime.tryParse(json['created_at'].toString())
-        : null,
+      // Fix String? → DateTime?
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString())
+          : null,
 
-    updatedAt: json['updated_at'] != null
-        ? DateTime.tryParse(json['updated_at'].toString())
-        : null,
-  );
-}
+      updatedAt: json['updated_at'] != null
+          ? DateTime.tryParse(json['updated_at'].toString())
+          : null,
+    );
+  }
 
   Map<String, dynamic> toJson() {
     return {

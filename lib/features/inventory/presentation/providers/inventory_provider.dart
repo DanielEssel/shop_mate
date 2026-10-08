@@ -11,67 +11,44 @@ import '../../domain/usecases/adjust_stock.dart';
 import '../../domain/usecases/get_inventory_summary.dart';
 import '../../domain/usecases/get_stock_movements.dart';
 
-final inventoryRemoteDataSourceProvider =
-    Provider<InventoryRemoteDataSource>((ref) {
-  return InventoryRemoteDataSource(
-    Supabase.instance.client,
-  );
+final inventoryRemoteDataSourceProvider = Provider<InventoryRemoteDataSource>((
+  ref,
+) {
+  return InventoryRemoteDataSource(Supabase.instance.client);
 });
 
-final inventoryRepositoryProvider =
-    Provider<InventoryRepository>((ref) {
-  return InventoryRepositoryImpl(
-    ref.read(inventoryRemoteDataSourceProvider),
-  );
+final inventoryRepositoryProvider = Provider<InventoryRepository>((ref) {
+  return InventoryRepositoryImpl(ref.read(inventoryRemoteDataSourceProvider));
 });
 
-final adjustStockProvider =
-    Provider<AdjustStock>((ref) {
-  return AdjustStock(
-    ref.read(inventoryRepositoryProvider),
-  );
+final adjustStockProvider = Provider<AdjustStock>((ref) {
+  return AdjustStock(ref.read(inventoryRepositoryProvider));
 });
 
-final getInventorySummaryProvider =
-    Provider<GetInventorySummary>((ref) {
-  return GetInventorySummary(
-    ref.read(inventoryRepositoryProvider),
-  );
+final getInventorySummaryProvider = Provider<GetInventorySummary>((ref) {
+  return GetInventorySummary(ref.read(inventoryRepositoryProvider));
 });
 
-final getStockMovementsProvider =
-    Provider<GetStockMovements>((ref) {
-  return GetStockMovements(
-    ref.read(inventoryRepositoryProvider),
-  );
+final getStockMovementsProvider = Provider<GetStockMovements>((ref) {
+  return GetStockMovements(ref.read(inventoryRepositoryProvider));
 });
 
-final inventorySummaryProvider =
-    FutureProvider<InventorySummary>((ref) {
+final inventorySummaryProvider = FutureProvider<InventorySummary>((ref) {
   // Session-scoped: rebuilt when the signed-in account changes.
   ref.watch(currentUserIdProvider);
 
-  return ref
-      .read(getInventorySummaryProvider)
-      .call();
+  return ref.read(getInventorySummaryProvider).call();
 });
 
-final stockMovementsProvider =
-    FutureProvider<List<StockMovement>>((ref) {
+final stockMovementsProvider = FutureProvider<List<StockMovement>>((ref) {
   ref.watch(currentUserIdProvider);
 
-  return ref
-      .read(getStockMovementsProvider)
-      .call();
+  return ref.read(getStockMovementsProvider).call();
 });
 
 final productStockMovementsProvider =
-    FutureProvider.family<List<StockMovement>, String>(
-  (ref, productId) {
-    ref.watch(currentUserIdProvider);
+    FutureProvider.family<List<StockMovement>, String>((ref, productId) {
+      ref.watch(currentUserIdProvider);
 
-    return ref
-        .read(getStockMovementsProvider)
-        .call(productId: productId);
-  },
-);
+      return ref.read(getStockMovementsProvider).call(productId: productId);
+    });

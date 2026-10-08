@@ -14,43 +14,29 @@ import '../../domain/usecases/create_purchase.dart';
 import '../../domain/usecases/get_purchase.dart';
 import '../../domain/usecases/get_purchases.dart';
 
-final purchaseRemoteDataSourceProvider =
-    Provider<PurchaseRemoteDataSource>((ref) {
-  return PurchaseRemoteDataSource(
-    SupabaseService.client,
-  );
+final purchaseRemoteDataSourceProvider = Provider<PurchaseRemoteDataSource>((
+  ref,
+) {
+  return PurchaseRemoteDataSource(SupabaseService.client);
 });
 
-final purchaseRepositoryProvider =
-    Provider<PurchaseRepository>((ref) {
-  return PurchaseRepositoryImpl(
-    ref.read(purchaseRemoteDataSourceProvider),
-  );
+final purchaseRepositoryProvider = Provider<PurchaseRepository>((ref) {
+  return PurchaseRepositoryImpl(ref.read(purchaseRemoteDataSourceProvider));
 });
 
-final createPurchaseProvider =
-    Provider<CreatePurchase>((ref) {
-  return CreatePurchase(
-    ref.read(purchaseRepositoryProvider),
-  );
+final createPurchaseProvider = Provider<CreatePurchase>((ref) {
+  return CreatePurchase(ref.read(purchaseRepositoryProvider));
 });
 
-final getPurchasesProvider =
-    Provider<GetPurchases>((ref) {
-  return GetPurchases(
-    ref.read(purchaseRepositoryProvider),
-  );
+final getPurchasesProvider = Provider<GetPurchases>((ref) {
+  return GetPurchases(ref.read(purchaseRepositoryProvider));
 });
 
-final getPurchaseProvider =
-    Provider<GetPurchase>((ref) {
-  return GetPurchase(
-    ref.read(purchaseRepositoryProvider),
-  );
+final getPurchaseProvider = Provider<GetPurchase>((ref) {
+  return GetPurchase(ref.read(purchaseRepositoryProvider));
 });
 
-final purchasesProvider =
-    FutureProvider<List<Purchase>>((ref) {
+final purchasesProvider = FutureProvider<List<Purchase>>((ref) {
   // Session-scoped: these providers and the draft cart below are rebuilt
   // (the draft emptied) when the signed-in account changes.
   ref.watch(currentUserIdProvider);
@@ -58,32 +44,27 @@ final purchasesProvider =
   return ref.read(getPurchasesProvider).call();
 });
 
-final purchaseProvider =
-    FutureProvider.family<Purchase, String>((ref, id) {
+final purchaseProvider = FutureProvider.family<Purchase, String>((ref, id) {
   ref.watch(currentUserIdProvider);
 
   return ref.read(getPurchaseProvider).call(id);
 });
 
-final purchaseItemsProvider =
-    FutureProvider.family<List<PurchaseItem>, String>(
+final purchaseItemsProvider = FutureProvider.family<List<PurchaseItem>, String>(
   (ref, purchaseId) async {
     ref.watch(currentUserIdProvider);
 
-    final dataSource =
-        ref.read(purchaseRemoteDataSourceProvider);
+    final dataSource = ref.read(purchaseRemoteDataSourceProvider);
 
     return dataSource.getPurchaseItems(purchaseId);
   },
 );
 
-final purchaseProductsProvider =
-    FutureProvider<List<Product>>((ref) async {
+final purchaseProductsProvider = FutureProvider<List<Product>>((ref) async {
   return ref.watch(productsProvider.future);
 });
 
-class PurchaseCartNotifier
-    extends Notifier<List<PurchaseCartItem>> {
+class PurchaseCartNotifier extends Notifier<List<PurchaseCartItem>> {
   @override
   List<PurchaseCartItem> build() {
     ref.watch(currentUserIdProvider);
@@ -92,9 +73,7 @@ class PurchaseCartNotifier
   }
 
   void addProduct(Product product) {
-    final index = state.indexWhere(
-      (item) => item.product.id == product.id,
-    );
+    final index = state.indexWhere((item) => item.product.id == product.id);
 
     if (index == -1) {
       state = [
@@ -112,9 +91,7 @@ class PurchaseCartNotifier
   }
 
   void increaseQuantity(String productId) {
-    final index = state.indexWhere(
-      (item) => item.product.id == productId,
-    );
+    final index = state.indexWhere((item) => item.product.id == productId);
 
     if (index == -1) {
       return;
@@ -124,17 +101,13 @@ class PurchaseCartNotifier
 
     final updatedItems = [...state];
 
-    updatedItems[index] = item.copyWith(
-      quantity: item.quantity + 1,
-    );
+    updatedItems[index] = item.copyWith(quantity: item.quantity + 1);
 
     state = updatedItems;
   }
 
   void decreaseQuantity(String productId) {
-    final index = state.indexWhere(
-      (item) => item.product.id == productId,
-    );
+    final index = state.indexWhere((item) => item.product.id == productId);
 
     if (index == -1) {
       return;
@@ -149,20 +122,13 @@ class PurchaseCartNotifier
 
     final updatedItems = [...state];
 
-    updatedItems[index] = item.copyWith(
-      quantity: item.quantity - 1,
-    );
+    updatedItems[index] = item.copyWith(quantity: item.quantity - 1);
 
     state = updatedItems;
   }
 
-  void updateQuantity(
-    String productId,
-    int quantity,
-  ) {
-    final index = state.indexWhere(
-      (item) => item.product.id == productId,
-    );
+  void updateQuantity(String productId, int quantity) {
+    final index = state.indexWhere((item) => item.product.id == productId);
 
     if (index == -1) {
       return;
@@ -175,20 +141,13 @@ class PurchaseCartNotifier
 
     final updatedItems = [...state];
 
-    updatedItems[index] = updatedItems[index].copyWith(
-      quantity: quantity,
-    );
+    updatedItems[index] = updatedItems[index].copyWith(quantity: quantity);
 
     state = updatedItems;
   }
 
-  void updateUnitCost(
-    String productId,
-    double unitCost,
-  ) {
-    final index = state.indexWhere(
-      (item) => item.product.id == productId,
-    );
+  void updateUnitCost(String productId, double unitCost) {
+    final index = state.indexWhere((item) => item.product.id == productId);
 
     if (index == -1) {
       return;
@@ -200,19 +159,13 @@ class PurchaseCartNotifier
 
     final updatedItems = [...state];
 
-    updatedItems[index] = updatedItems[index].copyWith(
-      unitCost: unitCost,
-    );
+    updatedItems[index] = updatedItems[index].copyWith(unitCost: unitCost);
 
     state = updatedItems;
   }
 
   void removeProduct(String productId) {
-    state = state
-        .where(
-          (item) => item.product.id != productId,
-        )
-        .toList();
+    state = state.where((item) => item.product.id != productId).toList();
   }
 
   void clearCart() {
@@ -220,10 +173,7 @@ class PurchaseCartNotifier
   }
 
   double get subtotal {
-    return state.fold<double>(
-      0,
-      (sum, item) => sum + item.subtotal,
-    );
+    return state.fold<double>(0, (sum, item) => sum + item.subtotal);
   }
 
   double get total {
@@ -231,18 +181,11 @@ class PurchaseCartNotifier
   }
 
   int get totalItems {
-    return state.fold<int>(
-      0,
-      (sum, item) => sum + item.quantity,
-    );
-
+    return state.fold<int>(0, (sum, item) => sum + item.quantity);
   }
 }
 
 final purchaseCartProvider =
-    NotifierProvider<
-      PurchaseCartNotifier,
-      List<PurchaseCartItem>
-    >(
-  PurchaseCartNotifier.new,
-);
+    NotifierProvider<PurchaseCartNotifier, List<PurchaseCartItem>>(
+      PurchaseCartNotifier.new,
+    );

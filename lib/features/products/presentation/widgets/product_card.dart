@@ -5,11 +5,7 @@ import '../../../../app/theme/app_spacing.dart';
 import '../../domain/entities/product.dart';
 
 class ProductCard extends StatelessWidget {
-  const ProductCard({
-    required this.product,
-    required this.onTap,
-    super.key,
-  });
+  const ProductCard({required this.product, required this.onTap, super.key});
 
   final Product product;
   final VoidCallback onTap;
@@ -28,15 +24,11 @@ class ProductCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppColors.border,
-            ),
+            border: Border.all(color: AppColors.border),
           ),
           child: Row(
             children: [
-              _ProductImage(
-                product: product,
-              ),
+              _ProductImage(product: product),
 
               const SizedBox(width: AppSpacing.md),
 
@@ -77,9 +69,7 @@ class ProductCard extends StatelessWidget {
 
               const SizedBox(width: AppSpacing.md),
 
-              _StockIndicator(
-                product: product,
-              ),
+              _StockIndicator(product: product),
 
               const SizedBox(width: AppSpacing.sm),
 
@@ -100,9 +90,7 @@ class ProductCard extends StatelessWidget {
 // -----------------------------------------------------------------------------
 
 class _ProductImage extends StatelessWidget {
-  const _ProductImage({
-    required this.product,
-  });
+  const _ProductImage({required this.product});
 
   final Product product;
 
@@ -124,18 +112,10 @@ class _ProductImage extends StatelessWidget {
               fit: BoxFit.cover,
               width: 56,
               height: 56,
-              errorBuilder: (
-                context,
-                error,
-                stackTrace,
-              ) {
+              errorBuilder: (context, error, stackTrace) {
                 return const _ImagePlaceholder();
               },
-              loadingBuilder: (
-                context,
-                child,
-                loadingProgress,
-              ) {
+              loadingBuilder: (context, child, loadingProgress) {
                 if (loadingProgress == null) {
                   return child;
                 }
@@ -144,9 +124,7 @@ class _ProductImage extends StatelessWidget {
                   child: SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                    ),
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 );
               },
@@ -180,9 +158,7 @@ class _ImagePlaceholder extends StatelessWidget {
 // -----------------------------------------------------------------------------
 
 class _StockIndicator extends StatelessWidget {
-  const _StockIndicator({
-    required this.product,
-  });
+  const _StockIndicator({required this.product});
 
   final Product product;
 
@@ -203,10 +179,7 @@ class _StockIndicator extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(999),
@@ -214,9 +187,9 @@ class _StockIndicator extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w600,
-            ),
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

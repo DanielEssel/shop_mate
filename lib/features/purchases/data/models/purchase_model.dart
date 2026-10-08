@@ -31,17 +31,11 @@ class PurchaseModel extends Purchase {
       balance: (json['balance'] as num).toDouble(),
       paymentMethod: json['payment_method'] as String,
       status: json['status'] as String,
-      purchaseDate: DateTime.parse(
-        json['purchase_date'].toString(),
-      ),
+      purchaseDate: DateTime.parse(json['purchase_date'].toString()),
       notes: json['notes'] as String?,
       createdBy: json['created_by'] as String?,
-      createdAt: DateTime.parse(
-        json['created_at'].toString(),
-      ),
-      updatedAt: DateTime.parse(
-        json['updated_at'].toString(),
-      ),
+      createdAt: DateTime.parse(json['created_at'].toString()),
+      updatedAt: DateTime.parse(json['updated_at'].toString()),
     );
   }
 

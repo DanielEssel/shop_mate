@@ -6,112 +6,70 @@ import '../../domain/entities/purchase_item.dart';
 import '../providers/purchases_provider.dart';
 
 class PurchaseDetailsScreen extends ConsumerWidget {
-  const PurchaseDetailsScreen({
-    super.key,
-    required this.purchaseId,
-  });
+  const PurchaseDetailsScreen({super.key, required this.purchaseId});
 
   final String purchaseId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final purchaseAsync = ref.watch(
-      purchaseProvider(purchaseId),
-    );
+    final purchaseAsync = ref.watch(purchaseProvider(purchaseId));
 
-    final itemsAsync = ref.watch(
-      purchaseItemsProvider(purchaseId),
-    );
+    final itemsAsync = ref.watch(purchaseItemsProvider(purchaseId));
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FA),
       appBar: AppBar(
         title: const Text(
           'Purchase Details',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
           IconButton(
             tooltip: 'Refresh',
             onPressed: () {
-              ref.invalidate(
-                purchaseProvider(purchaseId),
-              );
-              ref.invalidate(
-                purchaseItemsProvider(purchaseId),
-              );
+              ref.invalidate(purchaseProvider(purchaseId));
+              ref.invalidate(purchaseItemsProvider(purchaseId));
             },
-            icon: const Icon(
-              Icons.refresh_rounded,
-            ),
+            icon: const Icon(Icons.refresh_rounded),
           ),
         ],
       ),
       body: purchaseAsync.when(
         loading: () {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
+          return const Center(child: CircularProgressIndicator());
         },
         error: (error, stackTrace) {
           return _PurchaseErrorState(
             error: error,
             onRetry: () {
-              ref.invalidate(
-                purchaseProvider(purchaseId),
-              );
-              ref.invalidate(
-                purchaseItemsProvider(purchaseId),
-              );
+              ref.invalidate(purchaseProvider(purchaseId));
+              ref.invalidate(purchaseItemsProvider(purchaseId));
             },
           );
         },
         data: (purchase) {
           return RefreshIndicator(
             onRefresh: () async {
-              ref.invalidate(
-                purchaseProvider(purchaseId),
-              );
-              ref.invalidate(
-                purchaseItemsProvider(purchaseId),
-              );
+              ref.invalidate(purchaseProvider(purchaseId));
+              ref.invalidate(purchaseItemsProvider(purchaseId));
 
-              await ref.read(
-                purchaseProvider(purchaseId).future,
-              );
+              await ref.read(purchaseProvider(purchaseId).future);
             },
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(
-                16,
-                16,
-                16,
-                40,
-              ),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
               children: [
-                _PurchaseHeader(
-                  purchase: purchase,
-                ),
+                _PurchaseHeader(purchase: purchase),
                 const SizedBox(height: 16),
-                _PurchaseSummaryCard(
-                  purchase: purchase,
-                ),
+                _PurchaseSummaryCard(purchase: purchase),
                 const SizedBox(height: 16),
-                _SupplierCard(
-                  purchase: purchase,
-                ),
+                _SupplierCard(purchase: purchase),
                 const SizedBox(height: 16),
-                _PurchaseItemsCard(
-                  itemsAsync: itemsAsync,
-                ),
+                _PurchaseItemsCard(itemsAsync: itemsAsync),
                 if (purchase.notes != null &&
                     purchase.notes!.trim().isNotEmpty) ...[
                   const SizedBox(height: 16),
-                  _NotesCard(
-                    notes: purchase.notes!,
-                  ),
+                  _NotesCard(notes: purchase.notes!),
                 ],
               ],
             ),
@@ -127,9 +85,7 @@ class PurchaseDetailsScreen extends ConsumerWidget {
 // =============================================================
 
 class _PurchaseHeader extends StatelessWidget {
-  const _PurchaseHeader({
-    required this.purchase,
-  });
+  const _PurchaseHeader({required this.purchase});
 
   final Purchase purchase;
 
@@ -150,9 +106,7 @@ class _PurchaseHeader extends StatelessWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(
-                    alpha: 0.14,
-                  ),
+                  color: Colors.white.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(
@@ -163,15 +117,11 @@ class _PurchaseHeader extends StatelessWidget {
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
                       'Purchase',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
-                      ),
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
                     ),
                     const SizedBox(height: 3),
                     Text(
@@ -187,9 +137,7 @@ class _PurchaseHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              _StatusBadge(
-                status: purchase.status,
-              ),
+              _StatusBadge(status: purchase.status),
             ],
           ),
           const SizedBox(height: 18),
@@ -221,9 +169,7 @@ class _PurchaseHeader extends StatelessWidget {
 // =============================================================
 
 class _PurchaseSummaryCard extends StatelessWidget {
-  const _PurchaseSummaryCard({
-    required this.purchase,
-  });
+  const _PurchaseSummaryCard({required this.purchase});
 
   final Purchase purchase;
 
@@ -240,10 +186,7 @@ class _PurchaseSummaryCard extends StatelessWidget {
             emphasized: true,
           ),
           const SizedBox(height: 12),
-          _AmountRow(
-            label: 'Amount paid',
-            amount: purchase.amountPaid,
-          ),
+          _AmountRow(label: 'Amount paid', amount: purchase.amountPaid),
           const SizedBox(height: 12),
           _AmountRow(
             label: 'Balance',
@@ -262,9 +205,7 @@ class _PurchaseSummaryCard extends StatelessWidget {
                 child: _InfoTile(
                   icon: Icons.payment_rounded,
                   label: 'Payment method',
-                  value: _paymentMethodLabel(
-                    purchase.paymentMethod,
-                  ),
+                  value: _paymentMethodLabel(purchase.paymentMethod),
                 ),
               ),
               const SizedBox(width: 12),
@@ -272,9 +213,7 @@ class _PurchaseSummaryCard extends StatelessWidget {
                 child: _InfoTile(
                   icon: Icons.verified_outlined,
                   label: 'Payment status',
-                  value: purchase.isFullyPaid
-                      ? 'Fully Paid'
-                      : 'Outstanding',
+                  value: purchase.isFullyPaid ? 'Fully Paid' : 'Outstanding',
                   valueColor: purchase.isFullyPaid
                       ? const Color(0xFF087F5B)
                       : Colors.orange.shade700,
@@ -293,9 +232,7 @@ class _PurchaseSummaryCard extends StatelessWidget {
 // =============================================================
 
 class _SupplierCard extends StatelessWidget {
-  const _SupplierCard({
-    required this.purchase,
-  });
+  const _SupplierCard({required this.purchase});
 
   final Purchase purchase;
 
@@ -317,17 +254,13 @@ class _SupplierCard extends StatelessWidget {
           _DetailRow(
             icon: Icons.person_outline_rounded,
             label: 'Name',
-            value: hasSupplier
-                ? purchase.supplierName!
-                : 'Not provided',
+            value: hasSupplier ? purchase.supplierName! : 'Not provided',
           ),
           const SizedBox(height: 12),
           _DetailRow(
             icon: Icons.phone_outlined,
             label: 'Phone',
-            value: hasPhone
-                ? purchase.supplierPhone!
-                : 'Not provided',
+            value: hasPhone ? purchase.supplierPhone! : 'Not provided',
           ),
         ],
       ),
@@ -340,9 +273,7 @@ class _SupplierCard extends StatelessWidget {
 // =============================================================
 
 class _PurchaseItemsCard extends StatelessWidget {
-  const _PurchaseItemsCard({
-    required this.itemsAsync,
-  });
+  const _PurchaseItemsCard({required this.itemsAsync});
 
   final AsyncValue<List<PurchaseItem>> itemsAsync;
 
@@ -355,9 +286,7 @@ class _PurchaseItemsCard extends StatelessWidget {
         loading: () {
           return const Padding(
             padding: EdgeInsets.all(20),
-            child: Center(
-              child: CircularProgressIndicator(),
-            ),
+            child: Center(child: CircularProgressIndicator()),
           );
         },
         error: (error, stackTrace) {
@@ -365,26 +294,18 @@ class _PurchaseItemsCard extends StatelessWidget {
             padding: const EdgeInsets.all(8),
             child: Column(
               children: [
-                const Icon(
-                  Icons.error_outline_rounded,
-                  size: 40,
-                ),
+                const Icon(Icons.error_outline_rounded, size: 40),
                 const SizedBox(height: 8),
                 const Text(
                   'Unable to load purchase items.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   error.toString(),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
               ],
             ),
@@ -393,27 +314,16 @@ class _PurchaseItemsCard extends StatelessWidget {
         data: (items) {
           if (items.isEmpty) {
             return const Padding(
-              padding: EdgeInsets.symmetric(
-                vertical: 20,
-              ),
-              child: Center(
-                child: Text(
-                  'No purchase items found.',
-                ),
-              ),
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(child: Text('No purchase items found.')),
             );
           }
 
           return Column(
             children: [
-              for (int index = 0;
-                  index < items.length;
-                  index++) ...[
-                _PurchaseItemRow(
-                  item: items[index],
-                ),
-                if (index < items.length - 1)
-                  const Divider(height: 24),
+              for (int index = 0; index < items.length; index++) ...[
+                _PurchaseItemRow(item: items[index]),
+                if (index < items.length - 1) const Divider(height: 24),
               ],
             ],
           );
@@ -424,17 +334,14 @@ class _PurchaseItemsCard extends StatelessWidget {
 }
 
 class _PurchaseItemRow extends StatelessWidget {
-  const _PurchaseItemRow({
-    required this.item,
-  });
+  const _PurchaseItemRow({required this.item});
 
   final PurchaseItem item;
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           width: 46,
@@ -451,24 +358,18 @@ class _PurchaseItemRow extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 item.productName,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 5),
               Text(
                 '${item.quantity} × GHS ${item.unitCost.toStringAsFixed(2)}',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
               ),
             ],
           ),
@@ -476,9 +377,7 @@ class _PurchaseItemRow extends StatelessWidget {
         const SizedBox(width: 12),
         Text(
           'GHS ${item.subtotal.toStringAsFixed(2)}',
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.w800),
         ),
       ],
     );
@@ -490,9 +389,7 @@ class _PurchaseItemRow extends StatelessWidget {
 // =============================================================
 
 class _NotesCard extends StatelessWidget {
-  const _NotesCard({
-    required this.notes,
-  });
+  const _NotesCard({required this.notes});
 
   final String notes;
 
@@ -503,10 +400,7 @@ class _NotesCard extends StatelessWidget {
       icon: Icons.notes_rounded,
       child: Text(
         notes,
-        style: TextStyle(
-          color: Colors.grey.shade700,
-          height: 1.5,
-        ),
+        style: TextStyle(color: Colors.grey.shade700, height: 1.5),
       ),
     );
   }
@@ -536,17 +430,14 @@ class _SectionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(
-              alpha: 0.035,
-            ),
+            color: Colors.black.withValues(alpha: 0.035),
             blurRadius: 14,
             offset: const Offset(0, 5),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
@@ -557,11 +448,7 @@ class _SectionCard extends StatelessWidget {
                   color: const Color(0xFFE8F5F0),
                   borderRadius: BorderRadius.circular(11),
                 ),
-                child: Icon(
-                  icon,
-                  color: const Color(0xFF087F5B),
-                  size: 20,
-                ),
+                child: Icon(icon, color: const Color(0xFF087F5B), size: 20),
               ),
               const SizedBox(width: 10),
               Text(
@@ -606,8 +493,7 @@ class _AmountRow extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontWeight:
-                  emphasized ? FontWeight.w700 : FontWeight.w500,
+              fontWeight: emphasized ? FontWeight.w700 : FontWeight.w500,
             ),
           ),
         ),
@@ -651,23 +537,15 @@ class _InfoTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            icon,
-            size: 19,
-            color: const Color(0xFF087F5B),
-          ),
+          Icon(icon, size: 19, color: const Color(0xFF087F5B)),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 3),
                 Text(
@@ -708,20 +586,13 @@ class _DetailRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 19,
-          color: const Color(0xFF087F5B),
-        ),
+        Icon(icon, size: 19, color: const Color(0xFF087F5B)),
         const SizedBox(width: 10),
         SizedBox(
           width: 70,
           child: Text(
             label,
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 12,
-            ),
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
           ),
         ),
         const SizedBox(width: 10),
@@ -729,9 +600,7 @@ class _DetailRow extends StatelessWidget {
           child: Text(
             value,
             textAlign: TextAlign.end,
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w700),
           ),
         ),
       ],
@@ -744,9 +613,7 @@ class _DetailRow extends StatelessWidget {
 // =============================================================
 
 class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({
-    required this.status,
-  });
+  const _StatusBadge({required this.status});
 
   final String status;
 
@@ -758,28 +625,18 @@ class _StatusBadge extends StatelessWidget {
     final Color foreground;
 
     if (normalized == 'completed') {
-      background = Colors.white.withValues(
-        alpha: 0.16,
-      );
+      background = Colors.white.withValues(alpha: 0.16);
       foreground = Colors.white;
-    } else if (normalized == 'cancelled' ||
-        normalized == 'canceled') {
-      background = Colors.red.withValues(
-        alpha: 0.16,
-      );
+    } else if (normalized == 'cancelled' || normalized == 'canceled') {
+      background = Colors.red.withValues(alpha: 0.16);
       foreground = Colors.white;
     } else {
-      background = Colors.orange.withValues(
-        alpha: 0.18,
-      );
+      background = Colors.orange.withValues(alpha: 0.18);
       foreground = Colors.white;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(20),
@@ -801,10 +658,7 @@ class _StatusBadge extends StatelessWidget {
 // =============================================================
 
 class _PurchaseErrorState extends StatelessWidget {
-  const _PurchaseErrorState({
-    required this.error,
-    required this.onRetry,
-  });
+  const _PurchaseErrorState({required this.error, required this.onRetry});
 
   final Object error;
   final VoidCallback onRetry;
@@ -825,28 +679,19 @@ class _PurchaseErrorState extends StatelessWidget {
             const SizedBox(height: 12),
             const Text(
               'Unable to load purchase',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             Text(
               error.toString(),
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-              ),
+              style: TextStyle(color: Colors.grey.shade600),
             ),
             const SizedBox(height: 18),
             OutlinedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(
-                Icons.refresh_rounded,
-              ),
-              label: const Text(
-                'Try Again',
-              ),
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Try Again'),
             ),
           ],
         ),
@@ -881,8 +726,7 @@ String _capitalize(String value) {
     return value;
   }
 
-  return value[0].toUpperCase() +
-      value.substring(1).toLowerCase();
+  return value[0].toUpperCase() + value.substring(1).toLowerCase();
 }
 
 String _formatDate(DateTime date) {

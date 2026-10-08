@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_spacing.dart';
+import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
+import '../../../../core/utils/date_format.dart';
+import '../../../../core/utils/money_format.dart';
 import '../../domain/entities/purchase.dart';
 import '../providers/purchases_provider.dart';
 import '../widgets/purchase_card.dart';
-import '../widgets/purchase_summary.dart';
 
 class PurchasesScreen extends ConsumerStatefulWidget {
   const PurchasesScreen({super.key});
@@ -14,21 +19,13 @@ class PurchasesScreen extends ConsumerStatefulWidget {
   ConsumerState<PurchasesScreen> createState() => _PurchasesScreenState();
 }
 
+enum _PaymentFilter { all, outstanding, paid }
+
 class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   String _searchQuery = '';
-
-  @override
-  void initState() {
-    super.initState();
-
-    _searchController.addListener(() {
-      setState(() {
-        _searchQuery = _searchController.text.trim().toLowerCase();
-      });
-    });
-  }
+  _PaymentFilter _filter = _PaymentFilter.all;
 
   @override
   void dispose() {
@@ -37,20 +34,24 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
   }
 
   List<Purchase> _filterPurchases(List<Purchase> purchases) {
-    if (_searchQuery.isEmpty) {
-      return purchases;
-    }
+    final query = _searchQuery.trim().toLowerCase();
 
     return purchases.where((purchase) {
+      final matchesFilter = switch (_filter) {
+        _PaymentFilter.all => true,
+        _PaymentFilter.outstanding => purchase.hasBalance,
+        _PaymentFilter.paid => purchase.isFullyPaid,
+      };
+      if (!matchesFilter) return false;
+      if (query.isEmpty) return true;
+
       final purchaseNumber = purchase.purchaseNumber.toLowerCase();
-
       final supplier = purchase.supplierName?.toLowerCase() ?? '';
-
       final phone = purchase.supplierPhone?.toLowerCase() ?? '';
 
-      return purchaseNumber.contains(_searchQuery) ||
-          supplier.contains(_searchQuery) ||
-          phone.contains(_searchQuery);
+      return purchaseNumber.contains(query) ||
+          supplier.contains(query) ||
+          phone.contains(query);
     }).toList();
   }
 
@@ -59,270 +60,297 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
     await ref.read(purchasesProvider.future);
   }
 
+  void _newPurchase() => context.push('/purchases/new');
+
+  void _open(Purchase purchase) => context.push('/purchases/${purchase.id}');
+
   @override
   Widget build(BuildContext context) {
     final purchasesAsync = ref.watch(purchasesProvider);
+    final isCompact = Breakpoints.ofWindow(context).isCompact;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
-      appBar: AppBar(
-        title: const Text(
-          'Purchases',
-          style: TextStyle(fontWeight: FontWeight.w800),
+      backgroundColor: AppColors.background,
+      floatingActionButton: isCompact
+          ? FloatingActionButton.extended(
+              heroTag: 'purchases_fab',
+              onPressed: _newPurchase,
+              icon: const Icon(Icons.add_shopping_cart_rounded),
+              label: const Text('New Purchase'),
+            )
+          : null,
+      body: SafeArea(
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final horizontal = Breakpoints.pagePadding(
+              constraints.maxWidth,
+              maxWidth: ContentWidth.wide,
+            );
+
+            final header = Padding(
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                isCompact ? AppSpacing.md : AppSpacing.xxl,
+                horizontal,
+                AppSpacing.xl,
+              ),
+              child: PageHeader(
+                title: 'Purchases',
+                subtitle: 'Stock bought from your suppliers',
+                leading: pageHeaderLeading(context),
+                actions: [
+                  if (!isCompact)
+                    PrimaryButton(
+                      label: 'New Purchase',
+                      icon: Icons.add_shopping_cart_rounded,
+                      onPressed: _newPurchase,
+                    ),
+                ],
+              ),
+            );
+
+            return purchasesAsync.when(
+              loading: () => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  Expanded(
+                    child: PageSkeleton(
+                      padding: EdgeInsets.symmetric(horizontal: horizontal),
+                    ),
+                  ),
+                ],
+              ),
+              error: (error, stackTrace) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  Expanded(
+                    child: ErrorState(
+                      title: 'Unable to load purchases.',
+                      message: 'Check your connection and try again.',
+                      onRetry: _refresh,
+                    ),
+                  ),
+                ],
+              ),
+              data: (purchases) => RefreshIndicator(
+                onRefresh: _refresh,
+                child: _buildContent(purchases, header, horizontal, isCompact),
+              ),
+            );
+          },
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _refresh,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'purchases_fab',
-        onPressed: () {
-          context.push('/purchases/new');
-        },
-        icon: const Icon(Icons.add_shopping_cart_rounded),
-        label: const Text('New Purchase'),
-      ),
-      body: purchasesAsync.when(
-        loading: () {
-          return const Center(child: CircularProgressIndicator());
-        },
-        error: (error, stackTrace) {
-          return _PurchaseErrorState(error: error, onRetry: _refresh);
-        },
-        data: (purchases) {
-          return _buildContent(context, purchases);
-        },
       ),
     );
   }
 
-  Widget _buildContent(BuildContext context, List<Purchase> purchases) {
-    if (purchases.isEmpty) {
-      return const _EmptyPurchasesState();
-    }
-
+  Widget _buildContent(
+    List<Purchase> purchases,
+    Widget header,
+    double horizontal,
+    bool isCompact,
+  ) {
     final filteredPurchases = _filterPurchases(purchases);
 
     final totalPurchases = purchases.fold<double>(
       0,
       (sum, purchase) => sum + purchase.totalAmount,
     );
-
     final totalPaid = purchases.fold<double>(
       0,
       (sum, purchase) => sum + purchase.amountPaid,
     );
-
     final outstanding = purchases.fold<double>(
       0,
       (sum, purchase) => sum + purchase.balance,
     );
+    final owing = purchases.where((purchase) => purchase.hasBalance).length;
 
-    return RefreshIndicator(
-      onRefresh: _refresh,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
-        children: [
-          PurchaseSummary(
-            totalPurchases: totalPurchases,
-            totalPaid: totalPaid,
-            outstanding: outstanding,
-            transactionCount: purchases.length,
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Search purchase or supplier...',
-              prefixIcon: const Icon(Icons.search_rounded),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      tooltip: 'Clear',
-                      onPressed: () {
-                        _searchController.clear();
-                      },
-                      icon: const Icon(Icons.clear_rounded),
-                    )
-                  : null,
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverToBoxAdapter(child: header),
+        if (purchases.isNotEmpty) ...[
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              horizontal,
+              0,
+              horizontal,
+              AppSpacing.xxl,
             ),
-          ),
-          const SizedBox(height: 22),
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Recent Purchases',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                ),
-              ),
-              if (_searchQuery.isNotEmpty)
-                Text(
-                  '${filteredPurchases.length} found',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+            sliver: SliverToBoxAdapter(
+              child: MetricGrid(
+                cards: [
+                  MetricCard(
+                    label: 'Total Purchases',
+                    value: formatGhs(totalPurchases),
+                    caption:
+                        '${purchases.length} '
+                        '${purchases.length == 1 ? 'purchase' : 'purchases'}',
+                    icon: Icons.shopping_bag_outlined,
+                    emphasized: true,
                   ),
-                ),
-            ],
+                  MetricCard(
+                    label: 'Paid',
+                    value: formatGhs(totalPaid),
+                    caption: 'Paid to suppliers',
+                    icon: Icons.check_circle_outline_rounded,
+                    tone: StatusTone.success,
+                  ),
+                  MetricCard(
+                    label: 'Outstanding',
+                    value: formatGhs(outstanding),
+                    caption: owing == 0
+                        ? 'Nothing owed'
+                        : 'Owed on $owing '
+                              '${owing == 1 ? 'purchase' : 'purchases'}',
+                    captionTone: owing == 0 ? null : StatusTone.warning,
+                    icon: Icons.account_balance_wallet_outlined,
+                    tone: StatusTone.warning,
+                  ),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: 12),
-          if (filteredPurchases.isEmpty)
-            const _NoSearchResults()
-          else
-            ...filteredPurchases.map(
-              (purchase) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: PurchaseCard(
-                  purchase: purchase,
-                  onTap: () {
-                    context.push('/purchases/${purchase.id}');
-                  },
-                ),
+          SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: horizontal),
+            sliver: SliverToBoxAdapter(
+              child: AppSearchField(
+                controller: _searchController,
+                hintText: 'Search purchase or supplier...',
+                onChanged: (value) => setState(() => _searchQuery = value),
               ),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyPurchasesState extends StatelessWidget {
-  const _EmptyPurchasesState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE8F5F0),
-                borderRadius: BorderRadius.circular(26),
-              ),
-              child: const Icon(
-                Icons.shopping_bag_outlined,
-                size: 40,
-                color: Color(0xFF087F5B),
-              ),
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              'No purchases yet',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Purchases you record will appear here.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: () {
-                context.push('/purchases/new');
-              },
-              icon: const Icon(Icons.add_shopping_cart_rounded),
-              label: const Text('Create First Purchase'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NoSearchResults extends StatelessWidget {
-  const _NoSearchResults();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
-      child: Column(
-        children: [
-          Icon(Icons.search_off_rounded, size: 44, color: Colors.grey.shade500),
-          const SizedBox(height: 12),
-          const Text(
-            'No purchases found',
-            style: TextStyle(fontWeight: FontWeight.w700),
           ),
-          const SizedBox(height: 5),
-          Text(
-            'Try a different purchase number or supplier.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          SliverToBoxAdapter(
+            child: FilterChipBar(
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                AppSpacing.md,
+                horizontal,
+                AppSpacing.lg,
+              ),
+              children: [
+                for (final (filter, label) in const [
+                  (_PaymentFilter.all, 'All'),
+                  (_PaymentFilter.outstanding, 'Outstanding'),
+                  (_PaymentFilter.paid, 'Paid'),
+                ])
+                  AppFilterChip(
+                    label: label,
+                    selected: _filter == filter,
+                    onSelected: () => setState(() => _filter = filter),
+                  ),
+              ],
+            ),
           ),
         ],
-      ),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            horizontal,
+            0,
+            horizontal,
+            isCompact ? 96 : AppSpacing.xxxl,
+          ),
+          sliver: filteredPurchases.isEmpty
+              ? SliverToBoxAdapter(
+                  child: SurfaceCard(
+                    child: purchases.isEmpty
+                        ? EmptyState(
+                            icon: Icons.shopping_bag_outlined,
+                            title: 'No purchases yet',
+                            message: 'Purchases you record will appear here.',
+                            actionLabel: 'New Purchase',
+                            actionIcon: Icons.add_shopping_cart_rounded,
+                            onAction: _newPurchase,
+                          )
+                        : const EmptyState(
+                            icon: Icons.search_off_rounded,
+                            title: 'No purchases found',
+                            message:
+                                'Try a different purchase number, supplier '
+                                'or filter.',
+                          ),
+                  ),
+                )
+              : SliverAdaptiveDataTable<Purchase>(
+                  rows: filteredPurchases,
+                  onRowTap: _open,
+                  compactRowBuilder: (context, purchase) => PurchaseCard(
+                    purchase: purchase,
+                    onTap: () => _open(purchase),
+                  ),
+                  columns: _columns,
+                ),
+        ),
+      ],
     );
   }
-}
 
-class _PurchaseErrorState extends StatelessWidget {
-  const _PurchaseErrorState({required this.error, required this.onRetry});
-
-  final Object error;
-  final Future<void> Function() onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 52,
-              color: Colors.redAccent,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Unable to load purchases',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error.toString(),
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-            ),
-            const SizedBox(height: 18),
-            OutlinedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Try Again'),
-            ),
-          ],
+  static final List<DataColumnSpec<Purchase>> _columns = [
+    DataColumnSpec<Purchase>(
+      label: 'Purchase',
+      flex: 3,
+      compare: (a, b) => a.purchaseNumber.compareTo(b.purchaseNumber),
+      cell: (purchase) => Text(
+        purchase.purchaseNumber,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontWeight: FontWeight.w500),
+      ),
+    ),
+    DataColumnSpec<Purchase>(
+      label: 'Supplier',
+      flex: 3,
+      compare: (a, b) => purchaseSupplierLabel(
+        a,
+      ).toLowerCase().compareTo(purchaseSupplierLabel(b).toLowerCase()),
+      cell: (purchase) => Text(
+        purchaseSupplierLabel(purchase),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: AppColors.textSecondary),
+      ),
+    ),
+    DataColumnSpec<Purchase>(
+      label: 'Date',
+      flex: 2,
+      visibleFrom: WindowSize.expanded,
+      compare: (a, b) => a.purchaseDate.compareTo(b.purchaseDate),
+      cell: (purchase) => Text(
+        formatShortDate(purchase.purchaseDate),
+        style: const TextStyle(color: AppColors.textSecondary),
+      ),
+    ),
+    DataColumnSpec<Purchase>(
+      label: 'Status',
+      flex: 2,
+      cell: (purchase) => Align(
+        alignment: Alignment.centerLeft,
+        child: PurchaseStatusBadge(purchase: purchase),
+      ),
+    ),
+    DataColumnSpec<Purchase>(
+      label: 'Balance',
+      flex: 2,
+      numeric: true,
+      compare: (a, b) => a.balance.compareTo(b.balance),
+      cell: (purchase) => Text(
+        purchase.hasBalance ? formatGhs(purchase.balance) : '—',
+        style: AppTypography.amount.copyWith(
+          color: purchase.hasBalance ? AppColors.warning : AppColors.textMuted,
         ),
       ),
-    );
-  }
+    ),
+    DataColumnSpec<Purchase>(
+      label: 'Total',
+      flex: 2,
+      numeric: true,
+      compare: (a, b) => a.totalAmount.compareTo(b.totalAmount),
+      cell: (purchase) =>
+          Text(formatGhs(purchase.totalAmount), style: AppTypography.amount),
+    ),
+  ];
 }

@@ -16,12 +16,10 @@ class AddProductScreen extends ConsumerStatefulWidget {
   const AddProductScreen({super.key});
 
   @override
-  ConsumerState<AddProductScreen> createState() =>
-      _AddProductScreenState();
+  ConsumerState<AddProductScreen> createState() => _AddProductScreenState();
 }
 
-class _AddProductScreenState
-    extends ConsumerState<AddProductScreen> {
+class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   /// Only the owner may set opening stock (the database enforces it too).
   /// Read once when saving; the form watches it while building.
   bool get _isOwner => selectIsShopOwner(ref.read(shopAccessProvider));
@@ -42,8 +40,7 @@ class _AddProductScreenState
   final _costPriceController = TextEditingController();
   final _sellingPriceController = TextEditingController();
   final _stockController = TextEditingController();
-  final _lowStockController =
-      TextEditingController(text: '10');
+  final _lowStockController = TextEditingController(text: '10');
   final _descriptionController = TextEditingController();
 
   /// Optional; null saves the product without a category.
@@ -82,19 +79,12 @@ class _AddProductScreenState
   // ---------------------------------------------------------------------------
 
   double get _costPrice =>
-      double.tryParse(
-        _costPriceController.text.trim(),
-      ) ??
-      0;
+      double.tryParse(_costPriceController.text.trim()) ?? 0;
 
   double get _sellingPrice =>
-      double.tryParse(
-        _sellingPriceController.text.trim(),
-      ) ??
-      0;
+      double.tryParse(_sellingPriceController.text.trim()) ?? 0;
 
-  double get _profit =>
-      _sellingPrice - _costPrice;
+  double get _profit => _sellingPrice - _costPrice;
 
   double get _margin {
     if (_sellingPrice <= 0) {
@@ -108,9 +98,7 @@ class _AddProductScreenState
   // IMAGE PICKING
   // ---------------------------------------------------------------------------
 
-  Future<void> _pickImage(
-    ImageSource source,
-  ) async {
+  Future<void> _pickImage(ImageSource source) async {
     if (_isPickingImage || _isSaving) {
       return;
     }
@@ -133,9 +121,7 @@ class _AddProductScreenState
 
       final bytes = await image.readAsBytes();
 
-      final extension = _getImageExtension(
-        image.name,
-      );
+      final extension = _getImageExtension(image.name);
 
       if (!mounted) {
         return;
@@ -146,21 +132,15 @@ class _AddProductScreenState
         _selectedImageExtension = extension;
       });
     } catch (e, stackTrace) {
-      debugPrint(
-        'IMAGE PICK ERROR: $e',
-      );
+      debugPrint('IMAGE PICK ERROR: $e');
 
-      debugPrint(
-        'STACK TRACE: $stackTrace',
-      );
+      debugPrint('STACK TRACE: $stackTrace');
 
       if (!mounted) {
         return;
       }
 
-      _showMessage(
-        'Unable to select image.',
-      );
+      _showMessage('Unable to select image.');
     } finally {
       if (mounted) {
         setState(() {
@@ -177,15 +157,9 @@ class _AddProductScreenState
       return 'jpg';
     }
 
-    final extension =
-        parts.last.toLowerCase();
+    final extension = parts.last.toLowerCase();
 
-    const supported = [
-      'jpg',
-      'jpeg',
-      'png',
-      'webp',
-    ];
+    const supported = ['jpg', 'jpeg', 'png', 'webp'];
 
     if (supported.contains(extension)) {
       return extension;
@@ -212,12 +186,7 @@ class _AddProductScreenState
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              8,
-              20,
-              24,
-            ),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -225,46 +194,29 @@ class _AddProductScreenState
                   alignment: Alignment.centerLeft,
                   child: Text(
                     'Add Product Image',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                   ),
                 ),
                 const SizedBox(height: 8),
                 const Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Choose how you want to add the product image.',
-                  ),
+                  child: Text('Choose how you want to add the product image.'),
                 ),
                 const SizedBox(height: 20),
                 ListTile(
-                  leading: const Icon(
-                    Icons.photo_library_outlined,
-                  ),
-                  title: const Text(
-                    'Choose from gallery',
-                  ),
+                  leading: const Icon(Icons.photo_library_outlined),
+                  title: const Text('Choose from gallery'),
                   onTap: () {
                     Navigator.pop(context);
-                    _pickImage(
-                      ImageSource.gallery,
-                    );
+                    _pickImage(ImageSource.gallery);
                   },
                 ),
                 ListTile(
-                  leading: const Icon(
-                    Icons.camera_alt_outlined,
-                  ),
-                  title: const Text(
-                    'Take a photo',
-                  ),
+                  leading: const Icon(Icons.camera_alt_outlined),
+                  title: const Text('Take a photo'),
                   onTap: () {
                     Navigator.pop(context);
-                    _pickImage(
-                      ImageSource.camera,
-                    );
+                    _pickImage(ImageSource.camera);
                   },
                 ),
               ],
@@ -286,168 +238,127 @@ class _AddProductScreenState
       return;
     }
 
-    final costPrice = double.tryParse(
-      _costPriceController.text.trim(),
-    );
+    final costPrice = double.tryParse(_costPriceController.text.trim());
 
-    final sellingPrice = double.tryParse(
-      _sellingPriceController.text.trim(),
-    );
+    final sellingPrice = double.tryParse(_sellingPriceController.text.trim());
 
     // Opening stock is owner-only; an attendant's product starts at 0 and
     // gets stock through purchases.
     final stockQuantity = _isOwner
-        ? int.tryParse(
-            _stockController.text.trim(),
-          )
+        ? int.tryParse(_stockController.text.trim())
         : 0;
 
-    final lowStockThreshold = int.tryParse(
-          _lowStockController.text.trim(),
-        ) ??
-        10;
+    final lowStockThreshold =
+        int.tryParse(_lowStockController.text.trim()) ?? 10;
 
-    if (costPrice == null ||
-        sellingPrice == null) {
-      _showMessage(
-        'Please enter valid prices.',
-      );
+    if (costPrice == null || sellingPrice == null) {
+      _showMessage('Please enter valid prices.');
       return;
     }
 
     if (stockQuantity == null) {
-      _showMessage(
-        'Please enter a valid stock quantity.',
-      );
+      _showMessage('Please enter a valid stock quantity.');
       return;
     }
 
     if (sellingPrice < costPrice) {
-      _showMessage(
-        'Selling price cannot be lower than cost price.',
-      );
+      _showMessage('Selling price cannot be lower than cost price.');
       return;
     }
 
     if (lowStockThreshold < 0) {
-      _showMessage(
-        'Low stock alert cannot be negative.',
-      );
+      _showMessage('Low stock alert cannot be negative.');
       return;
     }
 
     setState(() {
-  _isSaving = true;
-});
-
-try {
-  final repository = ref.read(productRepositoryProvider);
-
-  // -------------------------------------------------------------
-  // 1. CREATE PRODUCT FIRST
-  // -------------------------------------------------------------
-
-  final product = Product(
-    id: '',
-    name: _nameController.text.trim(),
-    categoryId: _selectedCategoryId,
-    sku: _nullableValue(_skuController.text),
-    barcode: _nullableValue(_barcodeController.text),
-    description: _nullableValue(_descriptionController.text),
-    costPrice: costPrice,
-    sellingPrice: sellingPrice,
-    stockQuantity: stockQuantity,
-    lowStockThreshold: lowStockThreshold,
-    isActive: true,
-  );
-
-  final createdProduct = await repository.createProduct(product);
-
-  debugPrint(
-    'PRODUCT CREATED: ${createdProduct.id}',
-  );
-
-  // -------------------------------------------------------------
-  // 2. UPLOAD IMAGE IF SELECTED
-  // -------------------------------------------------------------
-
-  if (_selectedImageBytes != null) {
-    _showMessage(
-      'Uploading product image...',
-      success: true,
-    );
-
-    final imageUrl = await repository.uploadProductImage(
-      productId: createdProduct.id,
-      bytes: _selectedImageBytes!,
-      extension: _selectedImageExtension ?? 'jpg',
-    );
-
-    debugPrint(
-      'PRODUCT IMAGE URL: $imageUrl',
-    );
-
-    // -----------------------------------------------------------
-    // 3. SAVE IMAGE URL TO PRODUCT
-    // -----------------------------------------------------------
-
-    await repository.updateProductImageUrl(
-      createdProduct.id,
-      imageUrl,
-    );
-  }
-
-  // -------------------------------------------------------------
-  // 4. REFRESH PRODUCTS
-  // -------------------------------------------------------------
-
-  ref.invalidate(productsProvider);
-
-  if (!mounted) {
-    return;
-  }
-
-  _showMessage(
-    'Product added successfully.',
-    success: true,
-  );
-
-  await Future.delayed(
-    const Duration(milliseconds: 500),
-  );
-
-  if (!mounted) {
-    return;
-  }
-
-  context.pop();
-
-} catch (e, stackTrace) {
-  debugPrint(
-    'CREATE PRODUCT ERROR: $e',
-  );
-
-  debugPrint(
-    'STACK TRACE: $stackTrace',
-  );
-
-  if (!mounted) {
-    return;
-  }
-
-  _showMessage(
-    'Unable to save product: $e',
-  );
-
-} finally {
-  if (mounted) {
-    setState(() {
-      _isSaving = false;
+      _isSaving = true;
     });
-  }
-}
 
-}
+    try {
+      final repository = ref.read(productRepositoryProvider);
+
+      // -------------------------------------------------------------
+      // 1. CREATE PRODUCT FIRST
+      // -------------------------------------------------------------
+
+      final product = Product(
+        id: '',
+        name: _nameController.text.trim(),
+        categoryId: _selectedCategoryId,
+        sku: _nullableValue(_skuController.text),
+        barcode: _nullableValue(_barcodeController.text),
+        description: _nullableValue(_descriptionController.text),
+        costPrice: costPrice,
+        sellingPrice: sellingPrice,
+        stockQuantity: stockQuantity,
+        lowStockThreshold: lowStockThreshold,
+        isActive: true,
+      );
+
+      final createdProduct = await repository.createProduct(product);
+
+      debugPrint('PRODUCT CREATED: ${createdProduct.id}');
+
+      // -------------------------------------------------------------
+      // 2. UPLOAD IMAGE IF SELECTED
+      // -------------------------------------------------------------
+
+      if (_selectedImageBytes != null) {
+        _showMessage('Uploading product image...', success: true);
+
+        final imageUrl = await repository.uploadProductImage(
+          productId: createdProduct.id,
+          bytes: _selectedImageBytes!,
+          extension: _selectedImageExtension ?? 'jpg',
+        );
+
+        debugPrint('PRODUCT IMAGE URL: $imageUrl');
+
+        // -----------------------------------------------------------
+        // 3. SAVE IMAGE URL TO PRODUCT
+        // -----------------------------------------------------------
+
+        await repository.updateProductImageUrl(createdProduct.id, imageUrl);
+      }
+
+      // -------------------------------------------------------------
+      // 4. REFRESH PRODUCTS
+      // -------------------------------------------------------------
+
+      ref.invalidate(productsProvider);
+
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage('Product added successfully.', success: true);
+
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (!mounted) {
+        return;
+      }
+
+      context.pop();
+    } catch (e, stackTrace) {
+      debugPrint('CREATE PRODUCT ERROR: $e');
+
+      debugPrint('STACK TRACE: $stackTrace');
+
+      if (!mounted) {
+        return;
+      }
+
+      _showMessage('Unable to save product: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
 
   String? _nullableValue(String value) {
     final trimmed = value.trim();
@@ -459,19 +370,14 @@ try {
   // MESSAGE
   // ---------------------------------------------------------------------------
 
-  void _showMessage(
-    String message, {
-    bool success = false,
-  }) {
+  void _showMessage(String message, {bool success = false}) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
           content: Text(message),
           behavior: SnackBarBehavior.floating,
-          backgroundColor: success
-              ? AppColors.success
-              : AppColors.error,
+          backgroundColor: success ? AppColors.success : AppColors.error,
         ),
       );
   }
@@ -488,56 +394,40 @@ try {
         title: const Text('Add Product'),
         leading: IconButton(
           tooltip: 'Back',
-          onPressed: _isSaving
-              ? null
-              : () => context.pop(),
-          icon: const Icon(
-            Icons.arrow_back_rounded,
-          ),
+          onPressed: _isSaving ? null : () => context.pop(),
+          icon: const Icon(Icons.arrow_back_rounded),
         ),
       ),
       body: Form(
         key: _formKey,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final isDesktop =
-                constraints.maxWidth >= 900;
+            final isDesktop = constraints.maxWidth >= 900;
 
             return SingleChildScrollView(
               padding: EdgeInsets.all(
-                isDesktop
-                    ? AppSpacing.xxxl
-                    : AppSpacing.xl,
+                isDesktop ? AppSpacing.xxxl : AppSpacing.xl,
               ),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: 1000,
-                  ),
+                  constraints: const BoxConstraints(maxWidth: 1000),
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildPageHeader(context),
 
-                      const SizedBox(
-                        height: AppSpacing.xxl,
-                      ),
+                      const SizedBox(height: AppSpacing.xxl),
 
                       _buildImageSection(),
 
-                      const SizedBox(
-                        height: AppSpacing.lg,
-                      ),
+                      const SizedBox(height: AppSpacing.lg),
 
                       if (isDesktop)
                         _buildDesktopLayout()
                       else
                         _buildMobileLayout(),
 
-                      const SizedBox(
-                        height: AppSpacing.xxxl,
-                      ),
+                      const SizedBox(height: AppSpacing.xxxl),
 
                       _buildSaveButton(),
                     ],
@@ -555,31 +445,22 @@ try {
   // HEADER
   // ---------------------------------------------------------------------------
 
-  Widget _buildPageHeader(
-    BuildContext context,
-  ) {
+  Widget _buildPageHeader(BuildContext context) {
     return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Create a new product',
-          style: Theme.of(context)
-              .textTheme
-              .headlineMedium
-              ?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 6),
         Text(
           'Add product information, pricing and inventory details.',
-          style: Theme.of(context)
-              .textTheme
-              .bodyMedium
-              ?.copyWith(
-                color: AppColors.textSecondary,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
         ),
       ],
     );
@@ -590,64 +471,40 @@ try {
   // ---------------------------------------------------------------------------
 
   Widget _buildImageSection() {
-    final hasImage =
-        _selectedImageBytes != null;
+    final hasImage = _selectedImageBytes != null;
 
     return _SectionCard(
       title: 'Product Image',
       icon: Icons.image_outlined,
       child: Column(
         children: [
-          if (hasImage)
-            _buildImagePreview()
-          else
-            _buildImagePlaceholder(),
+          if (hasImage) _buildImagePreview() else _buildImagePlaceholder(),
 
-          const SizedBox(
-            height: AppSpacing.lg,
-          ),
+          const SizedBox(height: AppSpacing.lg),
 
           Row(
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed:
-                      _isSaving || _isPickingImage
-                          ? null
-                          : _showImageSourceSheet,
+                  onPressed: _isSaving || _isPickingImage
+                      ? null
+                      : _showImageSourceSheet,
                   icon: _isPickingImage
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child:
-                              CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(
-                          Icons
-                              .add_photo_alternate_outlined,
-                        ),
-                  label: Text(
-                    hasImage
-                        ? 'Change Image'
-                        : 'Add Image',
-                  ),
+                      : const Icon(Icons.add_photo_alternate_outlined),
+                  label: Text(hasImage ? 'Change Image' : 'Add Image'),
                 ),
               ),
               if (hasImage) ...[
-                const SizedBox(
-                  width: AppSpacing.md,
-                ),
+                const SizedBox(width: AppSpacing.md),
                 IconButton(
                   tooltip: 'Remove image',
-                  onPressed:
-                      _isSaving
-                          ? null
-                          : _removeImage,
-                  icon: const Icon(
-                    Icons.delete_outline_rounded,
-                  ),
+                  onPressed: _isSaving ? null : _removeImage,
+                  icon: const Icon(Icons.delete_outline_rounded),
                   color: AppColors.error,
                 ),
               ],
@@ -660,12 +517,9 @@ try {
             alignment: Alignment.centerLeft,
             child: Text(
               'Recommended: square product image. JPG, PNG or WebP.',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(
-                    color: AppColors.textMuted,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
             ),
           ),
         ],
@@ -680,26 +534,20 @@ try {
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.border,
-        ),
+        border: Border.all(color: AppColors.border),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: _isSaving
-            ? null
-            : _showImageSourceSheet,
+        onTap: _isSaving ? null : _showImageSourceSheet,
         child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
               width: 64,
               height: 64,
               decoration: BoxDecoration(
                 color: AppColors.primaryLight,
-                borderRadius:
-                    BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(18),
               ),
               child: const Icon(
                 Icons.image_outlined,
@@ -710,22 +558,16 @@ try {
             const SizedBox(height: 14),
             Text(
               'Add product image',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 5),
             Text(
               'Tap to choose an image',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -740,10 +582,7 @@ try {
         width: double.infinity,
         height: 300,
         color: AppColors.background,
-        child: Image.memory(
-          _selectedImageBytes!,
-          fit: BoxFit.contain,
-        ),
+        child: Image.memory(_selectedImageBytes!, fit: BoxFit.contain),
       ),
     );
   }
@@ -754,30 +593,23 @@ try {
 
   Widget _buildDesktopLayout() {
     return Row(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           child: Column(
             children: [
               _buildBasicInformation(),
-              const SizedBox(
-                height: AppSpacing.lg,
-              ),
+              const SizedBox(height: AppSpacing.lg),
               _buildDescription(),
             ],
           ),
         ),
-        const SizedBox(
-          width: AppSpacing.lg,
-        ),
+        const SizedBox(width: AppSpacing.lg),
         Expanded(
           child: Column(
             children: [
               _buildPricing(),
-              const SizedBox(
-                height: AppSpacing.lg,
-              ),
+              const SizedBox(height: AppSpacing.lg),
               _buildInventory(),
             ],
           ),
@@ -815,20 +647,16 @@ try {
             label: 'Product Name',
             hint: 'e.g. Peak Milk 400g',
             required: true,
-            prefixIcon:
-                Icons.inventory_2_outlined,
+            prefixIcon: Icons.inventory_2_outlined,
             validator: (value) {
-              if (value == null ||
-                  value.trim().isEmpty) {
+              if (value == null || value.trim().isEmpty) {
                 return 'Product name is required.';
               }
 
               return null;
             },
           ),
-          const SizedBox(
-            height: AppSpacing.lg,
-          ),
+          const SizedBox(height: AppSpacing.lg),
           ProductCategoryField(
             selectedCategoryId: _selectedCategoryId,
             onChanged: _isSaving
@@ -839,9 +667,7 @@ try {
                     });
                   },
           ),
-          const SizedBox(
-            height: AppSpacing.lg,
-          ),
+          const SizedBox(height: AppSpacing.lg),
           Row(
             children: [
               Expanded(
@@ -849,21 +675,16 @@ try {
                   controller: _skuController,
                   label: 'SKU',
                   hint: 'Optional',
-                  prefixIcon:
-                      Icons.tag_rounded,
+                  prefixIcon: Icons.tag_rounded,
                 ),
               ),
-              const SizedBox(
-                width: AppSpacing.md,
-              ),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: _AppTextField(
-                  controller:
-                      _barcodeController,
+                  controller: _barcodeController,
                   label: 'Barcode',
                   hint: 'Optional',
-                  prefixIcon:
-                      Icons.qr_code_rounded,
+                  prefixIcon: Icons.qr_code_rounded,
                 ),
               ),
             ],
@@ -887,24 +708,18 @@ try {
             children: [
               Expanded(
                 child: _AppTextField(
-                  controller:
-                      _costPriceController,
+                  controller: _costPriceController,
                   label: 'Cost Price',
                   hint: '0.00',
                   required: true,
                   prefixText: 'GH₵ ',
-                  keyboardType:
-                      const TextInputType.numberWithOptions(
+                  keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
                   validator: (value) {
-                    final amount =
-                        double.tryParse(
-                      value ?? '',
-                    );
+                    final amount = double.tryParse(value ?? '');
 
-                    if (amount == null ||
-                        amount < 0) {
+                    if (amount == null || amount < 0) {
                       return 'Enter a valid price.';
                     }
 
@@ -912,29 +727,21 @@ try {
                   },
                 ),
               ),
-              const SizedBox(
-                width: AppSpacing.md,
-              ),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: _AppTextField(
-                  controller:
-                      _sellingPriceController,
+                  controller: _sellingPriceController,
                   label: 'Selling Price',
                   hint: '0.00',
                   required: true,
                   prefixText: 'GH₵ ',
-                  keyboardType:
-                      const TextInputType.numberWithOptions(
+                  keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
                   validator: (value) {
-                    final amount =
-                        double.tryParse(
-                      value ?? '',
-                    );
+                    final amount = double.tryParse(value ?? '');
 
-                    if (amount == null ||
-                        amount <= 0) {
+                    if (amount == null || amount <= 0) {
                       return 'Enter a valid price.';
                     }
 
@@ -944,13 +751,8 @@ try {
               ),
             ],
           ),
-          const SizedBox(
-            height: AppSpacing.lg,
-          ),
-          _ProfitPreview(
-            profit: _profit,
-            margin: _margin,
-          ),
+          const SizedBox(height: AppSpacing.lg),
+          _ProfitPreview(profit: _profit, margin: _margin),
         ],
       ),
     );
@@ -981,18 +783,12 @@ try {
                 label: 'Opening Stock',
                 hint: '0',
                 required: true,
-                keyboardType:
-                    TextInputType.number,
-                prefixIcon:
-                    Icons.numbers_rounded,
+                keyboardType: TextInputType.number,
+                prefixIcon: Icons.numbers_rounded,
                 validator: (value) {
-                  final quantity =
-                      int.tryParse(
-                    value ?? '',
-                  );
+                  final quantity = int.tryParse(value ?? '');
 
-                  if (quantity == null ||
-                      quantity < 0) {
+                  if (quantity == null || quantity < 0) {
                     return 'Enter quantity.';
                   }
 
@@ -1000,19 +796,14 @@ try {
                 },
               ),
             ),
-          const SizedBox(
-            width: AppSpacing.md,
-          ),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: _AppTextField(
-              controller:
-                  _lowStockController,
+              controller: _lowStockController,
               label: 'Low Stock Alert',
               hint: '10',
-              keyboardType:
-                  TextInputType.number,
-              prefixIcon:
-                  Icons.warning_amber_rounded,
+              keyboardType: TextInputType.number,
+              prefixIcon: Icons.warning_amber_rounded,
             ),
           ),
         ],
@@ -1029,11 +820,9 @@ try {
       title: 'Description',
       icon: Icons.notes_rounded,
       child: _AppTextField(
-        controller:
-            _descriptionController,
+        controller: _descriptionController,
         label: 'Description',
-        hint:
-            'Optional product description...',
+        hint: 'Optional product description...',
         maxLines: 5,
       ),
     );
@@ -1047,42 +836,25 @@ try {
     return SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
-        onPressed:
-            _isSaving ? null : _saveProduct,
+        onPressed: _isSaving ? null : _saveProduct,
         icon: _isSaving
             ? const SizedBox(
                 width: 20,
                 height: 20,
-                child:
-                    CircularProgressIndicator(
+                child: CircularProgressIndicator(
                   strokeWidth: 2,
                   color: Colors.white,
                 ),
               )
-            : const Icon(
-                Icons.check_rounded,
-              ),
-        label: Text(
-          _isSaving
-              ? 'Saving Product...'
-              : 'Save Product',
-        ),
+            : const Icon(Icons.check_rounded),
+        label: Text(_isSaving ? 'Saving Product...' : 'Save Product'),
         style: FilledButton.styleFrom(
-          backgroundColor:
-              AppColors.primary,
+          backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
-          disabledBackgroundColor:
-              AppColors.primary.withValues(
-            alpha: 0.6,
-          ),
-          padding:
-              const EdgeInsets.symmetric(
-            vertical: 17,
-          ),
-          shape:
-              RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(14),
+          disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.6),
+          padding: const EdgeInsets.symmetric(vertical: 17),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
           ),
         ),
       ),
@@ -1109,57 +881,36 @@ class _SectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding:
-          const EdgeInsets.all(AppSpacing.xl),
+      padding: const EdgeInsets.all(AppSpacing.xl),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius:
-            BorderRadius.circular(18),
-        border: Border.all(
-          color: AppColors.border,
-        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
                 width: 36,
                 height: 36,
-                decoration:
-                    BoxDecoration(
-                  color:
-                      AppColors.primaryLight,
-                  borderRadius:
-                      BorderRadius.circular(
-                    10,
-                  ),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(
-                  icon,
-                  size: 19,
-                  color:
-                      AppColors.primary,
-                ),
+                child: Icon(icon, size: 19, color: AppColors.primary),
               ),
               const SizedBox(width: 10),
               Text(
                 title,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(
-                      fontWeight:
-                          FontWeight.w700,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
               ),
             ],
           ),
-          const SizedBox(
-            height: AppSpacing.xl,
-          ),
+          const SizedBox(height: AppSpacing.xl),
           child,
         ],
       ),
@@ -1171,8 +922,7 @@ class _SectionCard extends StatelessWidget {
 // TEXT FIELD
 // =============================================================================
 
-class _AppTextField
-    extends StatelessWidget {
+class _AppTextField extends StatelessWidget {
   const _AppTextField({
     required this.controller,
     required this.label,
@@ -1196,23 +946,16 @@ class _AppTextField
   final int maxLines;
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       validator: validator,
       maxLines: maxLines,
       decoration: InputDecoration(
-        labelText: required
-            ? '$label *'
-            : label,
+        labelText: required ? '$label *' : label,
         hintText: hint,
-        prefixIcon:
-            prefixIcon != null
-                ? Icon(prefixIcon)
-                : null,
+        prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
         prefixText: prefixText,
       ),
     );
@@ -1223,93 +966,59 @@ class _AppTextField
 // PROFIT PREVIEW
 // =============================================================================
 
-class _ProfitPreview
-    extends StatelessWidget {
-  const _ProfitPreview({
-    required this.profit,
-    required this.margin,
-  });
+class _ProfitPreview extends StatelessWidget {
+  const _ProfitPreview({required this.profit, required this.margin});
 
   final double profit;
   final double margin;
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     final isPositive = profit > 0;
 
     return Container(
-      padding:
-          const EdgeInsets.all(
-        AppSpacing.lg,
-      ),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: isPositive
-            ? AppColors.success
-                .withValues(alpha: 0.08)
-            : AppColors.error
-                .withValues(alpha: 0.08),
-        borderRadius:
-            BorderRadius.circular(14),
+            ? AppColors.success.withValues(alpha: 0.08)
+            : AppColors.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
         children: [
           Icon(
             isPositive
-                ? Icons
-                    .trending_up_rounded
-                : Icons
-                    .warning_amber_rounded,
-            color: isPositive
-                ? AppColors.success
-                : AppColors.error,
+                ? Icons.trending_up_rounded
+                : Icons.warning_amber_rounded,
+            color: isPositive ? AppColors.success : AppColors.error,
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment
-                      .start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Expected Profit',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(
-                        color: AppColors
-                            .textSecondary,
-                      ),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
-                const SizedBox(
-                  height: 3,
-                ),
+                const SizedBox(height: 3),
                 Text(
                   'GH₵ ${profit.toStringAsFixed(2)}',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(
-                        fontWeight:
-                            FontWeight.w700,
-                      ),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
           ),
           Text(
             '${margin.toStringAsFixed(1)}%',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(
-                  fontWeight:
-                      FontWeight.w700,
-                  color: isPositive
-                      ? AppColors.success
-                      : AppColors.error,
-                ),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: isPositive ? AppColors.success : AppColors.error,
+            ),
           ),
         ],
       ),

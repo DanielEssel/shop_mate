@@ -242,7 +242,7 @@ void main() {
       // List -> details -> edit, so refreshes can be checked on the way back.
       await pumpSupplierApp(tester, repository);
       if (!isActive) {
-        await tester.tap(find.widgetWithText(ChoiceChip, 'All'));
+        await tester.tap(find.widgetWithText(FilterChip, 'All'));
         await tester.pumpAndSettle();
       }
       await tester.tap(find.text('Kofi Bentley'));

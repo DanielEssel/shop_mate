@@ -8,8 +8,5 @@ abstract class ShopRepository {
   /// Calls the `register_shop` database function, which creates a PENDING
   /// shop owned by the caller. Throws a [PostgrestException] whose message is
   /// user-readable when validation fails.
-  Future<void> registerShop({
-    required String name,
-    required String phone,
-  });
+  Future<void> registerShop({required String name, required String phone});
 }

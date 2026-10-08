@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../domain/entities/auth_credentials.dart';
 import '../../domain/entities/auth_failure.dart';
@@ -108,7 +107,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(context),
+              const AuthHeading(
+                title: 'Welcome back',
+                subtitle: 'Sign in to manage your shop.',
+              ),
 
               const SizedBox(height: AppSpacing.xxl),
 
@@ -187,27 +189,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
               const SizedBox(height: AppSpacing.lg),
 
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _isLoading ? null : _login,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                            semanticsLabel: 'Signing in',
-                          ),
-                        )
-                      : const Text('Sign In'),
-                ),
+              AuthSubmitButton(
+                label: 'Sign In',
+                busyLabel: 'Signing in',
+                isBusy: _isLoading,
+                onPressed: _login,
               ),
 
               const SizedBox(height: AppSpacing.lg),
@@ -236,26 +222,5 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     return AuthNotice(tone: AuthNoticeTone.error, message: failure.message);
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Welcome back',
-          style: Theme.of(
-            context,
-          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Sign in to manage your ShopMate.',
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
-        ),
-      ],
-    );
   }
 }

@@ -41,10 +41,8 @@ class ProductRepositoryImpl implements ProductRepository {
   }
 
   @override
-Future<Product> updateProduct(Product product) {
-  return _remoteDataSource.updateProduct(
-    product.id,
-    {
+  Future<Product> updateProduct(Product product) {
+    return _remoteDataSource.updateProduct(product.id, {
       'name': product.name,
       'category_id': product.categoryId,
       'sku': product.sku,
@@ -55,14 +53,13 @@ Future<Product> updateProduct(Product product) {
       'stock_quantity': product.stockQuantity,
       'low_stock_threshold': product.lowStockThreshold,
       'is_active': product.isActive,
-    },
-  );
-}
+    });
+  }
 
-@override
-Future<void> deleteProduct(String productId) {
-  return _remoteDataSource.deleteProduct(productId);
-}
+  @override
+  Future<void> deleteProduct(String productId) {
+    return _remoteDataSource.deleteProduct(productId);
+  }
 
   @override
   Future<String> uploadProductImage({
@@ -78,13 +75,7 @@ Future<void> deleteProduct(String productId) {
   }
 
   @override
-  Future<void> updateProductImageUrl(
-    String productId,
-    String imageUrl,
-  ) {
-    return _remoteDataSource.updateProductImageUrl(
-      productId,
-      imageUrl,
-    );
+  Future<void> updateProductImageUrl(String productId, String imageUrl) {
+    return _remoteDataSource.updateProductImageUrl(productId, imageUrl);
   }
 }

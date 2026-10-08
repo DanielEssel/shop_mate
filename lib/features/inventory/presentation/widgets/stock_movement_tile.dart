@@ -33,9 +33,7 @@ class StockMovementTile extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: const Color(0xFFE9ECEF),
-            ),
+            border: Border.all(color: const Color(0xFFE9ECEF)),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,8 +73,7 @@ class StockMovementTile extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    if (productName != null &&
-                        productName!.trim().isNotEmpty)
+                    if (productName != null && productName!.trim().isNotEmpty)
                       Text(
                         productName!,
                         maxLines: 1,
@@ -216,11 +213,10 @@ class StockMovementTile extends StatelessWidget {
     final hour = local.hour == 0
         ? 12
         : local.hour > 12
-            ? local.hour - 12
-            : local.hour;
+        ? local.hour - 12
+        : local.hour;
 
-    final minute =
-        local.minute.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
 
     final period = local.hour >= 12 ? 'PM' : 'AM';
 
@@ -249,11 +245,7 @@ class _MovementIcon extends StatelessWidget {
         color: backgroundColor,
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Icon(
-        icon,
-        color: foregroundColor,
-        size: 21,
-      ),
+      child: Icon(icon, color: foregroundColor, size: 21),
     );
   }
 }

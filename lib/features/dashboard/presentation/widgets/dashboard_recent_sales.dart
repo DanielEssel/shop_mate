@@ -1,56 +1,66 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
-import 'dashboard_recent_sale_tile.dart';
-import 'dashboard_section_header.dart';
+import '../../../../core/ui/ui.dart';
+import '../../../../core/utils/money_format.dart';
 import '../../domain/entities/recent_sale.dart';
 
+/// Today's latest sales as compact transaction rows.
 class DashboardRecentSales extends StatelessWidget {
-  const DashboardRecentSales({
-    super.key,
-    required this.sales,
-  });
+  const DashboardRecentSales({super.key, required this.sales});
 
   final List<DashboardRecentSale> sales;
+
+  static String formatTime(DateTime dateTime) {
+    final local = dateTime.toLocal();
+    final hour = local.hour > 12
+        ? local.hour - 12
+        : local.hour == 0
+        ? 12
+        : local.hour;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final period = local.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$minute $period';
+  }
+
+  static IconData paymentIcon(String paymentMethod) {
+    return switch (paymentMethod) {
+      'mobile_money' => Icons.phone_android_rounded,
+      'card' => Icons.credit_card_rounded,
+      'bank_transfer' => Icons.account_balance_outlined,
+      'credit' => Icons.schedule_rounded,
+      _ => Icons.payments_outlined,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        DashboardSectionHeader(
+        SectionHeader(
           title: 'Recent Sales',
           subtitle: 'Your latest transactions',
           actionLabel: 'View all',
           onAction: () => context.go('/sales'),
         ),
-        const SizedBox(height: AppSpacing.lg),
-        Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-          ),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppColors.border,
-            ),
-          ),
+        const SizedBox(height: AppSpacing.md),
+        SurfaceCard(
+          padding: EdgeInsets.zero,
+          clip: true,
           child: sales.isEmpty
-              ? const _EmptySales()
+              ? const EmptyState(
+                  compact: true,
+                  icon: Icons.receipt_long_outlined,
+                  title: 'No recent sales',
+                  message: 'Sales you record will appear here.',
+                )
               : Column(
                   children: [
                     for (var i = 0; i < sales.length; i++) ...[
-                      DashboardRecentSaleTile(
-                        sale: sales[i],
-                      ),
-                      if (i < sales.length - 1)
-                        const Divider(
-                          height: 1,
-                          color: AppColors.border,
-                        ),
+                      if (i > 0) const RowDivider(),
+                      _row(context, sales[i]),
                     ],
                   ],
                 ),
@@ -58,51 +68,19 @@ class DashboardRecentSales extends StatelessWidget {
       ],
     );
   }
-}
 
-class _EmptySales extends StatelessWidget {
-  const _EmptySales();
+  Widget _row(BuildContext context, DashboardRecentSale sale) {
+    final items = '${sale.itemCount} ${sale.itemCount == 1 ? 'item' : 'items'}';
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        vertical: AppSpacing.xxxl,
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceMuted,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(
-              Icons.receipt_long_rounded,
-              color: AppColors.textMuted,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            'No recent sales',
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Sales you record will appear here.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColors.textMuted,
-            ),
-          ),
-        ],
-      ),
+    return TransactionRow(
+      reference: sale.saleNumber,
+      details: [items, sale.paymentMethodLabel],
+      timestamp: formatTime(sale.createdAt),
+      amount: formatGhs(sale.totalAmount),
+      icon: paymentIcon(sale.paymentMethod),
+      statusLabel: sale.paymentMethod == 'credit' ? 'Credit' : null,
+      statusTone: StatusTone.warning,
+      onTap: () => context.push('/sales/${sale.id}'),
     );
   }
 }

@@ -18,8 +18,7 @@ class PendingApprovalScreen extends ConsumerStatefulWidget {
       _PendingApprovalScreenState();
 }
 
-class _PendingApprovalScreenState
-    extends ConsumerState<PendingApprovalScreen> {
+class _PendingApprovalScreenState extends ConsumerState<PendingApprovalScreen> {
   static const Duration _pollInterval = Duration(seconds: 30);
 
   Timer? _pollTimer;
@@ -56,7 +55,8 @@ class _PendingApprovalScreenState
           GateHeading(
             icon: Icons.hourglass_top_rounded,
             title: 'Waiting for approval',
-            message: '$subject has been submitted. We review every new shop '
+            message:
+                '$subject has been submitted. We review every new shop '
                 "before it goes live, and you'll get full access as soon as "
                 "it's approved. This page checks automatically.",
           ),
@@ -93,7 +93,8 @@ class SuspendedScreen extends ConsumerWidget {
             iconColor: AppColors.error,
             iconBackground: AppColors.errorLight,
             title: 'Access suspended',
-            message: 'Your ShopMate access is currently suspended. '
+            message:
+                'Your ShopMate access is currently suspended. '
                 'Please contact support to have it restored.',
           ),
 
@@ -129,7 +130,8 @@ class AccessErrorScreen extends ConsumerWidget {
             iconColor: AppColors.warning,
             iconBackground: AppColors.warningLight,
             title: "Can't check your account",
-            message: "We couldn't reach ShopMate. Check your internet "
+            message:
+                "We couldn't reach ShopMate. Check your internet "
                 'connection and try again.',
           ),
 
@@ -165,9 +167,9 @@ class AccessLoadingScreen extends StatelessWidget {
             const SizedBox(height: AppSpacing.lg),
             Text(
               'Checking your account…',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
             ),
             const SizedBox(height: AppSpacing.sm),
           ],

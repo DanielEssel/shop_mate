@@ -8,9 +8,7 @@ import '../../domain/entities/shop_access.dart';
 import '../../domain/repositories/shop_repository.dart';
 
 final shopRepositoryProvider = Provider<ShopRepository>((ref) {
-  return ShopRepositoryImpl(
-    ref.read(supabaseClientProvider),
-  );
+  return ShopRepositoryImpl(ref.read(supabaseClientProvider));
 });
 
 /// What the current account may access.
@@ -28,10 +26,7 @@ final shopAccessProvider = FutureProvider<ShopAccess>((ref) async {
   // Signed out. The router never reads this in that case, but the provider
   // must still return something.
   if (userId == null) {
-    return const ShopAccess(
-      userId: null,
-      status: ShopAccessStatus.noShop,
-    );
+    return const ShopAccess(userId: null, status: ShopAccessStatus.noShop);
   }
 
   try {
@@ -39,10 +34,7 @@ final shopAccessProvider = FutureProvider<ShopAccess>((ref) async {
   } catch (error) {
     debugPrint('SHOP ACCESS ERROR: $error');
 
-    return ShopAccess(
-      userId: userId,
-      status: ShopAccessStatus.unavailable,
-    );
+    return ShopAccess(userId: userId, status: ShopAccessStatus.unavailable);
   }
 });
 

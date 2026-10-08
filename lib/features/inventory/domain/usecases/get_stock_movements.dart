@@ -6,11 +6,7 @@ class GetStockMovements {
 
   final InventoryRepository _repository;
 
-  Future<List<StockMovement>> call({
-    String? productId,
-  }) {
-    return _repository.getStockMovements(
-      productId: productId,
-    );
+  Future<List<StockMovement>> call({String? productId}) {
+    return _repository.getStockMovements(productId: productId);
   }
 }

@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_spacing.dart';
+import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
 import '../../../products/domain/entities/product.dart';
 import '../../../products/presentation/providers/products_provider.dart';
+import '../../../products/presentation/widgets/product_visuals.dart';
 import '../../../shop/presentation/providers/shop_provider.dart';
+import '../../domain/entities/inventory_summary.dart';
 import '../providers/inventory_provider.dart';
-import '../widgets/inventory_product_card.dart';
-import '../widgets/inventory_summary_card.dart';
-import 'package:go_router/go_router.dart';
+
+enum _StockFilter { all, low, out }
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
@@ -20,17 +26,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   final _searchController = TextEditingController();
 
   String _searchQuery = '';
-
-  @override
-  void initState() {
-    super.initState();
-
-    _searchController.addListener(() {
-      setState(() {
-        _searchQuery = _searchController.text.trim().toLowerCase();
-      });
-    });
-  }
+  _StockFilter _filter = _StockFilter.all;
 
   @override
   void dispose() {
@@ -38,12 +34,23 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     super.dispose();
   }
 
-  Future<void> _refresh() async {
+  void _invalidateStock() {
     ref.invalidate(productsProvider);
     ref.invalidate(inventorySummaryProvider);
     ref.invalidate(stockMovementsProvider);
+  }
 
+  Future<void> _refresh() async {
+    _invalidateStock();
     await ref.read(productsProvider.future);
+  }
+
+  Future<void> _adjust([Product? product]) async {
+    final result = await context.push<bool>(
+      '/inventory/adjust',
+      extra: product,
+    );
+    if (result == true) _invalidateStock();
   }
 
   @override
@@ -54,113 +61,92 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final canAdjustStock = ref.watch(
       shopAccessProvider.select(selectIsShopOwner),
     );
+    final isCompact = Breakpoints.ofWindow(context).isCompact;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
-      appBar: AppBar(
-        title: const Text(
-          'Inventory',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh inventory',
-            onPressed: _refresh,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        child: productsAsync.when(
-          loading: () {
-            return const Center(child: CircularProgressIndicator());
-          },
-          error: (error, stackTrace) {
-            return _InventoryError(
-              message: 'Unable to load inventory.\n$error',
-              onRetry: _refresh,
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final horizontal = Breakpoints.pagePadding(
+              constraints.maxWidth,
+              maxWidth: ContentWidth.wide,
             );
-          },
-          data: (products) {
-            final filteredProducts = _filterProducts(products);
 
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                final isDesktop = constraints.maxWidth >= 1000;
+            SliverPadding boxed(Widget child, {double bottom = 0}) {
+              return SliverPadding(
+                padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, bottom),
+                sliver: SliverToBoxAdapter(child: child),
+              );
+            }
 
-                return SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: EdgeInsets.all(isDesktop ? 24 : 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _Header(productCount: products.length),
-                      const SizedBox(height: 20),
-
-                      _SummarySection(
-                        summaryAsync: summaryAsync,
-                        isDesktop: isDesktop,
-                      ),
-
-                      const SizedBox(height: 28),
-
-                      _InventoryQuickActions(
-                        isDesktop: isDesktop,
-                        canAdjustStock: canAdjustStock,
-                        onStockAdjusted: () {
-                          ref.invalidate(productsProvider);
-                          ref.invalidate(inventorySummaryProvider);
-                          ref.invalidate(stockMovementsProvider);
-                        },
-                      ),
-
-                      const SizedBox(height: 28),
-
-                      _SearchBar(controller: _searchController),
-
-                      const SizedBox(height: 18),
-
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              'Products',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
+            return RefreshIndicator(
+              onRefresh: _refresh,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontal,
+                      isCompact ? AppSpacing.md : AppSpacing.xxl,
+                      horizontal,
+                      AppSpacing.xl,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: PageHeader(
+                        title: 'Inventory',
+                        subtitle: 'Stock levels across your products',
+                        showMenuButton: true,
+                        actions: [
+                          SecondaryButton(
+                            label: 'Stock History',
+                            icon: Icons.history_rounded,
+                            onPressed: () => context.push('/inventory/history'),
                           ),
-                          Text(
-                            '${filteredProducts.length} items',
-                            style: TextStyle(
-                              color: Colors.grey.shade600,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                          if (canAdjustStock)
+                            PrimaryButton(
+                              label: 'Adjust Stock',
+                              icon: Icons.swap_vert_rounded,
+                              onPressed: _adjust,
                             ),
-                          ),
                         ],
                       ),
-
-                      const SizedBox(height: 14),
-
-                      if (filteredProducts.isEmpty)
-                        const _EmptyInventory()
-                      else if (isDesktop)
-                        _DesktopProductGrid(
-                          products: filteredProducts,
-                          canAdjustStock: canAdjustStock,
-                        )
-                      else
-                        _MobileProductList(
-                          products: filteredProducts,
-                          canAdjustStock: canAdjustStock,
-                        ),
-                    ],
+                    ),
                   ),
-                );
-              },
+                  boxed(
+                    _StockMetrics(summaryAsync: summaryAsync),
+                    bottom: AppSpacing.xxl,
+                  ),
+                  ...productsAsync.when(
+                    loading: () => [
+                      boxed(
+                        const SurfaceCard(
+                          padding: EdgeInsets.zero,
+                          child: SkeletonList(),
+                        ),
+                      ),
+                    ],
+                    error: (error, stackTrace) => [
+                      boxed(
+                        SurfaceCard(
+                          child: ErrorState(
+                            compact: true,
+                            title: 'Unable to load inventory.',
+                            message: 'Check your connection and try again.',
+                            onRetry: _refresh,
+                          ),
+                        ),
+                      ),
+                    ],
+                    data: (products) => _productSlivers(
+                      products,
+                      horizontal: horizontal,
+                      canAdjustStock: canAdjustStock,
+                    ),
+                  ),
+                ],
+              ),
             );
           },
         ),
@@ -168,444 +154,299 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
   }
 
-  List<Product> _filterProducts(List<Product> products) {
-    if (_searchQuery.isEmpty) {
-      return products;
-    }
+  List<Widget> _productSlivers(
+    List<Product> products, {
+    required double horizontal,
+    required bool canAdjustStock,
+  }) {
+    final query = _searchQuery.trim().toLowerCase();
+    final filtered = products.where((product) {
+      final matchesFilter = switch (_filter) {
+        _StockFilter.all => true,
+        _StockFilter.low => product.isLowStock && !product.isOutOfStock,
+        _StockFilter.out => product.isOutOfStock,
+      };
+      if (!matchesFilter) return false;
+      if (query.isEmpty) return true;
 
-    return products.where((product) {
-      return product.name.toLowerCase().contains(_searchQuery) ||
-          (product.categoryName?.toLowerCase().contains(_searchQuery) ??
-              false) ||
-          (product.sku?.toLowerCase().contains(_searchQuery) ?? false) ||
-          (product.barcode?.toLowerCase().contains(_searchQuery) ?? false);
+      return product.name.toLowerCase().contains(query) ||
+          (product.categoryName?.toLowerCase().contains(query) ?? false) ||
+          (product.sku?.toLowerCase().contains(query) ?? false) ||
+          (product.barcode?.toLowerCase().contains(query) ?? false);
     }).toList();
-  }
-}
 
-class _Header extends StatelessWidget {
-  const _Header({required this.productCount});
+    void open(Product product) => _adjust(product);
 
-  final int productCount;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Stock Overview',
-          style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 5),
-        Text(
-          '$productCount active products in your inventory',
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-        ),
-      ],
-    );
-  }
-}
-
-class _SummarySection extends StatelessWidget {
-  const _SummarySection({required this.summaryAsync, required this.isDesktop});
-
-  final AsyncValue summaryAsync;
-  final bool isDesktop;
-
-  @override
-  Widget build(BuildContext context) {
-    return summaryAsync.when(
-      loading: () {
-        return _SummaryLoading(isDesktop: isDesktop);
-      },
-      error: (error, stackTrace) {
-        return const Text('Unable to load inventory summary.');
-      },
-      data: (summary) {
-        final cards = [
-          InventorySummaryCard(
-            title: 'Total Products',
-            value: '${summary.totalProducts}',
-            subtitle: 'Active products',
-            icon: Icons.inventory_2_outlined,
-          ),
-          InventorySummaryCard(
-            title: 'Stock Units',
-            value: '${summary.totalStockUnits}',
-            subtitle: 'Units currently available',
-            icon: Icons.layers_outlined,
-          ),
-          InventorySummaryCard(
-            title: 'Low Stock',
-            value: '${summary.lowStockProducts}',
-            subtitle: 'Needs attention',
-            icon: Icons.warning_amber_rounded,
-          ),
-          InventorySummaryCard(
-            title: 'Out of Stock',
-            value: '${summary.outOfStockProducts}',
-            subtitle: 'Currently unavailable',
-            icon: Icons.remove_shopping_cart_outlined,
-          ),
-        ];
-
-        if (isDesktop) {
-          return GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: cards.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              crossAxisSpacing: 14,
-              mainAxisSpacing: 14,
-              childAspectRatio: 1.55,
-            ),
-            itemBuilder: (_, index) => cards[index],
-          );
-        }
-
-        return SizedBox(
-          height: 142,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: cards.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 12),
-            itemBuilder: (_, index) {
-              return SizedBox(width: 210, child: cards[index]);
-            },
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _SummaryLoading extends StatelessWidget {
-  const _SummaryLoading({required this.isDesktop});
-
-  final bool isDesktop;
-
-  @override
-  Widget build(BuildContext context) {
-    final count = isDesktop ? 4 : 1;
-
-    return SizedBox(
-      height: 142,
-      child: Row(
-        children: List.generate(
-          count,
-          (index) => Expanded(
-            child: Container(
-              margin: EdgeInsets.only(right: index == count - 1 ? 0 : 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
-            ),
+    return [
+      SliverPadding(
+        padding: EdgeInsets.symmetric(horizontal: horizontal),
+        sliver: SliverToBoxAdapter(
+          child: AppSearchField(
+            controller: _searchController,
+            hintText: 'Search name, category, SKU or barcode...',
+            onChanged: (value) => setState(() => _searchQuery = value),
           ),
         ),
       ),
-    );
-  }
-}
-
-class _SearchBar extends StatelessWidget {
-  const _SearchBar({required this.controller});
-
-  final TextEditingController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        hintText: 'Search by product, category, SKU or barcode...',
-        prefixIcon: const Icon(Icons.search_rounded),
-        suffixIcon: controller.text.isEmpty
-            ? null
-            : IconButton(
-                onPressed: controller.clear,
-                icon: const Icon(Icons.clear_rounded),
-              ),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
-        ),
-      ),
-    );
-  }
-}
-
-class _DesktopProductGrid extends StatelessWidget {
-  const _DesktopProductGrid({
-    required this.products,
-    required this.canAdjustStock,
-  });
-
-  final List<Product> products;
-  final bool canAdjustStock;
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: products.length,
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 430,
-        crossAxisSpacing: 14,
-        mainAxisSpacing: 14,
-        childAspectRatio: 2.25,
-      ),
-      itemBuilder: (context, index) {
-        final product = products[index];
-
-        // Tapping a card opens stock adjustment, so only for owners.
-        return InventoryProductCard(
-          product: product,
-          onTap: canAdjustStock
-              ? () => context.push('/inventory/adjust', extra: product)
-              : null,
-          onAdjustStock: canAdjustStock
-              ? () => context.push('/inventory/adjust', extra: product)
-              : null,
-        );
-      },
-    );
-  }
-}
-
-class _MobileProductList extends StatelessWidget {
-  const _MobileProductList({
-    required this.products,
-    required this.canAdjustStock,
-  });
-
-  final List<Product> products;
-  final bool canAdjustStock;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: products.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final product = products[index];
-
-        // Tapping a card opens stock adjustment, so only for owners.
-        return InventoryProductCard(
-          product: product,
-          onTap: canAdjustStock
-              ? () => context.push('/inventory/adjust', extra: product)
-              : null,
-          onAdjustStock: canAdjustStock
-              ? () => context.push('/inventory/adjust', extra: product)
-              : null,
-        );
-      },
-    );
-  }
-}
-
-class _EmptyInventory extends StatelessWidget {
-  const _EmptyInventory();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: const Column(
-        children: [
-          Icon(Icons.inventory_2_outlined, size: 52, color: Colors.grey),
-          SizedBox(height: 14),
-          Text(
-            'No products found',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+      SliverToBoxAdapter(
+        child: FilterChipBar(
+          padding: EdgeInsets.fromLTRB(
+            horizontal,
+            AppSpacing.md,
+            horizontal,
+            AppSpacing.lg,
           ),
-          SizedBox(height: 5),
-          Text('Try changing your search.', textAlign: TextAlign.center),
-        ],
-      ),
-    );
-  }
-}
-
-class _InventoryError extends StatelessWidget {
-  const _InventoryError({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, size: 48),
-            const SizedBox(height: 12),
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Retry'),
+            for (final (filter, label) in const [
+              (_StockFilter.all, 'All'),
+              (_StockFilter.low, 'Low stock'),
+              (_StockFilter.out, 'Out of stock'),
+            ])
+              AppFilterChip(
+                label: label,
+                selected: _filter == filter,
+                onSelected: () => setState(() => _filter = filter),
+              ),
+          ],
+        ),
+      ),
+      SliverPadding(
+        padding: EdgeInsets.fromLTRB(
+          horizontal,
+          0,
+          horizontal,
+          AppSpacing.xxxl,
+        ),
+        sliver: filtered.isEmpty
+            ? SliverToBoxAdapter(
+                child: SurfaceCard(
+                  child: products.isEmpty
+                      ? const EmptyState(
+                          icon: Icons.inventory_2_outlined,
+                          title: 'No products yet',
+                          message:
+                              'Products you add will appear here with their '
+                              'stock levels.',
+                        )
+                      : const EmptyState(
+                          icon: Icons.search_off_rounded,
+                          title: 'No products found',
+                          message: 'Try changing your search or filter.',
+                        ),
+                ),
+              )
+            : SliverAdaptiveDataTable<Product>(
+                rows: filtered,
+                // Opening a product here means adjusting it: owners only.
+                onRowTap: canAdjustStock ? open : null,
+                compactRowBuilder: (context, product) => _InventoryRow(
+                  product: product,
+                  onAdjust: canAdjustStock ? () => open(product) : null,
+                ),
+                columns: _columns(canAdjustStock ? open : null),
+              ),
+      ),
+    ];
+  }
+
+  static List<DataColumnSpec<Product>> _columns(
+    ValueChanged<Product>? onAdjust,
+  ) {
+    return [
+      DataColumnSpec<Product>(
+        label: 'Product',
+        flex: 4,
+        compare: (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+        cell: (product) => Row(
+          children: [
+            ProductThumb(product: product, size: 32),
+            const SizedBox(width: AppSpacing.md),
+            Flexible(
+              child: Text(
+                product.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _InventoryQuickActions extends StatelessWidget {
-  const _InventoryQuickActions({
-    required this.isDesktop,
-    required this.canAdjustStock,
-    required this.onStockAdjusted,
-  });
-
-  final bool isDesktop;
-  final bool canAdjustStock;
-  final VoidCallback onStockAdjusted;
-
-  @override
-  Widget build(BuildContext context) {
-    final actions = [
-      if (canAdjustStock)
-        _InventoryAction(
-          icon: Icons.swap_vert_rounded,
-          title: 'Adjust Stock',
-          subtitle: 'Correct or update stock quantities',
-          onTap: () async {
-            final result = await context.push<bool>('/inventory/adjust');
-
-            if (result == true) {
-              onStockAdjusted();
-            }
-          },
+      DataColumnSpec<Product>(
+        label: 'Category',
+        flex: 2,
+        cell: (product) => Text(
+          product.categoryName ?? 'No category',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: AppColors.textSecondary),
         ),
-      _InventoryAction(
-        icon: Icons.history_rounded,
-        title: 'Stock History',
-        subtitle: 'View all stock movements',
-        onTap: () => context.push('/inventory/history'),
       ),
+      DataColumnSpec<Product>(
+        label: 'Reorder at',
+        flex: 1,
+        numeric: true,
+        visibleFrom: WindowSize.expanded,
+        cell: (product) => Text(
+          '${product.lowStockThreshold}',
+          style: AppTypography.amount.copyWith(color: AppColors.textMuted),
+        ),
+      ),
+      DataColumnSpec<Product>(
+        label: 'In stock',
+        flex: 1,
+        numeric: true,
+        compare: (a, b) => a.stockQuantity.compareTo(b.stockQuantity),
+        cell: (product) =>
+            Text('${product.stockQuantity}', style: AppTypography.amount),
+      ),
+      DataColumnSpec<Product>(
+        label: 'Status',
+        flex: 2,
+        compare: (a, b) => _severity(a).compareTo(_severity(b)),
+        cell: (product) => Align(
+          alignment: Alignment.centerLeft,
+          child: ProductStockBadge(product: product),
+        ),
+      ),
+      if (onAdjust != null)
+        DataColumnSpec<Product>(
+          label: '',
+          flex: 1,
+          numeric: true,
+          cell: (product) => _AdjustButton(onPressed: () => onAdjust(product)),
+        ),
     ];
+  }
 
-    if (isDesktop) {
-      return Row(
-        children: actions.map((action) {
-          return Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(right: action == actions.last ? 0 : 12),
-              child: action,
-            ),
-          );
-        }).toList(),
-      );
-    }
+  /// Sort key: out of stock first, then low, then healthy.
+  static int _severity(Product product) {
+    if (product.isOutOfStock) return 0;
+    if (product.isLowStock) return 1;
+    return 2;
+  }
+}
 
-    // The number of actions depends on the role.
-    return Column(
-      children: [
-        for (final action in actions) ...[
-          if (action != actions.first) const SizedBox(height: 12),
-          action,
+/// Stock health figures. Units lead; low and out of stock carry their
+/// semantic colour only when non-zero.
+class _StockMetrics extends StatelessWidget {
+  const _StockMetrics({required this.summaryAsync});
+
+  final AsyncValue<InventorySummary> summaryAsync;
+
+  @override
+  Widget build(BuildContext context) {
+    return summaryAsync.when(
+      loading: () => const Row(
+        children: [
+          Expanded(child: SkeletonBox(height: 104, radius: 14)),
+          SizedBox(width: AppSpacing.md),
+          Expanded(child: SkeletonBox(height: 104, radius: 14)),
         ],
-      ],
+      ),
+      error: (error, stackTrace) => Text(
+        'Unable to load the stock summary.',
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
+      ),
+      data: (summary) => MetricGrid(
+        cards: [
+          MetricCard(
+            label: 'Stock Units',
+            value: '${summary.totalStockUnits}',
+            caption: 'Units on hand',
+            icon: Icons.layers_outlined,
+            emphasized: true,
+          ),
+          MetricCard(
+            label: 'Products',
+            value: '${summary.totalProducts}',
+            caption: 'Active products',
+            icon: Icons.inventory_2_outlined,
+            tone: StatusTone.brand,
+          ),
+          MetricCard(
+            label: 'Low Stock',
+            value: '${summary.lowStockProducts}',
+            caption: summary.lowStockProducts > 0
+                ? 'Reorder soon'
+                : 'Nothing running low',
+            captionTone: summary.lowStockProducts > 0
+                ? StatusTone.warning
+                : null,
+            icon: Icons.warning_amber_rounded,
+            tone: StatusTone.warning,
+            onTap: () => context.push('/inventory/low-stock'),
+          ),
+          MetricCard(
+            label: 'Out of Stock',
+            value: '${summary.outOfStockProducts}',
+            caption: summary.outOfStockProducts > 0
+                ? 'Unavailable to sell'
+                : 'Everything available',
+            captionTone: summary.outOfStockProducts > 0
+                ? StatusTone.danger
+                : null,
+            icon: Icons.remove_shopping_cart_outlined,
+            tone: StatusTone.danger,
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _InventoryAction extends StatelessWidget {
-  const _InventoryAction({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
+/// A product's stock on phones: identity, quantity with status, and the
+/// adjust action for owners.
+class _InventoryRow extends StatelessWidget {
+  const _InventoryRow({required this.product, this.onAdjust});
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
+  final Product product;
+  final VoidCallback? onAdjust;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE7EAE8)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5F0),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(icon, color: const Color(0xFF087F5B), size: 24),
-              ),
+    final status = stockStatusOf(product);
+    final onAdjust = this.onAdjust;
 
-              const SizedBox(width: 14),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 12,
-                        height: 1.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(width: 8),
-
-              const Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 15,
-                color: Color(0xFF087F5B),
-              ),
-            ],
-          ),
-        ),
+    return ListRow(
+      title: product.name,
+      details: [product.categoryName ?? 'No category'],
+      leading: ProductThumb(product: product),
+      onTap: onAdjust,
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        onAdjust == null ? AppSpacing.lg : AppSpacing.xs,
+        AppSpacing.md,
       ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          RowValue(
+            value: '${product.stockQuantity}',
+            badge: StatusBadge(label: status.label, tone: status.tone),
+          ),
+          if (onAdjust != null) _AdjustButton(onPressed: onAdjust),
+        ],
+      ),
+    );
+  }
+}
+
+class _AdjustButton extends StatelessWidget {
+  const _AdjustButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: 'Adjust stock',
+      onPressed: onPressed,
+      color: AppColors.textSecondary,
+      icon: const Icon(Icons.tune_rounded, size: 20),
     );
   }
 }

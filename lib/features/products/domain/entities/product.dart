@@ -62,8 +62,7 @@ class Product {
   }
 
   bool get isLowStock {
-    return stockQuantity > 0 &&
-        stockQuantity <= lowStockThreshold;
+    return stockQuantity > 0 && stockQuantity <= lowStockThreshold;
   }
 
   bool get isOutOfStock {

@@ -4,11 +4,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
+import '../../../../core/utils/money_format.dart';
 import '../../../product_categories/domain/entities/product_category.dart';
 import '../../../product_categories/presentation/providers/product_category_providers.dart';
 import '../../domain/entities/product.dart';
 import '../providers/products_provider.dart';
-import '../widgets/product_card.dart';
+import '../widgets/product_visuals.dart';
 
 class ProductsScreen extends ConsumerStatefulWidget {
   const ProductsScreen({super.key});
@@ -33,40 +36,86 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     super.dispose();
   }
 
+  void _addProduct() => context.push('/products/new');
+
   @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(productsProvider);
+    final isCompact = Breakpoints.ofWindow(context).isCompact;
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'products_fab',
-        onPressed: () {
-          context.push('/products/new');
-        },
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Add Product'),
-      ),
+      // Phones get the thumb-reachable button; wider layouts put it in the
+      // page header.
+      floatingActionButton: isCompact
+          ? FloatingActionButton.extended(
+              heroTag: 'products_fab',
+              onPressed: _addProduct,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add Product'),
+            )
+          : null,
       body: SafeArea(
-        child: productsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stackTrace) => Center(
-            child: Text(
-              'Unable to load products.',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-          ),
-          data: (products) {
-            return _buildContent(context, products);
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final horizontal = Breakpoints.pagePadding(
+              constraints.maxWidth,
+              maxWidth: ContentWidth.wide,
+            );
+
+            // While loading or failed the header stays, so the menu and
+            // Add Product remain reachable.
+            final header = Padding(
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                isCompact ? AppSpacing.md : AppSpacing.xxl,
+                horizontal,
+                AppSpacing.lg,
+              ),
+              child: _header(null, isCompact),
+            );
+
+            return productsAsync.when(
+              loading: () => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  Expanded(
+                    child: PageSkeleton(
+                      padding: EdgeInsets.symmetric(horizontal: horizontal),
+                    ),
+                  ),
+                ],
+              ),
+              error: (error, stackTrace) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  Expanded(
+                    child: ErrorState(
+                      title: 'Unable to load products.',
+                      message: 'Check your connection and try again.',
+                      onRetry: () => ref.invalidate(productsProvider),
+                    ),
+                  ),
+                ],
+              ),
+              data: (products) =>
+                  _buildContent(context, products, horizontal, isCompact),
+            );
           },
         ),
       ),
     );
   }
 
-  Widget _buildContent(BuildContext context, List<Product> products) {
+  Widget _buildContent(
+    BuildContext context,
+    List<Product> products,
+    double horizontal,
+    bool isCompact,
+  ) {
     // Active categories only; products in archived categories stay visible
     // under "All". A failed category load just leaves "All".
     final categories =
@@ -104,155 +153,187 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
     return CustomScrollView(
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.xxl,
-            AppSpacing.xxl,
-            AppSpacing.xxl,
+          padding: EdgeInsets.fromLTRB(
+            horizontal,
+            isCompact ? AppSpacing.md : AppSpacing.xxl,
+            horizontal,
             AppSpacing.lg,
           ),
-          sliver: SliverToBoxAdapter(child: _buildHeader(context, products)),
+          sliver: SliverToBoxAdapter(
+            child: _header(products.length, isCompact),
+          ),
         ),
-
-        SliverToBoxAdapter(child: _buildFilters(filters, filter)),
-
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.xxl,
-            AppSpacing.lg,
-            AppSpacing.xxl,
-            100,
+          padding: EdgeInsets.symmetric(horizontal: horizontal),
+          sliver: SliverToBoxAdapter(
+            child: AppSearchField(
+              controller: _searchController,
+              hintText: 'Search products...',
+              onChanged: (value) => setState(() => _searchQuery = value),
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: FilterChipBar(
+            padding: EdgeInsets.fromLTRB(
+              horizontal,
+              AppSpacing.md,
+              horizontal,
+              AppSpacing.lg,
+            ),
+            children: [
+              for (final (key, label) in filters)
+                AppFilterChip(
+                  label: label,
+                  selected: key == filter,
+                  onSelected: () => setState(() => _selectedFilter = key),
+                ),
+            ],
+          ),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            horizontal,
+            0,
+            horizontal,
+            // Room for the floating button on phones.
+            isCompact ? 96 : AppSpacing.xxxl,
           ),
           sliver: filteredProducts.isEmpty
-              ? const SliverToBoxAdapter(child: _EmptyProductsState())
-              : SliverList.separated(
-                  itemCount: filteredProducts.length,
-                  itemBuilder: (context, index) {
-                    final product = filteredProducts[index];
-
-                    return ProductCard(
-                      product: product,
-                      onTap: () {
-                        context.go('/products/${product.id}');
-                      },
-                    );
-                  },
-                  separatorBuilder: (_, _) {
-                    return const SizedBox(height: AppSpacing.sm);
-                  },
+              ? SliverToBoxAdapter(
+                  child: SurfaceCard(
+                    child: products.isEmpty
+                        ? const EmptyState(
+                            icon: Icons.inventory_2_outlined,
+                            title: 'No products yet',
+                            message:
+                                'Add your first product to start selling and tracking stock.',
+                          )
+                        : const EmptyState(
+                            icon: Icons.search_off_rounded,
+                            title: 'No products found',
+                            message:
+                                'Try changing your search or category filter.',
+                          ),
+                  ),
+                )
+              : SliverAdaptiveDataTable<Product>(
+                  rows: filteredProducts,
+                  onRowTap: _open,
+                  compactRowBuilder: (context, product) =>
+                      _ProductListRow(product: product, onTap: _open),
+                  columns: _columns,
                 ),
         ),
       ],
     );
   }
 
-  Widget _buildHeader(BuildContext context, List<Product> products) {
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Products',
-          style: theme.textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.w700,
+  Widget _header(int? count, bool isCompact) {
+    return PageHeader(
+      title: 'Products',
+      subtitle: count == null
+          ? 'Products in your shop'
+          : '$count products in your shop',
+      showMenuButton: true,
+      actions: [
+        if (!isCompact)
+          PrimaryButton(
+            label: 'Add Product',
+            icon: Icons.add_rounded,
+            onPressed: _addProduct,
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '${products.length} products in your shop',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: AppColors.textSecondary,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xl),
-        TextField(
-          controller: _searchController,
-          onChanged: (value) {
-            setState(() {
-              _searchQuery = value;
-            });
-          },
-          decoration: InputDecoration(
-            hintText: 'Search products...',
-            prefixIcon: const Icon(Icons.search_rounded),
-            suffixIcon: _searchQuery.isNotEmpty
-                ? IconButton(
-                    onPressed: () {
-                      _searchController.clear();
-
-                      setState(() {
-                        _searchQuery = '';
-                      });
-                    },
-                    icon: const Icon(Icons.close_rounded),
-                  )
-                : null,
-          ),
-        ),
       ],
     );
   }
 
-  Widget _buildFilters(List<(String, String)> filters, String selectedKey) {
-    return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xxl),
-        scrollDirection: Axis.horizontal,
-        itemCount: filters.length,
-        separatorBuilder: (_, _) {
-          return const SizedBox(width: AppSpacing.sm);
-        },
-        itemBuilder: (context, index) {
-          final (key, label) = filters[index];
+  void _open(Product product) => context.go('/products/${product.id}');
 
-          return FilterChip(
-            selected: key == selectedKey,
-            label: Text(label),
-            onSelected: (_) {
-              setState(() {
-                _selectedFilter = key;
-              });
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _EmptyProductsState extends StatelessWidget {
-  const _EmptyProductsState();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.xxxl),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: const Column(
+  static final List<DataColumnSpec<Product>> _columns = [
+    DataColumnSpec<Product>(
+      label: 'Product',
+      flex: 4,
+      compare: (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      cell: (product) => Row(
         children: [
-          Icon(
-            Icons.inventory_2_outlined,
-            size: 48,
-            color: AppColors.textMuted,
-          ),
-          SizedBox(height: 16),
-          Text(
-            'No products found',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-          SizedBox(height: 4),
-          Text(
-            'Try changing your search or category filter.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textSecondary),
+          ProductThumb(product: product, size: 32),
+          const SizedBox(width: AppSpacing.md),
+          Flexible(
+            child: Text(
+              product.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
           ),
         ],
       ),
+    ),
+    DataColumnSpec<Product>(
+      label: 'Category',
+      flex: 2,
+      cell: (product) => Text(
+        product.categoryName ?? 'No category',
+        style: const TextStyle(color: AppColors.textSecondary),
+      ),
+    ),
+    DataColumnSpec<Product>(
+      label: 'SKU',
+      flex: 2,
+      visibleFrom: WindowSize.expanded,
+      cell: (product) => Text(
+        _nonEmpty(product.sku) ?? '—',
+        style: const TextStyle(color: AppColors.textSecondary),
+      ),
+    ),
+    DataColumnSpec<Product>(
+      label: 'Price',
+      flex: 2,
+      numeric: true,
+      compare: (a, b) => a.sellingPrice.compareTo(b.sellingPrice),
+      cell: (product) =>
+          Text(formatGhs(product.sellingPrice), style: AppTypography.amount),
+    ),
+    DataColumnSpec<Product>(
+      label: 'Stock',
+      flex: 1,
+      numeric: true,
+      compare: (a, b) => a.stockQuantity.compareTo(b.stockQuantity),
+      cell: (product) =>
+          Text('${product.stockQuantity}', style: AppTypography.amount),
+    ),
+    DataColumnSpec<Product>(
+      label: 'Status',
+      flex: 2,
+      cell: (product) => ProductStockBadge(product: product),
+    ),
+  ];
+
+  static String? _nonEmpty(String? value) {
+    final trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
+  }
+}
+
+class _ProductListRow extends StatelessWidget {
+  const _ProductListRow({required this.product, required this.onTap});
+
+  final Product product;
+  final ValueChanged<Product> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = stockStatusOf(product);
+
+    return ProductRow(
+      name: product.name,
+      details: [product.categoryName ?? 'No category'],
+      stockLabel: stockQuantityLabel(product),
+      price: formatGhs(product.sellingPrice),
+      statusLabel: status.label,
+      statusTone: status.tone,
+      leading: ProductThumb(product: product),
+      onTap: () => onTap(product),
     );
   }
 }

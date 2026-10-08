@@ -25,34 +25,51 @@ void main() {
     expect(data.lengthInBytes, greaterThan(0));
   });
 
-  testWidgets('the photo fills the screen behind the card, without semantics', (
-    tester,
-  ) async {
-    for (final size in [
-      const Size(390, 844), // phone
-      const Size(1024, 1366), // tablet
-      const Size(1920, 1080), // desktop window
-    ]) {
-      tester.view.physicalSize = size;
-      tester.view.devicePixelRatio = 1;
-      await tester.pumpWidget(
-        const MaterialApp(home: AuthPageFrame(child: Text('Form'))),
-      );
-      await tester.pumpAndSettle();
+  testWidgets(
+    'the photo sits in the brand panel, without semantics, beside or above '
+    'the form',
+    (tester) async {
+      for (final (size, split) in [
+        (const Size(390, 844), false), // phone
+        (const Size(820, 1180), false), // portrait tablet
+        (const Size(1366, 1024), true), // landscape tablet
+        (const Size(1920, 1080), true), // desktop window
+      ]) {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(
+          const MaterialApp(home: AuthPageFrame(child: Text('Form'))),
+        );
+        await tester.pumpAndSettle();
 
-      final image = tester.widget<Image>(_backdrop());
-      expect(image.fit, BoxFit.cover);
-      expect(tester.getSize(_backdrop()), size);
-      expect(
-        find.ancestor(of: _backdrop(), matching: find.byType(ExcludeSemantics)),
-        findsWidgets,
-      );
-      // The form card stays centred and no wider than before.
-      expect(tester.getSize(find.text('Form')).width, lessThanOrEqualTo(460));
-      expect(tester.takeException(), isNull);
-    }
-    addTearDown(tester.view.reset);
-  });
+        final image = tester.widget<Image>(_backdrop());
+        expect(image.fit, BoxFit.cover);
+        expect(
+          find.ancestor(
+            of: _backdrop(),
+            matching: find.byType(ExcludeSemantics),
+          ),
+          findsWidgets,
+        );
+
+        final panel = tester.getRect(_backdrop());
+        final form = tester.getRect(find.text('Form'));
+        if (split) {
+          // Panel on the left, full height; form to its right.
+          expect(panel.height, size.height);
+          expect(form.left, greaterThanOrEqualTo(panel.right));
+        } else {
+          // Compact band across the top; form below it.
+          expect(panel.width, size.width);
+          expect(panel.height, lessThan(size.height / 3));
+          expect(form.top, greaterThan(panel.top));
+        }
+        expect(form.width, lessThanOrEqualTo(AuthPageFrame.maxFormWidth));
+        expect(tester.takeException(), isNull);
+      }
+      addTearDown(tester.view.reset);
+    },
+  );
 
   testWidgets('login, signup and recovery share the backdrop', (tester) async {
     final h = await pumpApp(tester);

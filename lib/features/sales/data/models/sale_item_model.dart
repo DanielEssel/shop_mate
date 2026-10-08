@@ -23,9 +23,7 @@ class SaleItemModel extends SaleItem {
       unitPrice: (json['unit_price'] as num).toDouble(),
       costPrice: (json['cost_price'] as num).toDouble(),
       subtotal: (json['subtotal'] as num).toDouble(),
-      createdAt: DateTime.parse(
-        json['created_at'].toString(),
-      ),
+      createdAt: DateTime.parse(json['created_at'].toString()),
     );
   }
 

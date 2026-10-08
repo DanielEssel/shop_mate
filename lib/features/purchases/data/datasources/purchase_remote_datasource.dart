@@ -26,10 +26,7 @@ class PurchaseRemoteDataSource {
       'p_supplier_phone': supplierPhone,
       'p_payment_method': paymentMethod,
       'p_amount_paid': amountPaid,
-      'p_purchase_date': purchaseDate
-          .toIso8601String()
-          .split('T')
-          .first,
+      'p_purchase_date': purchaseDate.toIso8601String().split('T').first,
       'p_notes': notes,
       'p_items': items,
     };
@@ -40,10 +37,7 @@ class PurchaseRemoteDataSource {
       params['p_supplier_id'] = supplierId;
     }
 
-    final response = await _client.rpc(
-      'create_purchase',
-      params: params,
-    );
+    final response = await _client.rpc('create_purchase', params: params);
 
     return response.toString();
   }
@@ -55,11 +49,7 @@ class PurchaseRemoteDataSource {
         .order('created_at', ascending: false);
 
     return (response as List)
-        .map(
-          (json) => PurchaseModel.fromJson(
-            Map<String, dynamic>.from(json),
-          ),
-        )
+        .map((json) => PurchaseModel.fromJson(Map<String, dynamic>.from(json)))
         .toList();
   }
 
@@ -70,14 +60,10 @@ class PurchaseRemoteDataSource {
         .eq('id', id)
         .single();
 
-    return PurchaseModel.fromJson(
-      Map<String, dynamic>.from(response),
-    );
+    return PurchaseModel.fromJson(Map<String, dynamic>.from(response));
   }
 
-  Future<List<PurchaseItemModel>> getPurchaseItems(
-    String purchaseId,
-  ) async {
+  Future<List<PurchaseItemModel>> getPurchaseItems(String purchaseId) async {
     final response = await _client
         .from(_purchaseItemsTable)
         .select()
@@ -86,9 +72,7 @@ class PurchaseRemoteDataSource {
 
     return (response as List)
         .map(
-          (json) => PurchaseItemModel.fromJson(
-            Map<String, dynamic>.from(json),
-          ),
+          (json) => PurchaseItemModel.fromJson(Map<String, dynamic>.from(json)),
         )
         .toList();
   }

@@ -20,141 +20,101 @@ class ProductRemoteDataSource {
         .order('created_at', ascending: false);
 
     return (response as List)
-        .map(
-          (json) => ProductModel.fromJson(
-            Map<String, dynamic>.from(json),
-          ),
-        )
+        .map((json) => ProductModel.fromJson(Map<String, dynamic>.from(json)))
         .toList();
   }
 
-  Future<ProductModel> createProduct(
-    Map<String, dynamic> data,
-  ) async {
+  Future<ProductModel> createProduct(Map<String, dynamic> data) async {
     final response = await _client
         .from(_table)
         .insert(data)
         .select(ProductModel.selectColumns)
         .single();
 
-    return ProductModel.fromJson(
-      Map<String, dynamic>.from(response),
-    );
+    return ProductModel.fromJson(Map<String, dynamic>.from(response));
   }
 
-  Future<ProductModel> getProductById(
-    String id,
-  ) async {
+  Future<ProductModel> getProductById(String id) async {
     final response = await _client
         .from(_table)
         .select(ProductModel.selectColumns)
         .eq('id', id)
         .single();
 
-    return ProductModel.fromJson(
-      Map<String, dynamic>.from(response),
-    );
+    return ProductModel.fromJson(Map<String, dynamic>.from(response));
   }
 
   Future<List<ProductModel>> getLowStockProducts() async {
-  final response = await _client
-      .from(_table)
-      .select(ProductModel.selectColumns)
-      .eq('is_active', true)
-      .order(
-        'stock_quantity',
-        ascending: true,
-      );
+    final response = await _client
+        .from(_table)
+        .select(ProductModel.selectColumns)
+        .eq('is_active', true)
+        .order('stock_quantity', ascending: true);
 
-  final products = (response as List)
-      .map(
-        (json) => ProductModel.fromJson(
-          Map<String, dynamic>.from(json),
-        ),
-      )
-      .toList();
+    final products = (response as List)
+        .map((json) => ProductModel.fromJson(Map<String, dynamic>.from(json)))
+        .toList();
 
-  return products.where((product) {
-    return product.stockQuantity <=
-        product.lowStockThreshold;
-  }).toList();
-}
-
-
-Future<ProductModel> updateProduct(
-  String id,
-  Map<String, dynamic> data,
-) async {
-  final response = await _client
-      .from(_table)
-      .update(data)
-      .eq('id', id)
-      .select(ProductModel.selectColumns)
-      .single();
-
-  return ProductModel.fromJson(
-    Map<String, dynamic>.from(response),
-  );
-}
-
-Future<void> deleteProduct(
-  String id,
-) async {
-  await _client
-      .from(_table)
-      .update({
-        'is_active': false,
-      })
-      .eq('id', id);
-}
-
-  Future<String> uploadProductImage({
-  required String productId,
-  required Uint8List bytes,
-  required String extension,
-}) async {
-  final product = await _client
-      .from(_table)
-      .select('shop_id')
-      .eq('id', productId)
-      .single();
-
-  final shopId = product['shop_id'] as String?;
-
-  if (shopId == null || shopId.isEmpty) {
-    throw StateError(
-      'Product is not associated with a shop.',
-    );
+    return products.where((product) {
+      return product.stockQuantity <= product.lowStockThreshold;
+    }).toList();
   }
 
-  final filePath =
-      '$shopId/products/$productId.$extension';
-
-  await _client.storage
-      .from(_bucket)
-      .uploadBinary(
-        filePath,
-        bytes,
-        fileOptions: FileOptions(
-          upsert: true,
-          contentType: _contentType(extension),
-        ),
-      );
-
-  return _client.storage
-      .from(_bucket)
-      .getPublicUrl(filePath);
-}
-
-  Future<void> updateProductImageUrl(
-    String productId,
-    String imageUrl,
+  Future<ProductModel> updateProduct(
+    String id,
+    Map<String, dynamic> data,
   ) async {
+    final response = await _client
+        .from(_table)
+        .update(data)
+        .eq('id', id)
+        .select(ProductModel.selectColumns)
+        .single();
+
+    return ProductModel.fromJson(Map<String, dynamic>.from(response));
+  }
+
+  Future<void> deleteProduct(String id) async {
+    await _client.from(_table).update({'is_active': false}).eq('id', id);
+  }
+
+  Future<String> uploadProductImage({
+    required String productId,
+    required Uint8List bytes,
+    required String extension,
+  }) async {
+    final product = await _client
+        .from(_table)
+        .select('shop_id')
+        .eq('id', productId)
+        .single();
+
+    final shopId = product['shop_id'] as String?;
+
+    if (shopId == null || shopId.isEmpty) {
+      throw StateError('Product is not associated with a shop.');
+    }
+
+    final filePath = '$shopId/products/$productId.$extension';
+
+    await _client.storage
+        .from(_bucket)
+        .uploadBinary(
+          filePath,
+          bytes,
+          fileOptions: FileOptions(
+            upsert: true,
+            contentType: _contentType(extension),
+          ),
+        );
+
+    return _client.storage.from(_bucket).getPublicUrl(filePath);
+  }
+
+  Future<void> updateProductImageUrl(String productId, String imageUrl) async {
     await _client
         .from(_table)
-        .update({
-          'image_url': imageUrl,
-        })
+        .update({'image_url': imageUrl})
         .eq('id', productId);
   }
 

@@ -8,20 +8,15 @@ import '../providers/inventory_provider.dart';
 import '../widgets/stock_movement_tile.dart';
 
 class StockHistoryScreen extends ConsumerStatefulWidget {
-  const StockHistoryScreen({
-    super.key,
-    this.productId,
-  });
+  const StockHistoryScreen({super.key, this.productId});
 
   final String? productId;
 
   @override
-  ConsumerState<StockHistoryScreen> createState() =>
-      _StockHistoryScreenState();
+  ConsumerState<StockHistoryScreen> createState() => _StockHistoryScreenState();
 }
 
-class _StockHistoryScreenState
-    extends ConsumerState<StockHistoryScreen> {
+class _StockHistoryScreenState extends ConsumerState<StockHistoryScreen> {
   final _searchController = TextEditingController();
 
   String _searchQuery = '';
@@ -42,8 +37,7 @@ class _StockHistoryScreenState
 
     _searchController.addListener(() {
       setState(() {
-        _searchQuery =
-            _searchController.text.trim().toLowerCase();
+        _searchQuery = _searchController.text.trim().toLowerCase();
       });
     });
   }
@@ -56,13 +50,9 @@ class _StockHistoryScreenState
 
   Future<void> _refresh() async {
     if (widget.productId != null) {
-      ref.invalidate(
-        productStockMovementsProvider(widget.productId!),
-      );
+      ref.invalidate(productStockMovementsProvider(widget.productId!));
 
-      await ref.read(
-        productStockMovementsProvider(widget.productId!).future,
-      );
+      await ref.read(productStockMovementsProvider(widget.productId!).future);
       return;
     }
 
@@ -73,9 +63,7 @@ class _StockHistoryScreenState
   @override
   Widget build(BuildContext context) {
     final movementsAsync = widget.productId != null
-        ? ref.watch(
-            productStockMovementsProvider(widget.productId!),
-          )
+        ? ref.watch(productStockMovementsProvider(widget.productId!))
         : ref.watch(stockMovementsProvider);
 
     final productsAsync = ref.watch(productsProvider);
@@ -85,25 +73,19 @@ class _StockHistoryScreenState
       appBar: AppBar(
         title: const Text(
           'Stock History',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w800),
         ),
         actions: [
           IconButton(
             tooltip: 'Refresh',
             onPressed: _refresh,
-            icon: const Icon(
-              Icons.refresh_rounded,
-            ),
+            icon: const Icon(Icons.refresh_rounded),
           ),
         ],
       ),
       body: movementsAsync.when(
         loading: () {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
+          return const Center(child: CircularProgressIndicator());
         },
         error: (error, stackTrace) {
           return _HistoryError(
@@ -181,14 +163,12 @@ class _HistoryContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final productMap = {
-      for (final product in products) product.id: product,
-    };
+    final productMap = {for (final product in products) product.id: product};
 
     final filtered = movements.where((movement) {
-      final matchesType = selectedFilter == 'all' ||
-          movement.movementType.toLowerCase() ==
-              selectedFilter;
+      final matchesType =
+          selectedFilter == 'all' ||
+          movement.movementType.toLowerCase() == selectedFilter;
 
       if (!matchesType) {
         return false;
@@ -198,47 +178,34 @@ class _HistoryContent extends StatelessWidget {
         return true;
       }
 
-      final product =
-          productMap[movement.productId];
+      final product = productMap[movement.productId];
 
-      final productName =
-          product?.name.toLowerCase() ?? '';
+      final productName = product?.name.toLowerCase() ?? '';
 
-      final note =
-          movement.note?.toLowerCase() ?? '';
+      final note = movement.note?.toLowerCase() ?? '';
 
-      final reference =
-          movement.referenceId?.toLowerCase() ?? '';
+      final reference = movement.referenceId?.toLowerCase() ?? '';
 
       return productName.contains(searchQuery) ||
           note.contains(searchQuery) ||
           reference.contains(searchQuery) ||
-          movement.movementType
-              .toLowerCase()
-              .contains(searchQuery);
+          movement.movementType.toLowerCase().contains(searchQuery);
     }).toList();
 
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isDesktop =
-              constraints.maxWidth >= 1000;
+          final isDesktop = constraints.maxWidth >= 1000;
 
           return SingleChildScrollView(
-            physics:
-                const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.all(
-              isDesktop ? 24 : 16,
-            ),
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.all(isDesktop ? 24 : 16),
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 1100,
-                ),
+                constraints: const BoxConstraints(maxWidth: 1100),
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
                       'Movement History',
@@ -260,26 +227,18 @@ class _HistoryContent extends StatelessWidget {
                     TextField(
                       controller: searchController,
                       decoration: InputDecoration(
-                        hintText:
-                            'Search product, note or reference...',
-                        prefixIcon: const Icon(
-                          Icons.search_rounded,
-                        ),
-                        suffixIcon:
-                            searchController.text.isEmpty
-                                ? null
-                                : IconButton(
-                                    onPressed:
-                                        searchController.clear,
-                                    icon: const Icon(
-                                      Icons.clear_rounded,
-                                    ),
-                                  ),
+                        hintText: 'Search product, note or reference...',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: searchController.text.isEmpty
+                            ? null
+                            : IconButton(
+                                onPressed: searchController.clear,
+                                icon: const Icon(Icons.clear_rounded),
+                              ),
                         filled: true,
                         fillColor: Colors.white,
                         border: OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(16),
                           borderSide: BorderSide.none,
                         ),
                       ),
@@ -292,31 +251,25 @@ class _HistoryContent extends StatelessWidget {
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: filters.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(width: 8),
+                        separatorBuilder: (_, _) => const SizedBox(width: 8),
                         itemBuilder: (context, index) {
                           final filter = filters[index];
-                          final selected =
-                              selectedFilter == filter;
+                          final selected = selectedFilter == filter;
 
                           return ChoiceChip(
-                            label: Text(
-                              _filterLabel(filter),
-                            ),
+                            label: Text(_filterLabel(filter)),
                             selected: selected,
                             onSelected: (_) {
                               onFilterChanged(filter);
                             },
-                            selectedColor:
-                                const Color(0xFFE8F5F1),
+                            selectedColor: const Color(0xFFE8F5F1),
                             labelStyle: TextStyle(
                               color: selected
                                   ? const Color(0xFF087F5B)
                                   : Colors.grey.shade700,
-                              fontWeight:
-                                  selected
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
+                              fontWeight: selected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
                             ),
                             side: BorderSide(
                               color: selected
@@ -397,10 +350,7 @@ class _HistoryContent extends StatelessWidget {
 }
 
 class _DesktopHistoryList extends StatelessWidget {
-  const _DesktopHistoryList({
-    required this.movements,
-    required this.products,
-  });
+  const _DesktopHistoryList({required this.movements, required this.products});
 
   final List<StockMovement> movements;
   final Map<String, Product> products;
@@ -413,8 +363,7 @@ class _DesktopHistoryList extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 10),
           child: StockMovementTile(
             movement: movement,
-            productName:
-                products[movement.productId]?.name,
+            productName: products[movement.productId]?.name,
           ),
         );
       }).toList(),
@@ -423,10 +372,7 @@ class _DesktopHistoryList extends StatelessWidget {
 }
 
 class _MobileHistoryList extends StatelessWidget {
-  const _MobileHistoryList({
-    required this.movements,
-    required this.products,
-  });
+  const _MobileHistoryList({required this.movements, required this.products});
 
   final List<StockMovement> movements;
   final Map<String, Product> products;
@@ -439,8 +385,7 @@ class _MobileHistoryList extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 10),
           child: StockMovementTile(
             movement: movement,
-            productName:
-                products[movement.productId]?.name,
+            productName: products[movement.productId]?.name,
           ),
         );
       }).toList(),
@@ -455,31 +400,19 @@ class _EmptyHistory extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: 20,
-        vertical: 60,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 60),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFFE9ECEF),
-        ),
+        border: Border.all(color: const Color(0xFFE9ECEF)),
       ),
       child: const Column(
         children: [
-          Icon(
-            Icons.history_rounded,
-            size: 52,
-            color: Colors.grey,
-          ),
+          Icon(Icons.history_rounded, size: 52, color: Colors.grey),
           SizedBox(height: 14),
           Text(
             'No stock movements found',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
           ),
           SizedBox(height: 6),
           Text(
@@ -493,10 +426,7 @@ class _EmptyHistory extends StatelessWidget {
 }
 
 class _HistoryError extends StatelessWidget {
-  const _HistoryError({
-    required this.message,
-    required this.onRetry,
-  });
+  const _HistoryError({required this.message, required this.onRetry});
 
   final String message;
   final Future<void> Function() onRetry;
@@ -509,21 +439,13 @@ class _HistoryError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 48,
-            ),
+            const Icon(Icons.error_outline_rounded, size: 48),
             const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-            ),
+            Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(
-                Icons.refresh_rounded,
-              ),
+              icon: const Icon(Icons.refresh_rounded),
               label: const Text('Retry'),
             ),
           ],

@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../domain/entities/auth_credentials.dart';
 import '../../domain/entities/auth_failure.dart';
@@ -230,27 +229,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
             const SizedBox(height: AppSpacing.xxl),
 
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _isLoading ? null : _signup,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                          semanticsLabel: 'Creating account',
-                        ),
-                      )
-                    : const Text('Create Account'),
-              ),
+            AuthSubmitButton(
+              label: 'Create Account',
+              busyLabel: 'Creating account',
+              isBusy: _isLoading,
+              onPressed: _signup,
             ),
 
             const SizedBox(height: AppSpacing.lg),
@@ -304,14 +287,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
         const SizedBox(height: AppSpacing.xxl),
 
-        FilledButton(
+        AuthSubmitButton(
+          label: 'Back to sign in',
+          busyLabel: 'Back to sign in',
+          isBusy: false,
           onPressed: () => context.go('/login'),
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-          ),
-          child: const Text('Back to sign in'),
         ),
 
         const SizedBox(height: AppSpacing.sm),

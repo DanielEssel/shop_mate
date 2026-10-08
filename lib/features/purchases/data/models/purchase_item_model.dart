@@ -21,9 +21,7 @@ class PurchaseItemModel extends PurchaseItem {
       quantity: (json['quantity'] as num).toInt(),
       unitCost: (json['unit_cost'] as num).toDouble(),
       subtotal: (json['subtotal'] as num).toDouble(),
-      createdAt: DateTime.parse(
-        json['created_at'].toString(),
-      ),
+      createdAt: DateTime.parse(json['created_at'].toString()),
     );
   }
 

@@ -2,9 +2,7 @@ import '../models/product_model.dart';
 
 class ProductLocalDataSource {
   Future<List<ProductModel>> getProducts() async {
-    await Future<void>.delayed(
-      const Duration(milliseconds: 300),
-    );
+    await Future<void>.delayed(const Duration(milliseconds: 300));
 
     return const [
       ProductModel(

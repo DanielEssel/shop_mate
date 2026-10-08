@@ -10,8 +10,7 @@ class RegisterShopScreen extends ConsumerStatefulWidget {
   const RegisterShopScreen({super.key});
 
   @override
-  ConsumerState<RegisterShopScreen> createState() =>
-      _RegisterShopScreenState();
+  ConsumerState<RegisterShopScreen> createState() => _RegisterShopScreenState();
 }
 
 class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
@@ -70,7 +69,9 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
     });
 
     try {
-      await ref.read(shopRepositoryProvider).registerShop(
+      await ref
+          .read(shopRepositoryProvider)
+          .registerShop(
             name: _nameController.text.trim(),
             phone: _normalizePhone(_phoneController.text),
           );
@@ -146,7 +147,8 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
             children: [
               const GateHeading(
                 title: 'Register your shop',
-                message: 'Tell us about your business. We review every new '
+                message:
+                    'Tell us about your business. We review every new '
                     'shop before it goes live.',
               ),
 

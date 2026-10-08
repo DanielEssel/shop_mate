@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shopmate/app/router/app_router.dart';
 import 'package:shopmate/features/shop/domain/entities/shop_access.dart';
 import 'package:shopmate/features/shop/presentation/providers/shop_provider.dart';
+import 'package:shopmate/features/shop_members/presentation/screens/shop_members_screen.dart';
 
 import '../../features/auth/fake_auth_repository.dart';
 import '../app_test_harness.dart';
@@ -126,7 +127,14 @@ void main() {
       await settleApp(tester);
 
       expect(h.location, '/users');
-      expect(find.text('Users & Permissions'), findsOne);
+      // The desktop sidebar also lists it; check the screen's own title.
+      expect(
+        find.descendant(
+          of: find.byType(ShopMembersScreen),
+          matching: find.text('Users & Permissions'),
+        ),
+        findsOne,
+      );
     });
 
     testWidgets('the owner\'s live access answer passes the owner-only gate', (

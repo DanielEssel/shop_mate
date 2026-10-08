@@ -13,9 +13,5 @@ Future<void> main() async {
     publishableKey: SupabaseConfig.publishableKey,
   );
 
-  runApp(
-    const ProviderScope(
-      child: ShopInventoryApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: ShopInventoryApp()));
 }

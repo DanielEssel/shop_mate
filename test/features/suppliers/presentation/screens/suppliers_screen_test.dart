@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:shopmate/core/ui/ui.dart';
 import 'package:shopmate/features/suppliers/domain/entities/supplier.dart';
 import 'package:shopmate/features/suppliers/presentation/screens/suppliers_screen.dart';
 import 'package:shopmate/features/suppliers/presentation/widgets/supplier_card.dart';
@@ -34,7 +35,7 @@ Future<void> _search(WidgetTester tester, String text) async {
 }
 
 Future<void> _tapFilter(WidgetTester tester, String label) async {
-  await tester.tap(find.widgetWithText(ChoiceChip, label));
+  await tester.tap(find.widgetWithText(FilterChip, label));
   await tester.pumpAndSettle();
 }
 
@@ -173,14 +174,14 @@ void main() {
     expect(find.textContaining('Unable to load'), findsNothing);
   });
 
-  testWidgets('shows a spinner while loading', (tester) async {
+  testWidgets('shows a loading placeholder while loading', (tester) async {
     final repository = FakeSupplierRepository(_seed())
       ..pendingList = Completer<List<Supplier>>();
     final pending = repository.pendingList!;
     await pumpSupplierApp(tester, repository, settle: false);
     await tester.pump();
 
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(SkeletonList), findsOneWidget);
     expect(find.byType(SupplierCard), findsNothing);
 
     pending.complete(_seed().where((s) => s.isActive).toList());
@@ -225,21 +226,30 @@ void main() {
       await _tapFilter(tester, 'All');
 
       expect(tester.takeException(), isNull);
-      expect(find.byType(SupplierCard), findsNWidgets(3));
+      for (final name in ['Kofi Bentley', 'Tuth', 'Ama Wholesale']) {
+        expect(find.text(name), findsOneWidget, reason: name);
+      }
     });
   }
 
-  testWidgets('desktop shows two cards per row', (tester) async {
+  testWidgets('desktop shows a table, one supplier per row', (tester) async {
     await pumpSupplierApp(
       tester,
       FakeSupplierRepository(_seed()),
       size: const Size(1280, 2400),
     );
 
+    // Table rows rather than the phone's list rows.
+    expect(find.byType(SupplierCard), findsNothing);
     final kofi = tester.getTopLeft(find.text('Kofi Bentley'));
     final tuth = tester.getTopLeft(find.text('Tuth'));
-    expect(kofi.dy, tuth.dy);
-    expect(tuth.dx, greaterThan(kofi.dx));
+    expect(tuth.dy, greaterThan(kofi.dy));
+    expect(tuth.dx, kofi.dx);
+    expect(find.text('Active'), findsWidgets);
+
+    await tester.tap(find.text('Tuth'));
+    await tester.pumpAndSettle();
+    expect(find.text('Supplier Details'), findsOneWidget);
   });
 
   testWidgets('More screen opens Suppliers', (tester) async {

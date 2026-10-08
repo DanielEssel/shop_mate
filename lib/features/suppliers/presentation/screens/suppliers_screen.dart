@@ -3,13 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
-import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
-import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
 import '../../domain/entities/supplier.dart';
 import '../providers/supplier_providers.dart';
 import '../widgets/supplier_card.dart';
-import '../widgets/supplier_search_bar.dart';
 
 /// Supplier list with client-side search over the loaded suppliers and a
 /// server-backed Active/Inactive/All filter.
@@ -41,9 +39,9 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen> {
   }
 
   void _handleSearchChanged() {
-    setState(() {
-      _query = _searchController.text.trim().toLowerCase();
-    });
+    final query = _searchController.text.trim().toLowerCase();
+    if (query == _query) return;
+    setState(() => _query = query);
   }
 
   Future<void> _refresh() async {
@@ -58,6 +56,8 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen> {
   void _openAddSupplier() {
     context.push('/suppliers/new');
   }
+
+  void _open(Supplier supplier) => context.push('/suppliers/${supplier.id}');
 
   void _setFilter(SupplierStatusFilter filter) {
     setState(() => _filter = filter);
@@ -78,76 +78,112 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen> {
   @override
   Widget build(BuildContext context) {
     final suppliersAsync = ref.watch(suppliersByStatusProvider(_filter));
+    final isCompact = Breakpoints.ofWindow(context).isCompact;
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        title: Text(
-          'Suppliers',
-          style: AppTypography.textTheme.titleLarge!.copyWith(
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh suppliers',
-            onPressed: suppliersAsync.isLoading ? null : _refresh,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-          const SizedBox(width: AppSpacing.xs),
-        ],
-      ),
       body: SafeArea(
+        bottom: false,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final isDesktop = constraints.maxWidth >= 900;
+            final horizontal = Breakpoints.pagePadding(
+              constraints.maxWidth,
+              maxWidth: ContentWidth.wide,
+            );
+
+            SliverPadding boxed(Widget child, {double bottom = 0}) {
+              return SliverPadding(
+                padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, bottom),
+                sliver: SliverToBoxAdapter(child: child),
+              );
+            }
 
             return RefreshIndicator(
               onRefresh: _refresh,
-              child: ListView(
+              child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: EdgeInsets.fromLTRB(
-                  isDesktop ? AppSpacing.xl : AppSpacing.md,
-                  isDesktop ? AppSpacing.lg : AppSpacing.sm,
-                  isDesktop ? AppSpacing.xl : AppSpacing.md,
-                  AppSpacing.xxxl,
-                ),
-                children: [
-                  Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1000),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _Header(onAddSupplier: _openAddSupplier),
-                          const SizedBox(height: AppSpacing.lg),
-                          SupplierSearchBar(controller: _searchController),
-                          const SizedBox(height: AppSpacing.md),
-                          _StatusFilter(
-                            selected: _filter,
-                            onSelected: _setFilter,
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
-                          suppliersAsync.when(
-                            loading: () => const _LoadingState(),
-                            error: (_, _) => _ErrorState(onRetry: _refresh),
-                            data: (suppliers) => _SupplierResults(
-                              suppliers: suppliers,
-                              results: _search(suppliers),
-                              filter: _filter,
-                              hasQuery: _query.isNotEmpty,
-                              isDesktop: isDesktop,
-                              onAddSupplier: _openAddSupplier,
-                              onClearSearch: _searchController.clear,
-                              onShowFilter: _setFilter,
+                slivers: [
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontal,
+                      isCompact ? AppSpacing.md : AppSpacing.xxl,
+                      horizontal,
+                      AppSpacing.xl,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: PageHeader(
+                        title: 'Suppliers',
+                        subtitle: 'Supplier contacts for your shop',
+                        leading: pageHeaderLeading(context),
+                        actions: [
+                          // Pull-to-refresh needs touch; mouse users get a
+                          // button.
+                          if (!isCompact)
+                            IconButton(
+                              tooltip: 'Refresh suppliers',
+                              onPressed: suppliersAsync.isLoading
+                                  ? null
+                                  : _refresh,
+                              icon: const Icon(Icons.refresh_rounded),
                             ),
+                          PrimaryButton(
+                            label: 'Add supplier',
+                            icon: Icons.add_business_outlined,
+                            onPressed: _openAddSupplier,
                           ),
                         ],
                       ),
                     ),
+                  ),
+                  boxed(
+                    AppSearchField(
+                      controller: _searchController,
+                      hintText: 'Search name, phone or email...',
+                      onChanged: (_) {},
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: FilterChipBar(
+                      padding: EdgeInsets.fromLTRB(
+                        horizontal,
+                        AppSpacing.md,
+                        horizontal,
+                        AppSpacing.lg,
+                      ),
+                      children: [
+                        for (final filter in SupplierStatusFilter.values)
+                          AppFilterChip(
+                            label: filter.label,
+                            selected: filter == _filter,
+                            onSelected: () => _setFilter(filter),
+                          ),
+                      ],
+                    ),
+                  ),
+                  ...suppliersAsync.when(
+                    loading: () => [
+                      boxed(
+                        const SurfaceCard(
+                          padding: EdgeInsets.zero,
+                          child: SkeletonList(rows: 4),
+                        ),
+                      ),
+                    ],
+                    error: (_, _) => [
+                      boxed(
+                        SurfaceCard(
+                          child: ErrorState(
+                            compact: true,
+                            title: 'Unable to load suppliers',
+                            message: 'Check your connection and try again.',
+                            retryLabel: 'Retry',
+                            onRetry: _refresh,
+                          ),
+                        ),
+                      ),
+                    ],
+                    data: (suppliers) =>
+                        _results(suppliers, horizontal: horizontal),
                   ),
                 ],
               ),
@@ -157,272 +193,185 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen> {
       ),
     );
   }
-}
 
-class _Header extends StatelessWidget {
-  const _Header({required this.onAddSupplier});
+  List<Widget> _results(
+    List<Supplier> suppliers, {
+    required double horizontal,
+  }) {
+    final results = _search(suppliers);
+    const bottom = AppSpacing.xxxl;
 
-  final VoidCallback onAddSupplier;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: AppSpacing.md,
-      runSpacing: AppSpacing.md,
-      children: [
-        Text(
-          'Supplier contacts for your shop.',
-          style: AppTypography.textTheme.bodyMedium!.copyWith(
-            color: AppColors.textSecondary,
-          ),
-        ),
-        FilledButton.icon(
-          onPressed: onAddSupplier,
-          icon: const Icon(Icons.add_business_outlined),
-          label: const Text('Add supplier'),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatusFilter extends StatelessWidget {
-  const _StatusFilter({required this.selected, required this.onSelected});
-
-  final SupplierStatusFilter selected;
-  final ValueChanged<SupplierStatusFilter> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: AppSpacing.sm,
-      runSpacing: AppSpacing.sm,
-      children: [
-        for (final filter in SupplierStatusFilter.values)
-          ChoiceChip(
-            label: Text(filter.label),
-            selected: filter == selected,
-            onSelected: (_) => onSelected(filter),
-          ),
-      ],
-    );
-  }
-}
-
-class _SupplierResults extends StatelessWidget {
-  const _SupplierResults({
-    required this.suppliers,
-    required this.results,
-    required this.filter,
-    required this.hasQuery,
-    required this.isDesktop,
-    required this.onAddSupplier,
-    required this.onClearSearch,
-    required this.onShowFilter,
-  });
-
-  final List<Supplier> suppliers;
-  final List<Supplier> results;
-  final SupplierStatusFilter filter;
-  final bool hasQuery;
-  final bool isDesktop;
-  final VoidCallback onAddSupplier;
-  final VoidCallback onClearSearch;
-  final ValueChanged<SupplierStatusFilter> onShowFilter;
-
-  @override
-  Widget build(BuildContext context) {
-    if (suppliers.isEmpty) {
-      if (filter == SupplierStatusFilter.inactive) {
-        return _EmptyState(
-          icon: Icons.inventory_2_outlined,
-          title: 'No inactive suppliers',
-          message: 'Suppliers you mark as inactive will appear here.',
-          actions: [
-            OutlinedButton(
-              onPressed: () => onShowFilter(SupplierStatusFilter.active),
-              child: const Text('Show active suppliers'),
-            ),
-          ],
-        );
-      }
-
-      return _EmptyState(
-        icon: Icons.storefront_outlined,
-        title: filter == SupplierStatusFilter.active
-            ? 'No active suppliers'
-            : 'No suppliers yet',
-        message:
-            'Add the suppliers you buy stock from to keep their contact '
-            'details ready for purchasing.',
-        actions: [
-          FilledButton.icon(
-            onPressed: onAddSupplier,
-            icon: const Icon(Icons.add_business_outlined),
-            label: const Text('Add supplier'),
-          ),
-          if (filter == SupplierStatusFilter.active)
-            OutlinedButton(
-              onPressed: () => onShowFilter(SupplierStatusFilter.all),
-              child: const Text('Show all suppliers'),
-            ),
-        ],
+    Widget message(Widget child) {
+      return SliverPadding(
+        padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, bottom),
+        sliver: SliverToBoxAdapter(child: SurfaceCard(child: child)),
       );
     }
 
-    if (results.isEmpty) {
-      return _EmptyState(
-        icon: Icons.search_off_rounded,
-        title: 'No suppliers found',
-        message: hasQuery
-            ? 'No ${filter == SupplierStatusFilter.all ? '' : '${filter.label.toLowerCase()} '}'
-                  'suppliers match your search.'
-            : 'No suppliers match this filter.',
-        actions: [
-          OutlinedButton(
-            onPressed: onClearSearch,
-            child: const Text('Clear search'),
-          ),
-          if (filter != SupplierStatusFilter.all)
-            OutlinedButton(
-              onPressed: () => onShowFilter(SupplierStatusFilter.all),
-              child: const Text('Search all suppliers'),
+    if (suppliers.isEmpty) {
+      if (_filter == SupplierStatusFilter.inactive) {
+        return [
+          message(
+            EmptyState(
+              icon: Icons.inventory_2_outlined,
+              title: 'No inactive suppliers',
+              message: 'Suppliers you mark as inactive will appear here.',
+              actions: [
+                OutlinedButton(
+                  onPressed: () => _setFilter(SupplierStatusFilter.active),
+                  child: const Text('Show active suppliers'),
+                ),
+              ],
             ),
-        ],
-      );
+          ),
+        ];
+      }
+
+      return [
+        message(
+          EmptyState(
+            icon: Icons.storefront_outlined,
+            title: _filter == SupplierStatusFilter.active
+                ? 'No active suppliers'
+                : 'No suppliers yet',
+            message:
+                'Add the suppliers you buy stock from to keep their contact '
+                'details ready for purchasing.',
+            actions: [
+              PrimaryButton(
+                label: 'Add supplier',
+                icon: Icons.add_business_outlined,
+                onPressed: _openAddSupplier,
+              ),
+              if (_filter == SupplierStatusFilter.active)
+                OutlinedButton(
+                  onPressed: () => _setFilter(SupplierStatusFilter.all),
+                  child: const Text('Show all suppliers'),
+                ),
+            ],
+          ),
+        ),
+      ];
+    }
+
+    if (results.isEmpty) {
+      final scope = _filter == SupplierStatusFilter.all
+          ? ''
+          : '${_filter.label.toLowerCase()} ';
+
+      return [
+        message(
+          EmptyState(
+            icon: Icons.search_off_rounded,
+            title: 'No suppliers found',
+            message: _query.isNotEmpty
+                ? 'No ${scope}suppliers match your search.'
+                : 'No suppliers match this filter.',
+            actions: [
+              OutlinedButton(
+                onPressed: _searchController.clear,
+                child: const Text('Clear search'),
+              ),
+              if (_filter != SupplierStatusFilter.all)
+                OutlinedButton(
+                  onPressed: () => _setFilter(SupplierStatusFilter.all),
+                  child: const Text('Search all suppliers'),
+                ),
+            ],
+          ),
+        ),
+      ];
     }
 
     final count = results.length;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          '$count ${count == 1 ? 'supplier' : 'suppliers'}',
-          style: AppTypography.textTheme.bodySmall!.copyWith(
-            color: AppColors.textSecondary,
-            fontWeight: FontWeight.w600,
-          ),
+    return [
+      SliverPadding(
+        padding: EdgeInsets.fromLTRB(
+          horizontal + AppSpacing.xs,
+          0,
+          horizontal,
+          AppSpacing.sm,
         ),
-        const SizedBox(height: AppSpacing.sm),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final columns = isDesktop ? 2 : 1;
-            final width =
-                (constraints.maxWidth - AppSpacing.md * (columns - 1)) /
-                columns;
-
-            return Wrap(
-              spacing: AppSpacing.md,
-              runSpacing: AppSpacing.md,
-              children: [
-                for (final supplier in results)
-                  SizedBox(
-                    width: width,
-                    child: SupplierCard(
-                      supplier: supplier,
-                      onTap: () => context.push('/suppliers/${supplier.id}'),
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({
-    required this.icon,
-    required this.title,
-    required this.message,
-    required this.actions,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-  final List<Widget> actions;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        vertical: AppSpacing.xxl,
-        horizontal: AppSpacing.lg,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, size: 44, color: AppColors.textSecondary),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: AppTypography.textTheme.titleMedium!.copyWith(
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: AppTypography.textTheme.bodyMedium!.copyWith(
+        sliver: SliverToBoxAdapter(
+          child: Text(
+            '$count ${count == 1 ? 'supplier' : 'suppliers'}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: AppSpacing.lg),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: actions,
+        ),
+      ),
+      SliverPadding(
+        padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, bottom),
+        sliver: SliverAdaptiveDataTable<Supplier>(
+          rows: results,
+          onRowTap: _open,
+          compactRowBuilder: (context, supplier) =>
+              SupplierCard(supplier: supplier, onTap: () => _open(supplier)),
+          columns: _columns,
+        ),
+      ),
+    ];
+  }
+
+  static final List<DataColumnSpec<Supplier>> _columns = [
+    DataColumnSpec<Supplier>(
+      label: 'Supplier',
+      flex: 4,
+      compare: (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      cell: (supplier) => Row(
+        children: [
+          InitialAvatar(name: supplier.name, size: 32),
+          const SizedBox(width: AppSpacing.md),
+          Flexible(
+            child: Text(
+              supplier.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
           ),
         ],
       ),
-    );
-  }
-}
+    ),
+    DataColumnSpec<Supplier>(
+      label: 'Phone',
+      flex: 2,
+      cell: (supplier) => _muted(supplier.phone),
+    ),
+    DataColumnSpec<Supplier>(
+      label: 'Email',
+      flex: 3,
+      cell: (supplier) => _muted(supplier.email),
+    ),
+    DataColumnSpec<Supplier>(
+      label: 'Address',
+      flex: 3,
+      visibleFrom: WindowSize.expanded,
+      cell: (supplier) => _muted(supplier.address),
+    ),
+    DataColumnSpec<Supplier>(
+      label: 'Status',
+      flex: 2,
+      cell: (supplier) => Align(
+        alignment: Alignment.centerLeft,
+        child: SupplierListStatusBadge(isActive: supplier.isActive),
+      ),
+    ),
+  ];
 
-class _LoadingState extends StatelessWidget {
-  const _LoadingState();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: AppSpacing.section),
-      child: Center(child: CircularProgressIndicator()),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return _EmptyState(
-      icon: Icons.error_outline_rounded,
-      title: 'Unable to load suppliers',
-      message: 'Check your connection and try again.',
-      actions: [
-        OutlinedButton.icon(
-          onPressed: onRetry,
-          icon: const Icon(Icons.refresh_rounded),
-          label: const Text('Retry'),
-        ),
-      ],
+  static Widget _muted(String? value) {
+    final trimmed = value?.trim();
+    final missing = trimmed == null || trimmed.isEmpty;
+    return Text(
+      missing ? '—' : trimmed,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: missing ? AppColors.textMuted : AppColors.textSecondary,
+      ),
     );
   }
 }

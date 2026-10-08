@@ -5,12 +5,36 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_spacing.dart';
+import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
+import '../../../../core/utils/money_format.dart';
 import '../../../products/domain/entities/product.dart';
+import '../../../products/presentation/widgets/product_visuals.dart';
 import '../../domain/entities/cart_item.dart';
 import '../providers/sales_provider.dart';
 import '../../../products/presentation/providers/products_provider.dart';
 import '../../../customers/presentation/providers/customers_provider.dart';
 import '../../../customers/domain/entities/customer.dart';
+
+/// Payment methods offered at checkout, in display order.
+const _paymentMethods = <(String, String)>[
+  ('cash', 'Cash'),
+  ('mobile_money', 'Mobile Money'),
+  ('card', 'Card'),
+  ('bank_transfer', 'Bank Transfer'),
+  ('credit', 'Credit'),
+];
+
+/// Tender methods for a credit sale's initial payment (no credit).
+const _tenderMethods = <(String, String)>[
+  ('cash', 'Cash'),
+  ('mobile_money', 'Mobile Money'),
+  ('card', 'Card'),
+  ('bank_transfer', 'Bank Transfer'),
+];
 
 class NewSaleScreen extends ConsumerStatefulWidget {
   const NewSaleScreen({super.key});
@@ -30,6 +54,18 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
   String? _creditRequestFingerprint;
   String? _creditIdempotencyKey;
   bool _isProcessing = false;
+
+  /// Phones list a few products until the user searches or asks for all,
+  /// so the current sale stays close.
+  bool _showAllProducts = false;
+  static const _phoneProductPreview = 6;
+
+  /// From this width the products and the current sale sit side by side.
+  static const double _splitFrom = 720;
+
+  /// How far messages float above the bottom so they never cover the pinned
+  /// Complete Sale area. Set from the current layout on each build.
+  double _messageLift = 0;
 
   @override
   void dispose() {
@@ -52,112 +88,499 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
         ? 0.0
         : (amountPaid - subtotal).clamp(0.0, double.infinity).toDouble();
 
+    final checkout = _Checkout(
+      cart: cart,
+      subtotal: subtotal,
+      amountPaid: amountPaid,
+      change: change,
+      paymentMethod: _paymentMethod,
+      initialPaymentMethod: _initialPaymentMethod,
+      customerId: _customerId,
+      isProcessing: _isProcessing,
+    );
+
+    void completeSale() {
+      _completeSale(cart: cart, subtotal: subtotal, customerId: _customerId);
+    }
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
-      appBar: AppBar(
-        title: const Text(
-          'New Sale',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        actions: [
-          if (cart.isNotEmpty)
-            IconButton(
-              tooltip: 'Clear cart',
-              onPressed: cartNotifier.clearCart,
-              icon: const Icon(Icons.delete_sweep_rounded),
-            ),
-        ],
-      ),
-      body: productsAsync.when(
-        loading: () {
-          return const Center(child: CircularProgressIndicator());
-        },
-        error: (error, stackTrace) {
-          return _ErrorState(
-            message: 'Unable to load products.\n$error',
-            onRetry: () {
-              ref.invalidate(salesProductsProvider);
-            },
-          );
-        },
-        data: (products) {
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final isDesktop = constraints.maxWidth >= 1000;
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isSplit = constraints.maxWidth >= _splitFrom;
+            final horizontal = isSplit
+                ? Breakpoints.gutter(constraints.maxWidth)
+                : Breakpoints.pagePadding(constraints.maxWidth);
+            _messageLift = isSplit ? 200 : 104;
 
-              if (isDesktop) {
-                return _DesktopSaleLayout(
-                  products: products,
-                  searchController: _searchController,
-                  searchQuery: _searchQuery,
-                  cart: cart,
-                  subtotal: subtotal,
-                  paymentMethod: _paymentMethod,
-                  amountPaid: amountPaid,
-                  initialPaymentMethod: _initialPaymentMethod,
-                  change: change,
-                  amountPaidController: _amountPaidController,
-                  isProcessing: _isProcessing,
-                  customers: customersAsync.unwrapPrevious().value ?? const [],
-                  customerId: _customerId,
-                  onCustomerChanged: _changeCustomer,
-                  onSearchChanged: (value) {
-                    setState(() {
-                      _searchQuery = value;
-                    });
-                  },
-                  onAddProduct: cartNotifier.addProduct,
-                  onPaymentChanged: _changePaymentMethod,
-                  onInitialPaymentMethodChanged: _changeInitialPaymentMethod,
-                  onAmountChanged: _handleAmountChanged,
-                  onCompleteSale: () {
-                    _completeSale(
-                      cart: cart,
-                      subtotal: subtotal,
-                      customerId: _customerId,
-                    );
-                  },
-                );
-              }
+            final header = Padding(
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                isSplit ? AppSpacing.xxl : AppSpacing.md,
+                horizontal,
+                AppSpacing.lg,
+              ),
+              child: PageHeader(
+                title: 'New Sale',
+                subtitle: 'Add products, take payment and complete the sale',
+                leading: pageHeaderLeading(context),
+              ),
+            );
 
-              return _MobileSaleLayout(
-                products: products,
-                searchController: _searchController,
-                searchQuery: _searchQuery,
-                cart: cart,
-                subtotal: subtotal,
-                paymentMethod: _paymentMethod,
-                amountPaid: amountPaid,
-                initialPaymentMethod: _initialPaymentMethod,
-                change: change,
-                amountPaidController: _amountPaidController,
-                isProcessing: _isProcessing,
-                customers: customersAsync.unwrapPrevious().value ?? const [],
-                customerId: _customerId,
-                onCustomerChanged: _changeCustomer,
-                onSearchChanged: (value) {
-                  setState(() {
-                    _searchQuery = value;
-                  });
-                },
-                onAddProduct: cartNotifier.addProduct,
-                onPaymentChanged: _changePaymentMethod,
-                onInitialPaymentMethodChanged: _changeInitialPaymentMethod,
-                onAmountChanged: _handleAmountChanged,
-                onCompleteSale: () {
-                  _completeSale(
-                    cart: cart,
-                    subtotal: subtotal,
-                    customerId: _customerId,
+            return productsAsync.when(
+              loading: () => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  Expanded(
+                    child: PageSkeleton(
+                      padding: EdgeInsets.symmetric(horizontal: horizontal),
+                    ),
+                  ),
+                ],
+              ),
+              error: (error, stackTrace) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  Expanded(
+                    child: ErrorState(
+                      title: 'Unable to load products.',
+                      message: 'Check your connection and try again.',
+                      retryLabel: 'Retry',
+                      onRetry: () => ref.invalidate(salesProductsProvider),
+                    ),
+                  ),
+                ],
+              ),
+              data: (products) {
+                final customers =
+                    customersAsync.unwrapPrevious().value ?? const [];
+                final filtered = _filterProducts(products);
+
+                if (isSplit) {
+                  return _buildSplit(
+                    header: header,
+                    horizontal: horizontal,
+                    width: constraints.maxWidth,
+                    customers: customers,
+                    products: filtered,
+                    hasProducts: products.isNotEmpty,
+                    checkout: checkout,
+                    onAddProduct: cartNotifier.addProduct,
+                    onComplete: completeSale,
                   );
-                },
-              );
-            },
-          );
-        },
+                }
+
+                return _buildStacked(
+                  header: header,
+                  horizontal: horizontal,
+                  customers: customers,
+                  products: filtered,
+                  hasProducts: products.isNotEmpty,
+                  checkout: checkout,
+                  onAddProduct: cartNotifier.addProduct,
+                  onComplete: completeSale,
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
+
+  // -----------------------------------------------------------------
+  // Layouts
+  // -----------------------------------------------------------------
+
+  /// Tablet and desktop: products fill the left; the current sale is a
+  /// panel on the right with its total and action always in view.
+  Widget _buildSplit({
+    required Widget header,
+    required double horizontal,
+    required double width,
+    required List<Customer> customers,
+    required List<Product> products,
+    required bool hasProducts,
+    required _Checkout checkout,
+    required ValueChanged<Product> onAddProduct,
+    required VoidCallback onComplete,
+  }) {
+    final panelWidth = (width * 0.38).clamp(320.0, 420.0);
+    final inCart = {
+      for (final item in checkout.cart) item.product.id: item.quantity,
+    };
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(child: header),
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  horizontal,
+                  0,
+                  horizontal,
+                  AppSpacing.lg,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final customer = _CustomerSelector(
+                        customers: customers,
+                        value: _customerId,
+                        enabled: !_isProcessing,
+                        onChanged: _changeCustomer,
+                      );
+                      final search = _productSearch();
+
+                      if (constraints.maxWidth < 560) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            customer,
+                            const SizedBox(height: AppSpacing.md),
+                            search,
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          Expanded(child: customer),
+                          const SizedBox(width: AppSpacing.md),
+                          Expanded(child: search),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  horizontal,
+                  0,
+                  horizontal,
+                  AppSpacing.xxl,
+                ),
+                sliver: products.isEmpty
+                    ? SliverToBoxAdapter(
+                        child: SurfaceCard(child: _noProducts(hasProducts)),
+                      )
+                    : SliverGrid.builder(
+                        gridDelegate:
+                            const SliverGridDelegateWithMaxCrossAxisExtent(
+                              maxCrossAxisExtent: 240,
+                              mainAxisExtent: 128,
+                              crossAxisSpacing: AppSpacing.md,
+                              mainAxisSpacing: AppSpacing.md,
+                            ),
+                        itemCount: products.length,
+                        itemBuilder: (context, index) {
+                          final product = products[index];
+                          return _ProductTile(
+                            product: product,
+                            inCart: inCart[product.id] ?? 0,
+                            onAdd: () => onAddProduct(product),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          width: panelWidth,
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              color: AppColors.surface,
+              border: Border(left: BorderSide(color: AppColors.border)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.xl,
+                    AppSpacing.xl,
+                    AppSpacing.md,
+                    AppSpacing.sm,
+                  ),
+                  child: _cartHeading(checkout.cart),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.xl,
+                      AppSpacing.md,
+                      AppSpacing.xl,
+                      AppSpacing.lg,
+                    ),
+                    children: [
+                      if (checkout.cart.isEmpty)
+                        const _EmptyCart()
+                      else
+                        for (var i = 0; i < checkout.cart.length; i++) ...[
+                          if (i > 0) const RowDivider(),
+                          _CartLine(item: checkout.cart[i]),
+                        ],
+                      if (checkout.cart.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.lg),
+                        _PaymentSection(
+                          checkout: checkout,
+                          amountPaidController: _amountPaidController,
+                          onPaymentChanged: _changePaymentMethod,
+                          onInitialPaymentMethodChanged:
+                              _changeInitialPaymentMethod,
+                          onAmountChanged: _handleAmountChanged,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                DecoratedBox(
+                  decoration: const BoxDecoration(
+                    border: Border(top: BorderSide(color: AppColors.border)),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.xl),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _Totals(checkout: checkout),
+                        const SizedBox(height: AppSpacing.lg),
+                        _CompleteSaleButton(
+                          checkout: checkout,
+                          onPressed: onComplete,
+                          expand: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Phones: one scroll (customer, products, current sale, payment) above a
+  /// checkout bar that stays in reach and rises with the keyboard.
+  Widget _buildStacked({
+    required Widget header,
+    required double horizontal,
+    required List<Customer> customers,
+    required List<Product> products,
+    required bool hasProducts,
+    required _Checkout checkout,
+    required ValueChanged<Product> onAddProduct,
+    required VoidCallback onComplete,
+  }) {
+    final searching = _searchQuery.trim().isNotEmpty;
+    final limit = searching || _showAllProducts
+        ? products.length
+        : min(products.length, _phoneProductPreview);
+    final hidden = products.length - limit;
+    final inCart = {
+      for (final item in checkout.cart) item.product.id: item.quantity,
+    };
+    final cart = checkout.cart;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.fromLTRB(0, 0, 0, AppSpacing.xxl),
+            children: [
+              header,
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: horizontal),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _CustomerSelector(
+                      customers: customers,
+                      value: _customerId,
+                      enabled: !_isProcessing,
+                      onChanged: _changeCustomer,
+                    ),
+                    const SizedBox(height: AppSpacing.xxl),
+                    const SectionHeader(title: 'Products'),
+                    const SizedBox(height: AppSpacing.md),
+                    _productSearch(),
+                    const SizedBox(height: AppSpacing.md),
+                    SurfaceCard(
+                      padding: EdgeInsets.zero,
+                      clip: true,
+                      child: products.isEmpty
+                          ? _noProducts(hasProducts)
+                          : Column(
+                              children: [
+                                for (var i = 0; i < limit; i++) ...[
+                                  if (i > 0) const RowDivider(indent: 64),
+                                  _ProductPickRow(
+                                    product: products[i],
+                                    inCart: inCart[products[i].id] ?? 0,
+                                    onAdd: () => onAddProduct(products[i]),
+                                  ),
+                                ],
+                                if (hidden > 0) ...[
+                                  const RowDivider(),
+                                  TextButton(
+                                    onPressed: () =>
+                                        setState(() => _showAllProducts = true),
+                                    style: TextButton.styleFrom(
+                                      minimumSize: const Size.fromHeight(48),
+                                    ),
+                                    child: Text(
+                                      'Show all ${products.length} products',
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                    ),
+                    const SizedBox(height: AppSpacing.xxl),
+                    _cartHeading(cart),
+                    const SizedBox(height: AppSpacing.md),
+                    SurfaceCard(
+                      padding: cart.isEmpty
+                          ? EdgeInsets.zero
+                          : const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.lg,
+                            ),
+                      child: cart.isEmpty
+                          ? const _EmptyCart()
+                          : Column(
+                              children: [
+                                for (var i = 0; i < cart.length; i++) ...[
+                                  if (i > 0) const RowDivider(),
+                                  _CartLine(item: cart[i]),
+                                ],
+                              ],
+                            ),
+                    ),
+                    if (cart.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.xxl),
+                      const SectionHeader(title: 'Payment'),
+                      const SizedBox(height: AppSpacing.md),
+                      SurfaceCard(
+                        child: _PaymentSection(
+                          checkout: checkout,
+                          amountPaidController: _amountPaidController,
+                          onPaymentChanged: _changePaymentMethod,
+                          onInitialPaymentMethodChanged:
+                              _changeInitialPaymentMethod,
+                          onAmountChanged: _handleAmountChanged,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        CheckoutBar(
+          label: cart.isEmpty
+              ? 'Total'
+              : 'Total · ${checkout.itemCount} '
+                    '${checkout.itemCount == 1 ? 'item' : 'items'}',
+          amount: formatGhs(checkout.subtotal),
+          caption: checkout.balanceCaption,
+          captionColor: checkout.isCredit
+              ? AppColors.warning
+              : AppColors.success,
+          action: _CompleteSaleButton(
+            checkout: checkout,
+            onPressed: onComplete,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // -----------------------------------------------------------------
+  // Pieces
+  // -----------------------------------------------------------------
+
+  Widget _productSearch() {
+    return AppSearchField(
+      controller: _searchController,
+      hintText: 'Search name, category, SKU or barcode...',
+      onChanged: (value) {
+        setState(() {
+          _searchQuery = value;
+        });
+      },
+    );
+  }
+
+  Widget _noProducts(bool hasProducts) {
+    return hasProducts
+        ? const EmptyState(
+            compact: true,
+            icon: Icons.search_off_rounded,
+            title: 'No products found',
+            message: 'Try another search term.',
+          )
+        : const EmptyState(
+            compact: true,
+            icon: Icons.inventory_2_outlined,
+            title: 'No products to sell',
+            message: 'Products in stock will appear here.',
+          );
+  }
+
+  Widget _cartHeading(List<CartItem> cart) {
+    final count = cart.fold<int>(0, (sum, item) => sum + item.quantity);
+
+    return SectionHeader(
+      title: 'Current Sale',
+      subtitle: cart.isEmpty
+          ? 'No items yet'
+          : '$count ${count == 1 ? 'item' : 'items'}',
+      trailing: cart.isEmpty
+          ? null
+          : IconButton(
+              tooltip: 'Clear cart',
+              onPressed: _isProcessing
+                  ? null
+                  : ref.read(saleCartProvider.notifier).clearCart,
+              color: AppColors.textSecondary,
+              icon: const Icon(Icons.delete_sweep_outlined),
+            ),
+    );
+  }
+
+  List<Product> _filterProducts(List<Product> products) {
+    final query = _searchQuery.trim().toLowerCase();
+
+    if (query.isEmpty) {
+      return products;
+    }
+
+    return products.where((product) {
+      return product.name.toLowerCase().contains(query) ||
+          (product.categoryName?.toLowerCase().contains(query) ?? false) ||
+          (product.sku?.toLowerCase().contains(query) ?? false) ||
+          (product.barcode?.toLowerCase().contains(query) ?? false);
+    }).toList();
+  }
+
+  // -----------------------------------------------------------------
+  // State changes and checkout (behaviour unchanged)
+  // -----------------------------------------------------------------
 
   void _changePaymentMethod(String value) {
     setState(() {
@@ -335,27 +758,37 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
       final viewReceipt = await showDialog<bool>(
         context: context,
         builder: (dialogContext) {
+          final textTheme = Theme.of(dialogContext).textTheme;
+
           return AlertDialog(
             title: const Text('Sale Completed'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.check_circle_rounded,
-                  size: 64,
-                  color: Color(0xFF087F5B),
+                const IconTile(
+                  icon: Icons.check_rounded,
+                  color: AppColors.success,
+                  size: 56,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpacing.lg),
                 Text(
                   sale.saleNumber,
-                  style: Theme.of(
-                    dialogContext,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                  style: textTheme.titleLarge?.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
                 ),
-                const SizedBox(height: 12),
-                Text('Total: GHS ${sale.totalAmount.toStringAsFixed(2)}'),
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  'Total: ${formatGhs(sale.totalAmount)}',
+                  style: AppTypography.amount,
+                ),
                 if (sale.changeAmount > 0)
-                  Text('Change: GHS ${sale.changeAmount.toStringAsFixed(2)}'),
+                  Text(
+                    'Change: ${formatGhs(sale.changeAmount)}',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
               ],
             ),
             actions: [
@@ -434,1046 +867,78 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          0,
+          AppSpacing.lg,
+          AppSpacing.lg + _messageLift,
+        ),
+      ),
     );
   }
 }
 
 // =============================================================
-// MOBILE LAYOUT
+// CHECKOUT VALUES
 // =============================================================
 
-class _MobileSaleLayout extends StatelessWidget {
-  const _MobileSaleLayout({
-    required this.products,
-    required this.searchController,
-    required this.searchQuery,
+/// What the checkout widgets read, computed once per build.
+class _Checkout {
+  const _Checkout({
     required this.cart,
     required this.subtotal,
-    required this.paymentMethod,
     required this.amountPaid,
-    required this.initialPaymentMethod,
     required this.change,
-    required this.amountPaidController,
-    required this.isProcessing,
-    required this.onSearchChanged,
-    required this.onAddProduct,
-    required this.onPaymentChanged,
-    required this.onInitialPaymentMethodChanged,
-    required this.onAmountChanged,
-    required this.onCompleteSale,
-    required this.customers,
+    required this.paymentMethod,
+    required this.initialPaymentMethod,
     required this.customerId,
-    required this.onCustomerChanged,
+    required this.isProcessing,
   });
 
-  final List<Product> products;
-  final TextEditingController searchController;
-  final String searchQuery;
   final List<CartItem> cart;
   final double subtotal;
-  final String paymentMethod;
   final double amountPaid;
-  final String? initialPaymentMethod;
   final double change;
-  final TextEditingController amountPaidController;
-  final bool isProcessing;
-
-  final List<Customer> customers;
+  final String paymentMethod;
+  final String? initialPaymentMethod;
   final String? customerId;
-  final ValueChanged<String?> onCustomerChanged;
-
-  final ValueChanged<String> onSearchChanged;
-  final ValueChanged<Product> onAddProduct;
-  final ValueChanged<String> onPaymentChanged;
-  final ValueChanged<String?> onInitialPaymentMethodChanged;
-  final ValueChanged<String> onAmountChanged;
-  final VoidCallback onCompleteSale;
-
-  @override
-  Widget build(BuildContext context) {
-    final filteredProducts = _filterProducts();
-
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _SectionTitle(
-              title: 'Customer',
-              subtitle: 'Optional — select a customer for this sale',
-            ),
-            const SizedBox(height: 12),
-            _CustomerSelector(
-              customers: customers,
-              value: customerId,
-              onChanged: onCustomerChanged,
-            ),
-            const SizedBox(height: 24),
-            _SectionTitle(
-              title: 'Products',
-              subtitle: 'Select products to add to this sale',
-            ),
-            const SizedBox(height: 12),
-            _SearchField(
-              controller: searchController,
-              query: searchQuery,
-              onChanged: onSearchChanged,
-            ),
-            const SizedBox(height: 16),
-            if (filteredProducts.isEmpty)
-              const _EmptyProducts()
-            else
-              _MobileProductGrid(
-                products: filteredProducts,
-                onAddProduct: onAddProduct,
-              ),
-            const SizedBox(height: 24),
-            _MobileCartSection(
-              cart: cart,
-              subtotal: subtotal,
-              paymentMethod: paymentMethod,
-              amountPaid: amountPaid,
-              initialPaymentMethod: initialPaymentMethod,
-              change: change,
-              amountPaidController: amountPaidController,
-              isProcessing: isProcessing,
-              onPaymentChanged: onPaymentChanged,
-              onInitialPaymentMethodChanged: onInitialPaymentMethodChanged,
-              onAmountChanged: onAmountChanged,
-              onCompleteSale: onCompleteSale,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  List<Product> _filterProducts() {
-    final query = searchQuery.trim().toLowerCase();
-
-    if (query.isEmpty) {
-      return products;
-    }
-
-    return products.where((product) {
-      return product.name.toLowerCase().contains(query) ||
-          (product.categoryName?.toLowerCase().contains(query) ?? false) ||
-          (product.sku?.toLowerCase().contains(query) ?? false) ||
-          (product.barcode?.toLowerCase().contains(query) ?? false);
-    }).toList();
-  }
-}
-
-// =============================================================
-// DESKTOP LAYOUT
-// =============================================================
-
-class _DesktopSaleLayout extends StatelessWidget {
-  const _DesktopSaleLayout({
-    required this.products,
-    required this.searchController,
-    required this.searchQuery,
-    required this.cart,
-    required this.subtotal,
-    required this.paymentMethod,
-    required this.amountPaid,
-    required this.initialPaymentMethod,
-    required this.change,
-    required this.amountPaidController,
-    required this.isProcessing,
-    required this.customers,
-    required this.customerId,
-    required this.onCustomerChanged,
-    required this.onSearchChanged,
-    required this.onAddProduct,
-    required this.onPaymentChanged,
-    required this.onInitialPaymentMethodChanged,
-    required this.onAmountChanged,
-    required this.onCompleteSale,
-  });
-
-  final List<Product> products;
-  final TextEditingController searchController;
-  final String searchQuery;
-  final List<CartItem> cart;
-  final double subtotal;
-  final String paymentMethod;
-  final double amountPaid;
-  final String? initialPaymentMethod;
-  final double change;
-  final TextEditingController amountPaidController;
   final bool isProcessing;
 
-  final List<Customer> customers;
-  final String? customerId;
-  final ValueChanged<String?> onCustomerChanged;
+  bool get isCredit => paymentMethod == 'credit';
 
-  final ValueChanged<String> onSearchChanged;
-  final ValueChanged<Product> onAddProduct;
-  final ValueChanged<String> onPaymentChanged;
-  final ValueChanged<String?> onInitialPaymentMethodChanged;
-  final ValueChanged<String> onAmountChanged;
-  final VoidCallback onCompleteSale;
+  int get itemCount => cart.fold<int>(0, (sum, item) => sum + item.quantity);
 
-  @override
-  Widget build(BuildContext context) {
-    final filteredProducts = _filterProducts();
+  double get outstanding =>
+      (subtotal - amountPaid).clamp(0.0, double.infinity).toDouble();
 
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _SectionTitle(
-                      title: 'Customer',
-                      subtitle: 'Optional — select a customer for this sale',
-                    ),
-                    const SizedBox(height: 12),
-                    _CustomerSelector(
-                      customers: customers,
-                      value: customerId,
-                      onChanged: onCustomerChanged,
-                    ),
-                    const SizedBox(height: 12),
-                    _SearchField(
-                      controller: searchController,
-                      query: searchQuery,
-                      onChanged: onSearchChanged,
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: filteredProducts.isEmpty
-                    ? const _EmptyProducts()
-                    : GridView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                        gridDelegate:
-                            const SliverGridDelegateWithMaxCrossAxisExtent(
-                              maxCrossAxisExtent: 220,
-                              mainAxisExtent: 190,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                            ),
-                        itemCount: filteredProducts.length,
-                        itemBuilder: (context, index) {
-                          final product = filteredProducts[index];
-
-                          return _ProductTile(
-                            product: product,
-                            onAdd: () {
-                              onAddProduct(product);
-                            },
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-        ),
-        const VerticalDivider(width: 1),
-        SizedBox(
-          width: 390,
-          child: _DesktopCartSection(
-            cart: cart,
-            subtotal: subtotal,
-            paymentMethod: paymentMethod,
-            amountPaid: amountPaid,
-            initialPaymentMethod: initialPaymentMethod,
-            change: change,
-            amountPaidController: amountPaidController,
-            isProcessing: isProcessing,
-            onPaymentChanged: onPaymentChanged,
-            onInitialPaymentMethodChanged: onInitialPaymentMethodChanged,
-            onAmountChanged: onAmountChanged,
-            onCompleteSale: onCompleteSale,
-          ),
-        ),
-      ],
-    );
-  }
-
-  List<Product> _filterProducts() {
-    final query = searchQuery.trim().toLowerCase();
-
-    if (query.isEmpty) {
-      return products;
-    }
-
-    return products.where((product) {
-      return product.name.toLowerCase().contains(query) ||
-          (product.categoryName?.toLowerCase().contains(query) ?? false) ||
-          (product.sku?.toLowerCase().contains(query) ?? false) ||
-          (product.barcode?.toLowerCase().contains(query) ?? false);
-    }).toList();
+  /// "Change GHS 5.00" or "Outstanding GHS 40.00", once there is something
+  /// to say.
+  String? get balanceCaption {
+    if (cart.isEmpty) return null;
+    if (isCredit) return 'Outstanding ${formatGhs(outstanding)}';
+    if (change > 0) return 'Change ${formatGhs(change)}';
+    return null;
   }
 }
 
 // =============================================================
-// SEARCH
+// CUSTOMER
 // =============================================================
-
-class _SearchField extends StatelessWidget {
-  const _SearchField({
-    required this.controller,
-    required this.query,
-    required this.onChanged,
-  });
-
-  final TextEditingController controller;
-  final String query;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      onChanged: onChanged,
-      textInputAction: TextInputAction.search,
-      decoration: InputDecoration(
-        hintText: 'Search products...',
-        prefixIcon: const Icon(Icons.search_rounded),
-        suffixIcon: query.isNotEmpty
-            ? IconButton(
-                onPressed: () {
-                  controller.clear();
-                  onChanged('');
-                },
-                icon: const Icon(Icons.clear_rounded),
-              )
-            : null,
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 16,
-          horizontal: 16,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
-        ),
-      ),
-    );
-  }
-}
-
-// =============================================================
-// MOBILE PRODUCT GRID
-// =============================================================
-
-class _MobileProductGrid extends StatelessWidget {
-  const _MobileProductGrid({
-    required this.products,
-    required this.onAddProduct,
-  });
-
-  final List<Product> products;
-  final ValueChanged<Product> onAddProduct;
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: products.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisExtent: 190,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemBuilder: (context, index) {
-        final product = products[index];
-
-        return _ProductTile(
-          product: product,
-          onAdd: () {
-            onAddProduct(product);
-          },
-        );
-      },
-    );
-  }
-}
-
-// =============================================================
-// PRODUCT TILE
-// =============================================================
-
-class _ProductTile extends StatelessWidget {
-  const _ProductTile({required this.product, required this.onAdd});
-
-  final Product product;
-  final VoidCallback onAdd;
-
-  @override
-  Widget build(BuildContext context) {
-    final outOfStock = product.stockQuantity <= 0;
-
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: outOfStock ? null : onAdd,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0F3F5),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: product.imageUrl != null
-                      ? Image.network(
-                          product.imageUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(
-                              Icons.inventory_2_rounded,
-                              size: 36,
-                            );
-                          },
-                        )
-                      : const Center(
-                          child: Icon(Icons.inventory_2_rounded, size: 36),
-                        ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                product.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'GHS ${product.sellingPrice.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    outOfStock ? 'Out' : '${product.stockQuantity}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: outOfStock ? Colors.red : Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// =============================================================
-// MOBILE CART
-// =============================================================
-
-class _MobileCartSection extends StatelessWidget {
-  const _MobileCartSection({
-    required this.cart,
-    required this.subtotal,
-    required this.paymentMethod,
-    required this.amountPaid,
-    required this.initialPaymentMethod,
-    required this.change,
-    required this.amountPaidController,
-    required this.isProcessing,
-    required this.onPaymentChanged,
-    required this.onInitialPaymentMethodChanged,
-    required this.onAmountChanged,
-    required this.onCompleteSale,
-  });
-
-  final List<CartItem> cart;
-  final double subtotal;
-  final String paymentMethod;
-  final double amountPaid;
-  final String? initialPaymentMethod;
-  final double change;
-  final TextEditingController amountPaidController;
-  final bool isProcessing;
-
-  final ValueChanged<String> onPaymentChanged;
-  final ValueChanged<String?> onInitialPaymentMethodChanged;
-  final ValueChanged<String> onAmountChanged;
-  final VoidCallback onCompleteSale;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SaleCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionTitle(
-            title: 'Current Sale',
-            subtitle: 'Review your items and payment',
-          ),
-          const SizedBox(height: 16),
-          if (cart.isEmpty)
-            const _EmptyCart()
-          else ...[
-            for (final item in cart)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _CartRow(item: item),
-              ),
-          ],
-          const SizedBox(height: 8),
-          const Divider(),
-          const SizedBox(height: 8),
-          _TotalRow(label: 'Subtotal', value: subtotal),
-          const SizedBox(height: 16),
-          _PaymentSelector(value: paymentMethod, onChanged: onPaymentChanged),
-          if (paymentMethod != 'credit') ...[
-            const SizedBox(height: 12),
-            TextField(
-              controller: amountPaidController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              onChanged: onAmountChanged,
-              decoration: const InputDecoration(
-                labelText: 'Amount paid',
-                prefixText: 'GHS ',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 10),
-            _TotalRow(label: 'Change', value: change),
-          ],
-          if (paymentMethod == 'credit') ...[
-            const SizedBox(height: 12),
-            TextField(
-              controller: amountPaidController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              onChanged: onAmountChanged,
-              decoration: const InputDecoration(
-                labelText: 'Initial payment',
-                prefixText: 'GHS ',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            if (amountPaid > 0) ...[
-              const SizedBox(height: 12),
-              _InitialPaymentMethodSelector(
-                value: initialPaymentMethod,
-                onChanged: onInitialPaymentMethodChanged,
-              ),
-            ],
-            const SizedBox(height: 10),
-            _TotalRow(
-              label: 'Outstanding',
-              value: (subtotal - amountPaid)
-                  .clamp(0.0, double.infinity)
-                  .toDouble(),
-            ),
-          ],
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: FilledButton.icon(
-              onPressed: cart.isEmpty || isProcessing ? null : onCompleteSale,
-              icon: isProcessing
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.check_circle_outline_rounded),
-              label: Text(isProcessing ? 'Processing...' : 'Complete Sale'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// =============================================================
-// DESKTOP CART
-// =============================================================
-
-class _DesktopCartSection extends StatelessWidget {
-  const _DesktopCartSection({
-    required this.cart,
-    required this.subtotal,
-    required this.paymentMethod,
-    required this.amountPaid,
-    required this.initialPaymentMethod,
-    required this.change,
-    required this.amountPaidController,
-    required this.isProcessing,
-    required this.onPaymentChanged,
-    required this.onInitialPaymentMethodChanged,
-    required this.onAmountChanged,
-    required this.onCompleteSale,
-  });
-
-  final List<CartItem> cart;
-  final double subtotal;
-  final String paymentMethod;
-  final double amountPaid;
-  final String? initialPaymentMethod;
-  final double change;
-  final TextEditingController amountPaidController;
-  final bool isProcessing;
-
-  final ValueChanged<String> onPaymentChanged;
-  final ValueChanged<String?> onInitialPaymentMethodChanged;
-  final ValueChanged<String> onAmountChanged;
-  final VoidCallback onCompleteSale;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          const _SectionTitle(
-            title: 'Current Sale',
-            subtitle: 'Review your items and payment',
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: cart.isEmpty
-                ? const _EmptyCart()
-                : ListView.separated(
-                    itemCount: cart.length,
-                    separatorBuilder: (_, index) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      return _CartRow(item: cart[index]);
-                    },
-                  ),
-          ),
-          const Divider(),
-          _TotalRow(label: 'Subtotal', value: subtotal),
-          const SizedBox(height: 12),
-          _PaymentSelector(value: paymentMethod, onChanged: onPaymentChanged),
-          if (paymentMethod != 'credit') ...[
-            const SizedBox(height: 12),
-            TextField(
-              controller: amountPaidController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              onChanged: onAmountChanged,
-              decoration: const InputDecoration(
-                labelText: 'Amount paid',
-                prefixText: 'GHS ',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 8),
-            _TotalRow(label: 'Change', value: change),
-          ],
-          if (paymentMethod == 'credit') ...[
-            const SizedBox(height: 12),
-            TextField(
-              controller: amountPaidController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              onChanged: onAmountChanged,
-              decoration: const InputDecoration(
-                labelText: 'Initial payment',
-                prefixText: 'GHS ',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            if (amountPaid > 0) ...[
-              const SizedBox(height: 12),
-              _InitialPaymentMethodSelector(
-                value: initialPaymentMethod,
-                onChanged: onInitialPaymentMethodChanged,
-              ),
-            ],
-            const SizedBox(height: 8),
-            _TotalRow(
-              label: 'Outstanding',
-              value: (subtotal - amountPaid)
-                  .clamp(0.0, double.infinity)
-                  .toDouble(),
-            ),
-          ],
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: FilledButton.icon(
-              onPressed: cart.isEmpty || isProcessing ? null : onCompleteSale,
-              icon: isProcessing
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.check_circle_outline_rounded),
-              label: Text(isProcessing ? 'Processing...' : 'Complete Sale'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// =============================================================
-// CART ROW
-// =============================================================
-
-class _CartRow extends ConsumerWidget {
-  const _CartRow({required this.item});
-
-  final CartItem item;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final notifier = ref.read(saleCartProvider.notifier);
-
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FA),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.product.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'GHS ${item.product.sellingPrice.toStringAsFixed(2)} each',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            onPressed: () {
-              notifier.decreaseQuantity(item.product.id);
-            },
-            icon: const Icon(Icons.remove_circle_outline, size: 21),
-          ),
-          Text(
-            '${item.quantity}',
-            style: const TextStyle(fontWeight: FontWeight.w800),
-          ),
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            onPressed: () {
-              notifier.increaseQuantity(item.product.id);
-            },
-            icon: const Icon(Icons.add_circle_outline, size: 21),
-          ),
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            onPressed: () {
-              notifier.removeProduct(item.product.id);
-            },
-            icon: const Icon(Icons.delete_outline_rounded, size: 21),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// =============================================================
-// PAYMENT SELECTOR
-// =============================================================
-
-class _PaymentSelector extends StatelessWidget {
-  const _PaymentSelector({required this.value, required this.onChanged});
-
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return DropdownButtonFormField<String>(
-      initialValue: value,
-      isExpanded: true,
-      decoration: const InputDecoration(
-        labelText: 'Payment method',
-        border: OutlineInputBorder(),
-      ),
-      items: const [
-        DropdownMenuItem(value: 'cash', child: Text('Cash')),
-        DropdownMenuItem(value: 'mobile_money', child: Text('Mobile Money')),
-        DropdownMenuItem(value: 'card', child: Text('Card')),
-        DropdownMenuItem(value: 'bank_transfer', child: Text('Bank Transfer')),
-        DropdownMenuItem(value: 'credit', child: Text('Credit')),
-      ],
-      onChanged: (value) {
-        if (value != null) {
-          onChanged(value);
-        }
-      },
-    );
-  }
-}
-
-class _InitialPaymentMethodSelector extends StatelessWidget {
-  const _InitialPaymentMethodSelector({
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String? value;
-  final ValueChanged<String?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return DropdownButtonFormField<String>(
-      initialValue: value,
-      isExpanded: true,
-      decoration: const InputDecoration(
-        labelText: 'Initial payment method',
-        border: OutlineInputBorder(),
-      ),
-      hint: const Text('Select tender method'),
-      items: const [
-        DropdownMenuItem(value: 'cash', child: Text('Cash')),
-        DropdownMenuItem(value: 'mobile_money', child: Text('Mobile Money')),
-        DropdownMenuItem(value: 'card', child: Text('Card')),
-        DropdownMenuItem(value: 'bank_transfer', child: Text('Bank Transfer')),
-      ],
-      onChanged: onChanged,
-    );
-  }
-}
-
-// =============================================================
-// SECTION TITLE
-// =============================================================
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title, required this.subtitle});
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          subtitle,
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-        ),
-      ],
-    );
-  }
-}
-
-// =============================================================
-// SALE CARD
-// =============================================================
-
-class _SaleCard extends StatelessWidget {
-  const _SaleCard({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: child,
-    );
-  }
-}
-
-// =============================================================
-// TOTAL ROW
-// =============================================================
-
-class _TotalRow extends StatelessWidget {
-  const _TotalRow({required this.label, required this.value});
-
-  final String label;
-  final double value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
-        Text(
-          'GHS ${value.toStringAsFixed(2)}',
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
-      ],
-    );
-  }
-}
-
-// =============================================================
-// EMPTY CART
-// =============================================================
-
-class _EmptyCart extends StatelessWidget {
-  const _EmptyCart();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-      child: const Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.shopping_cart_outlined, size: 42),
-          SizedBox(height: 10),
-          Text(
-            'Your cart is empty',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          SizedBox(height: 4),
-          Text('Add products to start a sale.', textAlign: TextAlign.center),
-        ],
-      ),
-    );
-  }
-}
-
-// =============================================================
-// EMPTY PRODUCTS
-// =============================================================
-
-class _EmptyProducts extends StatelessWidget {
-  const _EmptyProducts();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 40),
-      child: const Column(
-        children: [
-          Icon(Icons.inventory_2_outlined, size: 48),
-          SizedBox(height: 12),
-          Text(
-            'No products found',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-          SizedBox(height: 4),
-          Text('Try another search term.'),
-        ],
-      ),
-    );
-  }
-}
-
-// =============================================================
-// ERROR STATE
-// =============================================================
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline_rounded, size: 48),
-            const SizedBox(height: 12),
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _CustomerSelector extends StatelessWidget {
   const _CustomerSelector({
     required this.customers,
     required this.value,
+    required this.enabled,
     required this.onChanged,
   });
 
   final List<Customer> customers;
   final String? value;
+  final bool enabled;
   final ValueChanged<String?> onChanged;
 
   @override
@@ -1484,7 +949,6 @@ class _CustomerSelector extends StatelessWidget {
       decoration: const InputDecoration(
         labelText: 'Customer',
         hintText: 'Select customer',
-        border: OutlineInputBorder(),
         prefixIcon: Icon(Icons.person_outline_rounded),
       ),
       items: [
@@ -1499,12 +963,451 @@ class _CustomerSelector extends StatelessWidget {
               customer.phone != null && customer.phone!.trim().isNotEmpty
                   ? '${customer.name} • ${customer.phone}'
                   : customer.name,
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           );
         }),
       ],
-      onChanged: onChanged,
+      onChanged: enabled ? onChanged : null,
     );
+  }
+}
+
+// =============================================================
+// PRODUCTS
+// =============================================================
+
+/// Desktop/tablet product tile: tap anywhere to add one.
+class _ProductTile extends StatelessWidget {
+  const _ProductTile({
+    required this.product,
+    required this.inCart,
+    required this.onAdd,
+  });
+
+  final Product product;
+  final int inCart;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final outOfStock = product.isOutOfStock;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Semantics(
+      button: !outOfStock,
+      enabled: !outOfStock,
+      label: outOfStock
+          ? '${product.name}, out of stock'
+          : 'Add ${product.name}',
+      excludeSemantics: true,
+      child: SurfaceCard(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        borderColor: inCart > 0 ? AppColors.primary : AppColors.border,
+        color: outOfStock ? AppColors.surfaceSubtle : AppColors.surface,
+        onTap: outOfStock ? null : onAdd,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ProductThumb(product: product, size: 36),
+                const SizedBox(width: AppSpacing.sm),
+                // The badge gives way (truncates) before the tile overflows.
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.topRight,
+                    child: inCart > 0
+                        ? StatusBadge(
+                            label: '$inCart in sale',
+                            tone: StatusTone.brand,
+                            showDot: false,
+                          )
+                        : outOfStock
+                        ? const StatusBadge(
+                            label: 'Out of stock',
+                            tone: StatusTone.danger,
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              product.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: textTheme.bodyMedium?.copyWith(
+                color: outOfStock ? AppColors.textMuted : AppColors.textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const Spacer(),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    formatGhs(product.sellingPrice),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.amount,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  outOfStock ? 'None left' : '${product.stockQuantity} left',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: product.isLowStock
+                        ? AppColors.warning
+                        : AppColors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Phone product row: tap the row or the add button to add one.
+class _ProductPickRow extends StatelessWidget {
+  const _ProductPickRow({
+    required this.product,
+    required this.inCart,
+    required this.onAdd,
+  });
+
+  final Product product;
+  final int inCart;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final outOfStock = product.isOutOfStock;
+
+    return ListRow(
+      title: product.name,
+      details: [formatGhs(product.sellingPrice), stockQuantityLabel(product)],
+      leading: ProductThumb(product: product),
+      onTap: outOfStock ? null : onAdd,
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.sm,
+        AppSpacing.sm,
+        AppSpacing.sm,
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (inCart > 0)
+            StatusBadge(
+              label: '$inCart',
+              tone: StatusTone.brand,
+              showDot: false,
+            ),
+          if (outOfStock)
+            const StatusBadge(label: 'Out', tone: StatusTone.danger)
+          else
+            IconButton(
+              tooltip: 'Add ${product.name}',
+              onPressed: onAdd,
+              color: AppColors.primary,
+              icon: const Icon(Icons.add_circle_outline_rounded),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================
+// CART
+// =============================================================
+
+/// One line of the sale: name and unit price, quantity, line total and
+/// remove. Two rows so long names and amounts never collide.
+class _CartLine extends ConsumerWidget {
+  const _CartLine({required this.item});
+
+  final CartItem item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(saleCartProvider.notifier);
+    final textTheme = Theme.of(context).textTheme;
+    final atStockLimit = item.quantity >= item.product.stockQuantity;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  item.product.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.md),
+              Text(formatGhs(item.subtotal), style: AppTypography.amount),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  atStockLimit
+                      ? '${formatGhs(item.product.sellingPrice)} each · '
+                            'all ${item.product.stockQuantity} in stock'
+                      : '${formatGhs(item.product.sellingPrice)} each',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: atStockLimit
+                        ? AppColors.warning
+                        : AppColors.textMuted,
+                  ),
+                ),
+              ),
+              QuantityStepper(
+                quantity: item.quantity,
+                itemName: item.product.name,
+                onDecrease: () => notifier.decreaseQuantity(item.product.id),
+                onIncrease: atStockLimit
+                    ? null
+                    : () => notifier.increaseQuantity(item.product.id),
+              ),
+              IconButton(
+                tooltip: 'Remove ${item.product.name}',
+                onPressed: () => notifier.removeProduct(item.product.id),
+                color: AppColors.textMuted,
+                icon: const Icon(Icons.delete_outline_rounded, size: 20),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyCart extends StatelessWidget {
+  const _EmptyCart();
+
+  @override
+  Widget build(BuildContext context) {
+    return const EmptyState(
+      compact: true,
+      icon: Icons.shopping_cart_outlined,
+      title: 'Your cart is empty',
+      message: 'Add products to start a sale.',
+    );
+  }
+}
+
+// =============================================================
+// PAYMENT
+// =============================================================
+
+class _PaymentSection extends StatelessWidget {
+  const _PaymentSection({
+    required this.checkout,
+    required this.amountPaidController,
+    required this.onPaymentChanged,
+    required this.onInitialPaymentMethodChanged,
+    required this.onAmountChanged,
+  });
+
+  final _Checkout checkout;
+  final TextEditingController amountPaidController;
+  final ValueChanged<String> onPaymentChanged;
+  final ValueChanged<String?> onInitialPaymentMethodChanged;
+  final ValueChanged<String> onAmountChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCredit = checkout.isCredit;
+    final enabled = !checkout.isProcessing;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OptionChipGroup(
+          label: 'Payment method',
+          options: _paymentMethods,
+          selected: checkout.paymentMethod,
+          onSelected: enabled ? onPaymentChanged : null,
+        ),
+        if (isCredit && checkout.customerId == null) ...[
+          const SizedBox(height: AppSpacing.md),
+          const _Notice(
+            icon: Icons.person_search_outlined,
+            text: 'Select a customer above for a credit sale.',
+          ),
+        ],
+        const SizedBox(height: AppSpacing.lg),
+        TextField(
+          controller: amountPaidController,
+          enabled: enabled,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          textInputAction: TextInputAction.done,
+          onChanged: onAmountChanged,
+          style: AppTypography.amount,
+          decoration: InputDecoration(
+            labelText: isCredit ? 'Initial payment' : 'Amount paid',
+            helperText: isCredit
+                ? 'Optional. Leave empty to sell fully on credit.'
+                : null,
+            helperMaxLines: 2,
+            prefixText: 'GHS ',
+          ),
+        ),
+        if (isCredit && checkout.amountPaid > 0) ...[
+          const SizedBox(height: AppSpacing.lg),
+          OptionChipGroup(
+            label: 'Initial payment method',
+            options: _tenderMethods,
+            selected: checkout.initialPaymentMethod,
+            onSelected: enabled ? onInitialPaymentMethodChanged : null,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _Notice extends StatelessWidget {
+  const _Notice({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.warningLight,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: AppColors.warning),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.warning,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================
+// TOTALS AND ACTION
+// =============================================================
+
+class _Totals extends StatelessWidget {
+  const _Totals({required this.checkout});
+
+  final _Checkout checkout;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SummaryLine(
+          label: 'Total',
+          value: formatGhs(checkout.subtotal),
+          emphasized: true,
+        ),
+        if (checkout.cart.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.sm),
+          if (checkout.isCredit)
+            SummaryLine(
+              label: 'Outstanding',
+              value: formatGhs(checkout.outstanding),
+              valueColor: checkout.outstanding > 0 ? AppColors.warning : null,
+            )
+          else
+            SummaryLine(
+              label: 'Change',
+              value: formatGhs(checkout.change),
+              valueColor: checkout.change > 0 ? AppColors.success : null,
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _CompleteSaleButton extends StatelessWidget {
+  const _CompleteSaleButton({
+    required this.checkout,
+    required this.onPressed,
+    this.expand = false,
+  });
+
+  final _Checkout checkout;
+  final VoidCallback onPressed;
+  final bool expand;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = FilledButton.icon(
+      onPressed: checkout.cart.isEmpty || checkout.isProcessing
+          ? null
+          : onPressed,
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 52),
+        disabledBackgroundColor: checkout.isProcessing
+            ? AppColors.primary
+            : null,
+        disabledForegroundColor: checkout.isProcessing
+            ? AppColors.textOnPrimary
+            : null,
+      ),
+      icon: checkout.isProcessing
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.textOnPrimary,
+              ),
+            )
+          : const Icon(Icons.check_circle_outline_rounded),
+      label: Text(
+        checkout.isProcessing ? 'Processing...' : 'Complete Sale',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+
+    return expand ? SizedBox(width: double.infinity, child: button) : button;
   }
 }

@@ -3,16 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../../core/ui/ui.dart';
+import '../../../../core/utils/money_format.dart';
 import '../../../shop/presentation/providers/shop_provider.dart';
+import '../../domain/entities/dashboard_summary.dart';
 import '../providers/dashboard_provider.dart';
 import '../widgets/dashboard_header.dart';
+import '../widgets/dashboard_inventory_health.dart';
 import '../widgets/dashboard_quick_actions.dart';
 import '../widgets/dashboard_recent_sales.dart';
-import '../widgets/dashboard_stat_card.dart';
-import '../../domain/entities/dashboard_summary.dart';
-import '../widgets/dashboard_low_stock_banner.dart';
 
+/// "How is my shop doing right now?" — today's figures, the main actions,
+/// stock health and the latest sales, all from the dashboard summary.
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -23,24 +27,58 @@ class DashboardScreen extends ConsumerWidget {
     // adjustment (the database omits their profit figure as well).
     final isOwner = ref.watch(shopAccessProvider.select(selectIsShopOwner));
 
-    return Container(
+    return ColoredBox(
       color: AppColors.background,
       child: SafeArea(
+        bottom: false,
         child: RefreshIndicator(
           color: AppColors.primary,
           onRefresh: () async {
             ref.invalidate(dashboardSummaryProvider);
             await ref.read(dashboardSummaryProvider.future);
           },
-          child: dashboardAsync.when(
-            loading: () => const _DashboardLoading(),
-            error: (error, stackTrace) => _DashboardError(
-              onRetry: () {
-                ref.invalidate(dashboardSummaryProvider);
-              },
-            ),
-            data: (summary) =>
-                _DashboardContent(summary: summary, isOwner: isOwner),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final horizontal = Breakpoints.pagePadding(
+                width,
+                maxWidth: ContentWidth.standard,
+              );
+
+              return SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(
+                  horizontal,
+                  Breakpoints.of(width).isCompact
+                      ? AppSpacing.md
+                      : AppSpacing.xxl,
+                  horizontal,
+                  AppSpacing.xxxl,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const DashboardHeader(),
+                    const SizedBox(height: AppSpacing.xxl),
+                    dashboardAsync.when(
+                      loading: () => const _DashboardLoading(),
+                      error: (error, stackTrace) => SurfaceCard(
+                        child: ErrorState(
+                          title: 'Unable to load dashboard',
+                          message:
+                              'Something went wrong while loading your shop summary.',
+                          onRetry: () {
+                            ref.invalidate(dashboardSummaryProvider);
+                          },
+                        ),
+                      ),
+                      data: (summary) =>
+                          _DashboardContent(summary: summary, isOwner: isOwner),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -58,75 +96,107 @@ class _DashboardContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 1100;
+        final size = Breakpoints.of(constraints.maxWidth);
 
-        return SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.symmetric(
-            horizontal: constraints.maxWidth >= 700
-                ? AppSpacing.xxl
-                : AppSpacing.lg,
-            vertical: AppSpacing.xxl,
-          ),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1440),
-              child: Column(
+        final metrics = _DashboardMetrics(
+          summary: summary,
+          showProfit: isOwner,
+        );
+        final actions = DashboardQuickActions(canAdjustStock: isOwner);
+        final health = DashboardInventoryHealth(summary: summary);
+        final recent = DashboardRecentSales(sales: summary.recentSales);
+
+        if (size.isAtLeastExpanded) {
+          // Desktop: figures across the top, then the working area (actions
+          // and recent sales) beside the stock panel.
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              metrics,
+              const SizedBox(height: AppSpacing.xxl),
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const DashboardHeader(),
-
-                  const SizedBox(height: AppSpacing.xl),
-
-                  if (!isWide) ...[
-                    DashboardLowStockBanner(summary: summary),
-
-                    const SizedBox(height: AppSpacing.xl),
-                  ],
-
-                  _DashboardStats(summary: summary, showProfit: isOwner),
-
-                  const SizedBox(height: AppSpacing.xxxl),
-
-                  DashboardQuickActions(canAdjustStock: isOwner),
-
-                  const SizedBox(height: AppSpacing.xxxl),
-
-                  const SizedBox(height: AppSpacing.xxxl),
-
-                  if (isWide)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          flex: 2,
-                          child: DashboardRecentSales(
-                            sales: summary.recentSales,
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.xl),
-                        Expanded(child: _DashboardOverview(summary: summary)),
+                        actions,
+                        const SizedBox(height: AppSpacing.xxl),
+                        recent,
                       ],
-                    )
-                  else ...[
-                    DashboardRecentSales(sales: summary.recentSales),
-                    const SizedBox(height: AppSpacing.xxxl),
-                    _DashboardOverview(summary: summary),
-                  ],
-
-                  const SizedBox(height: AppSpacing.xl),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xxl),
+                  Expanded(
+                    flex: 2,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SectionHeader(title: 'Stock'),
+                        const SizedBox(height: AppSpacing.md),
+                        health,
+                      ],
+                    ),
+                  ),
                 ],
               ),
-            ),
-          ),
+            ],
+          );
+        }
+
+        if (size.isAtLeastMedium) {
+          // Tablet: actions beside stock health, recent sales below.
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              metrics,
+              const SizedBox(height: AppSpacing.xxl),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: actions),
+                  const SizedBox(width: AppSpacing.lg),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SectionHeader(title: 'Stock'),
+                        const SizedBox(height: AppSpacing.md),
+                        health,
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xxl),
+              recent,
+            ],
+          );
+        }
+
+        // Phone: figures, the main action, stock health, recent activity.
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            metrics,
+            const SizedBox(height: AppSpacing.xxl),
+            actions,
+            const SizedBox(height: AppSpacing.xxl),
+            health,
+            const SizedBox(height: AppSpacing.xxl),
+            recent,
+          ],
         );
       },
     );
   }
 }
 
-class _DashboardStats extends StatelessWidget {
-  const _DashboardStats({required this.summary, required this.showProfit});
+/// Today's key figures. Sales leads on the brand surface; the rest follow.
+class _DashboardMetrics extends StatelessWidget {
+  const _DashboardMetrics({required this.summary, required this.showProfit});
 
   final DashboardSummary summary;
 
@@ -136,208 +206,58 @@ class _DashboardStats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
+    final cards = <Widget>[
+      MetricCard(
+        label: "Today's Sales",
+        value: formatGhs(summary.todaySales),
+        caption: 'Sales recorded today',
+        icon: Icons.payments_outlined,
+        emphasized: true,
+        onTap: () => context.go('/sales'),
+      ),
+      if (showProfit)
+        MetricCard(
+          label: "Today's Profit",
+          value: formatGhs(summary.todayProfit),
+          caption: 'Estimated profit today',
+          icon: Icons.trending_up_rounded,
+          tone: StatusTone.success,
+          onTap: () => context.go('/sales'),
+        ),
+      MetricCard(
+        label: 'Transactions',
+        value: '${summary.todayTransactions}',
+        caption: 'Sales transactions today',
+        icon: Icons.receipt_long_outlined,
+        tone: StatusTone.info,
+        onTap: () => context.go('/sales'),
+      ),
+      MetricCard(
+        label: 'Products',
+        value: '${summary.totalProducts}',
+        caption: _productCaption(summary),
+        captionTone: summary.outOfStockProducts > 0
+            ? StatusTone.danger
+            : summary.lowStockProducts > 0
+            ? StatusTone.warning
+            : null,
+        icon: Icons.inventory_2_outlined,
+        tone: StatusTone.brand,
+        onTap: () => context.go('/products'),
+      ),
+    ];
 
-        // One row on wide screens, however many cards this role sees.
-        final columns = width >= 1100 ? (showProfit ? 4 : 3) : 2;
-
-        final spacing = width < 500 ? AppSpacing.sm : AppSpacing.lg;
-
-        final cardWidth = (width - (spacing * (columns - 1))) / columns;
-
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          children: [
-            SizedBox(
-              width: cardWidth,
-              child: DashboardStatCard(
-                title: "Today's Sales",
-                value: _formatCurrency(summary.todaySales),
-                subtitle: 'Sales recorded today',
-                icon: Icons.payments_rounded,
-                iconBackgroundColor: AppColors.primaryLight,
-                iconColor: AppColors.primary,
-                onTap: () => context.go('/sales'),
-              ),
-            ),
-
-            if (showProfit)
-              SizedBox(
-                width: cardWidth,
-                child: DashboardStatCard(
-                  title: "Today's Profit",
-                  value: _formatCurrency(summary.todayProfit),
-                  subtitle: 'Estimated profit today',
-                  icon: Icons.trending_up_rounded,
-                  iconBackgroundColor: AppColors.successLight,
-                  iconColor: AppColors.success,
-                  valueColor: AppColors.success,
-                  onTap: () => context.go('/sales'),
-                ),
-              ),
-
-            SizedBox(
-              width: cardWidth,
-              child: DashboardStatCard(
-                title: 'Transactions',
-                value: summary.todayTransactions.toString(),
-                subtitle: 'Sales transactions today',
-                icon: Icons.receipt_long_rounded,
-                iconBackgroundColor: AppColors.infoLight,
-                iconColor: AppColors.info,
-                onTap: () => context.go('/sales'),
-              ),
-            ),
-
-            SizedBox(
-              width: cardWidth,
-              child: DashboardStatCard(
-                title: 'Products',
-                value: summary.totalProducts.toString(),
-                subtitle: _productSubtitle(summary),
-                icon: Icons.inventory_2_rounded,
-                iconBackgroundColor: summary.lowStockProducts > 0
-                    ? AppColors.warningLight
-                    : AppColors.primaryLight,
-                iconColor: summary.lowStockProducts > 0
-                    ? AppColors.warning
-                    : AppColors.primary,
-                valueColor: AppColors.textPrimary,
-                onTap: () => context.go('/products'),
-              ),
-            ),
-          ],
-        );
-      },
-    );
+    return MetricGrid(cards: cards);
   }
 
-  String _productSubtitle(DashboardSummary summary) {
+  static String _productCaption(DashboardSummary summary) {
     if (summary.outOfStockProducts > 0) {
       return '${summary.outOfStockProducts} out of stock';
     }
-
     if (summary.lowStockProducts > 0) {
       return '${summary.lowStockProducts} low stock';
     }
-
     return 'All products stocked';
-  }
-
-  String _formatCurrency(double amount) {
-    return 'GH₵ ${amount.toStringAsFixed(2)}';
-  }
-}
-
-class _DashboardOverview extends StatelessWidget {
-  const _DashboardOverview({required this.summary});
-
-  final DashboardSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Shop Overview',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Current inventory status',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColors.textMuted,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xl),
-
-          _OverviewRow(
-            icon: Icons.inventory_2_outlined,
-            label: 'Total products',
-            value: summary.totalProducts.toString(),
-          ),
-
-          const Divider(height: AppSpacing.xxl, color: AppColors.border),
-
-          _OverviewRow(
-            icon: Icons.warning_amber_rounded,
-            label: 'Low stock',
-            value: summary.lowStockProducts.toString(),
-            valueColor: summary.lowStockProducts > 0
-                ? AppColors.warning
-                : AppColors.success,
-          ),
-
-          const Divider(height: AppSpacing.xxl, color: AppColors.border),
-
-          _OverviewRow(
-            icon: Icons.remove_shopping_cart_outlined,
-            label: 'Out of stock',
-            value: summary.outOfStockProducts.toString(),
-            valueColor: summary.outOfStockProducts > 0
-                ? AppColors.error
-                : AppColors.success,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OverviewRow extends StatelessWidget {
-  const _OverviewRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.valueColor,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color? valueColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: AppColors.textMuted),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: Text(
-            label,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ),
-        Text(
-          value,
-          style: theme.textTheme.titleSmall?.copyWith(
-            color: valueColor ?? AppColors.textPrimary,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
   }
 }
 
@@ -346,136 +266,33 @@ class _DashboardLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SingleChildScrollView(
-      physics: AlwaysScrollableScrollPhysics(),
-      padding: EdgeInsets.all(AppSpacing.xxl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _LoadingBox(width: 260, height: 34),
-          SizedBox(height: AppSpacing.sm),
-          _LoadingBox(width: 360, height: 18),
-          SizedBox(height: AppSpacing.xxxl),
-          _LoadingStats(),
-        ],
-      ),
-    );
-  }
-}
-
-class _LoadingStats extends StatelessWidget {
-  const _LoadingStats();
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 1000
-            ? 4
-            : constraints.maxWidth >= 600
-            ? 2
-            : 1;
-
-        const spacing = AppSpacing.lg;
-
-        final width = columns == 1
-            ? constraints.maxWidth
-            : (constraints.maxWidth - spacing * (columns - 1)) / columns;
-
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          children: List.generate(
-            4,
-            (_) =>
-                SizedBox(width: width, child: const _LoadingBox(height: 180)),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _LoadingBox extends StatelessWidget {
-  const _LoadingBox({this.width, required this.height});
-
-  final double? width;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(16),
-      ),
-    );
-  }
-}
-
-class _DashboardError extends StatelessWidget {
-  const _DashboardError({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: AppColors.errorLight,
-                borderRadius: BorderRadius.circular(18),
+    return Semantics(
+      label: 'Loading dashboard',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = Breakpoints.of(constraints.maxWidth).isAtLeastExpanded
+              ? 4
+              : 2;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  for (var i = 0; i < columns; i++) ...[
+                    if (i > 0) const SizedBox(width: AppSpacing.md),
+                    const Expanded(
+                      child: SkeletonBox(height: 112, radius: AppRadius.lg),
+                    ),
+                  ],
+                ],
               ),
-              child: const Icon(
-                Icons.cloud_off_rounded,
-                color: AppColors.error,
-                size: 30,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Text(
-              'Unable to load dashboard',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleLarge?.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Something went wrong while loading your shop summary.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xl),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Try again'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.textOnPrimary,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.xl,
-                  vertical: AppSpacing.md,
-                ),
-              ),
-            ),
-          ],
-        ),
+              const SizedBox(height: AppSpacing.xxl),
+              const SkeletonBox(height: 64, radius: AppRadius.lg),
+              const SizedBox(height: AppSpacing.xxl),
+              const SkeletonList(rows: 4),
+            ],
+          );
+        },
       ),
     );
   }

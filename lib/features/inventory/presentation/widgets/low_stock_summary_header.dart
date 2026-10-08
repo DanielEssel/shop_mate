@@ -23,9 +23,7 @@ class LowStockSummaryHeader extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.xl),
       decoration: BoxDecoration(
-        color: hasOutOfStock
-            ? AppColors.errorLight
-            : AppColors.warningLight,
+        color: hasOutOfStock ? AppColors.errorLight : AppColors.warningLight,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: hasOutOfStock
@@ -48,9 +46,7 @@ class LowStockSummaryHeader extends StatelessWidget {
               hasOutOfStock
                   ? Icons.error_outline_rounded
                   : Icons.warning_amber_rounded,
-              color: hasOutOfStock
-                  ? AppColors.error
-                  : AppColors.warning,
+              color: hasOutOfStock ? AppColors.error : AppColors.warning,
               size: 26,
             ),
           ),

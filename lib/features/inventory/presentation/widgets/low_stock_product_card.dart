@@ -22,13 +22,11 @@ class LowStockProductCard extends StatelessWidget {
 
     final isOutOfStock = product.isOutOfStock;
 
-    final statusColor =
-        isOutOfStock ? AppColors.error : AppColors.warning;
+    final statusColor = isOutOfStock ? AppColors.error : AppColors.warning;
 
-    final statusBackground =
-        isOutOfStock
-            ? AppColors.errorLight
-            : AppColors.warningLight;
+    final statusBackground = isOutOfStock
+        ? AppColors.errorLight
+        : AppColors.warningLight;
 
     return Material(
       color: Colors.transparent,
@@ -37,9 +35,7 @@ class LowStockProductCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: AppColors.border,
-          ),
+          border: Border.all(color: AppColors.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,21 +43,17 @@ class LowStockProductCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _ProductImage(
-                  imageUrl: product.imageUrl,
-                ),
+                _ProductImage(imageUrl: product.imageUrl),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         product.name,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style:
-                            theme.textTheme.titleSmall?.copyWith(
+                        style: theme.textTheme.titleSmall?.copyWith(
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.w700,
                         ),
@@ -71,8 +63,7 @@ class LowStockProductCard extends StatelessWidget {
                         product.categoryName ?? 'No category',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style:
-                            theme.textTheme.bodySmall?.copyWith(
+                        style: theme.textTheme.bodySmall?.copyWith(
                           color: AppColors.textMuted,
                         ),
                       ),
@@ -112,16 +103,11 @@ class LowStockProductCard extends StatelessWidget {
                     valueColor: statusColor,
                   ),
                 ),
-                Container(
-                  width: 1,
-                  height: 38,
-                  color: AppColors.border,
-                ),
+                Container(width: 1, height: 38, color: AppColors.border),
                 Expanded(
                   child: _StockMetric(
                     label: 'Threshold',
-                    value:
-                        product.lowStockThreshold.toString(),
+                    value: product.lowStockThreshold.toString(),
                   ),
                 ),
               ],
@@ -133,14 +119,12 @@ class LowStockProductCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    product.sku != null &&
-                            product.sku!.isNotEmpty
+                    product.sku != null && product.sku!.isNotEmpty
                         ? 'SKU: ${product.sku}'
                         : 'No SKU assigned',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style:
-                        theme.textTheme.bodySmall?.copyWith(
+                    style: theme.textTheme.bodySmall?.copyWith(
                       color: AppColors.textMuted,
                     ),
                   ),
@@ -149,24 +133,17 @@ class LowStockProductCard extends StatelessWidget {
                   const SizedBox(width: AppSpacing.sm),
                   OutlinedButton.icon(
                     onPressed: onAdjustStock,
-                    icon: const Icon(
-                      Icons.add_box_outlined,
-                      size: 17,
-                    ),
+                    icon: const Icon(Icons.add_box_outlined, size: 17),
                     label: const Text('Adjust'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.primary,
-                      side: const BorderSide(
-                        color: AppColors.borderStrong,
-                      ),
-                      padding:
-                          const EdgeInsets.symmetric(
+                      side: const BorderSide(color: AppColors.borderStrong),
+                      padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.md,
                         vertical: AppSpacing.sm,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),
@@ -196,12 +173,9 @@ class _StockMetric extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
@@ -213,8 +187,7 @@ class _StockMetric extends StatelessWidget {
           Text(
             value,
             style: theme.textTheme.titleMedium?.copyWith(
-              color:
-                  valueColor ?? AppColors.textPrimary,
+              color: valueColor ?? AppColors.textPrimary,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -225,9 +198,7 @@ class _StockMetric extends StatelessWidget {
 }
 
 class _ProductImage extends StatelessWidget {
-  const _ProductImage({
-    required this.imageUrl,
-  });
+  const _ProductImage({required this.imageUrl});
 
   final String? imageUrl;
 

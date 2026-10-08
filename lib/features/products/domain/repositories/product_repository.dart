@@ -7,21 +7,13 @@ abstract class ProductRepository {
 
   Future<List<Product>> getLowStockProducts();
 
-  Future<Product> getProductById(
-    String id,
-  );
+  Future<Product> getProductById(String id);
 
-  Future<Product> createProduct(
-    Product product,
-  );
+  Future<Product> createProduct(Product product);
 
-  Future<Product> updateProduct(
-  Product product,
-);
+  Future<Product> updateProduct(Product product);
 
-Future<void> deleteProduct(
-  String productId,
-);
+  Future<void> deleteProduct(String productId);
 
   Future<String> uploadProductImage({
     required String productId,
@@ -29,8 +21,5 @@ Future<void> deleteProduct(
     required String extension,
   });
 
-  Future<void> updateProductImageUrl(
-    String productId,
-    String imageUrl,
-  );
+  Future<void> updateProductImageUrl(String productId, String imageUrl);
 }

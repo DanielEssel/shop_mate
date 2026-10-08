@@ -2,104 +2,64 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_spacing.dart';
-import 'dashboard_quick_action_card.dart';
-import 'dashboard_section_header.dart';
+import '../../../../core/ui/ui.dart';
 
+/// New Sale is the dominant action; the others are compact tiles beside it.
 class DashboardQuickActions extends StatelessWidget {
-  const DashboardQuickActions({
-    super.key,
-    required this.canAdjustStock,
-  });
+  const DashboardQuickActions({super.key, required this.canAdjustStock});
 
   /// Stock adjustment is owner-only.
   final bool canAdjustStock;
 
   @override
   Widget build(BuildContext context) {
-    final actions = [
-      _QuickAction(
-        icon: Icons.point_of_sale_rounded,
-        title: 'New Sale',
-        description: 'Record a sale',
-        onTap: () => context.push('/sales/new'),
-      ),
-      _QuickAction(
-        icon: Icons.add_box_rounded,
-        title: 'Add Product',
-        description: 'Create a product',
+    final secondary = [
+      QuickAction(
+        icon: Icons.add_box_outlined,
+        label: 'Add Product',
+        stacked: true,
         onTap: () => context.push('/products/new'),
       ),
-      if (canAdjustStock)
-        _QuickAction(
-          icon: Icons.inventory_2_rounded,
-          title: 'Adjust Stock',
-          description: 'Update inventory',
-          onTap: () => context.push('/inventory/adjust'),
-        ),
-      _QuickAction(
-        icon: Icons.shopping_bag_rounded,
-        title: 'New Purchase',
-        description: 'Record a purchase',
+      QuickAction(
+        icon: Icons.shopping_bag_outlined,
+        label: 'New Purchase',
+        stacked: true,
         onTap: () => context.push('/purchases/new'),
       ),
+      if (canAdjustStock)
+        QuickAction(
+          icon: Icons.tune_rounded,
+          label: 'Adjust Stock',
+          stacked: true,
+          onTap: () => context.push('/inventory/adjust'),
+        ),
     ];
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const DashboardSectionHeader(
-          title: 'Quick Actions',
-          subtitle: 'Common tasks for your shop',
+        const SectionHeader(title: 'Quick Actions'),
+        const SizedBox(height: AppSpacing.md),
+        QuickAction(
+          icon: Icons.point_of_sale_rounded,
+          label: 'New Sale',
+          description: 'Record a sale and print a receipt',
+          primary: true,
+          onTap: () => context.push('/sales/new'),
         ),
-        const SizedBox(height: AppSpacing.lg),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final columns = constraints.maxWidth >= 900
-                ? actions.length
-                : constraints.maxWidth >= 560
-                    ? 2
-                    : 1;
-
-            final spacing = AppSpacing.md;
-
-            final width = columns == 1
-                ? constraints.maxWidth
-                : (constraints.maxWidth -
-                        (spacing * (columns - 1))) /
-                    columns;
-
-            return Wrap(
-              spacing: spacing,
-              runSpacing: spacing,
-              children: actions.map((action) {
-                return SizedBox(
-                  width: width,
-                  child: DashboardQuickActionCard(
-                    icon: action.icon,
-                    title: action.title,
-                    description: action.description,
-                    onTap: action.onTap,
-                  ),
-                );
-              }).toList(),
-            );
-          },
+        const SizedBox(height: AppSpacing.sm),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < secondary.length; i++) ...[
+                if (i > 0) const SizedBox(width: AppSpacing.sm),
+                Expanded(child: secondary[i]),
+              ],
+            ],
+          ),
         ),
       ],
     );
   }
-}
-
-class _QuickAction {
-  const _QuickAction({
-    required this.icon,
-    required this.title,
-    required this.description,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String description;
-  final VoidCallback onTap;
 }

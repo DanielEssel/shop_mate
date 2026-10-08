@@ -16,11 +16,9 @@ class InventorySummaryModel extends InventorySummary {
     int outOfStockProducts = 0;
 
     for (final product in products) {
-      final stock =
-          (product['stock_quantity'] as num?)?.toInt() ?? 0;
+      final stock = (product['stock_quantity'] as num?)?.toInt() ?? 0;
 
-      final threshold =
-          (product['low_stock_threshold'] as num?)?.toInt() ?? 10;
+      final threshold = (product['low_stock_threshold'] as num?)?.toInt() ?? 10;
 
       totalStockUnits += stock;
 

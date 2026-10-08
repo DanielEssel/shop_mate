@@ -3,73 +3,119 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
-import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
-import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
 import '../../../shop/presentation/providers/shop_provider.dart';
 import '../../../shop/presentation/widgets/business_profile_section.dart';
 
-/// App settings. Currently holds the Business Profile (shop information and
-/// logo); further sections can be added below it.
-class SettingsScreen extends StatelessWidget {
+/// App settings: the Business Profile (shop information and logo, through
+/// the shared branding state) and, for owners, product setup.
+///
+/// Desktop puts the profile beside the other groups; narrower windows stack
+/// them in one readable column.
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        title: Text(
-          'Settings',
-          style: AppTypography.textTheme.titleLarge!.copyWith(
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
-          ),
-        ),
-      ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isDesktop = constraints.maxWidth >= 900;
+  static const double _profileMaxWidth = 640;
 
-            return ListView(
-              padding: EdgeInsets.fromLTRB(
-                isDesktop ? AppSpacing.xl : AppSpacing.md,
-                isDesktop ? AppSpacing.lg : AppSpacing.sm,
-                isDesktop ? AppSpacing.xl : AppSpacing.md,
-                AppSpacing.xxxl,
-              ),
-              children: [
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 640),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Business Profile',
-                          style: AppTypography.textTheme.titleMedium!.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(
-                          'Manage your shop information and branding.',
-                          style: AppTypography.textTheme.bodyMedium!.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        const BusinessProfileSection(),
-                        const _ProductCategoriesEntry(),
-                      ],
-                    ),
-                  ),
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isOwner = ref.watch(
+      shopAccessProvider.select((access) => access.value?.isOwner ?? false),
+    );
+
+    // Kept to a readable width rather than stretched across the window.
+    final profile = ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: _profileMaxWidth),
+      child: const _SettingsSection(
+        title: 'Business Profile',
+        subtitle: 'Your shop information and branding',
+        child: BusinessProfileSection(),
+      ),
+    );
+
+    // Owner-only: staff do not see category management, and the database
+    // also limits category changes to the owner.
+    final productGroup = isOwner
+        ? _SettingsSection(
+            title: 'Products',
+            subtitle: 'How your catalogue is organised',
+            child: _SettingsGroup(
+              rows: [
+                _SettingsRow(
+                  icon: Icons.category_outlined,
+                  title: 'Product categories',
+                  subtitle:
+                      'Create, rename and archive your product '
+                      'categories.',
+                  onTap: () => context.push('/settings/categories'),
                 ),
               ],
+            ),
+          )
+        : null;
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = Breakpoints.of(constraints.maxWidth).isCompact;
+            final twoColumns =
+                productGroup != null &&
+                constraints.maxWidth >= Breakpoints.expanded;
+            final horizontal = Breakpoints.pagePadding(
+              constraints.maxWidth,
+              maxWidth: twoColumns ? ContentWidth.standard : _profileMaxWidth,
+            );
+
+            return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                isCompact ? AppSpacing.md : AppSpacing.xxl,
+                horizontal,
+                AppSpacing.xxxl,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  PageHeader(
+                    title: 'Settings',
+                    subtitle: 'Shop profile, branding and product setup',
+                    leading: pageHeaderLeading(context),
+                  ),
+                  const SizedBox(height: AppSpacing.xxl),
+                  if (twoColumns)
+                    LayoutBuilder(
+                      builder: (context, columns) {
+                        // The profile takes up to 60% (never more than its
+                        // readable width); the groups fill the rest.
+                        final profileWidth =
+                            ((columns.maxWidth - AppSpacing.xxl) * 0.6).clamp(
+                              0.0,
+                              _profileMaxWidth,
+                            );
+
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(width: profileWidth, child: profile),
+                            const SizedBox(width: AppSpacing.xxl),
+                            Expanded(child: productGroup),
+                          ],
+                        );
+                      },
+                    )
+                  else ...[
+                    profile,
+                    if (productGroup != null) ...[
+                      const SizedBox(height: AppSpacing.xxl),
+                      productGroup,
+                    ],
+                  ],
+                ],
+              ),
             );
           },
         ),
@@ -78,50 +124,75 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-/// Owner-only link to category management. Staff do not see it; the
-/// database also limits category changes to the owner.
-class _ProductCategoriesEntry extends ConsumerWidget {
-  const _ProductCategoriesEntry();
+class _SettingsSection extends StatelessWidget {
+  const _SettingsSection({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isOwner = ref.watch(
-      shopAccessProvider.select((access) => access.value?.isOwner ?? false),
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader(title: title, subtitle: subtitle),
+        const SizedBox(height: AppSpacing.md),
+        child,
+      ],
     );
-    if (!isOwner) return const SizedBox.shrink();
+  }
+}
 
-    return Padding(
-      padding: const EdgeInsets.only(top: AppSpacing.xl),
+/// Rows in one bordered section, divided under the text.
+class _SettingsGroup extends StatelessWidget {
+  const _SettingsGroup({required this.rows});
+
+  final List<_SettingsRow> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return SurfaceCard(
+      padding: EdgeInsets.zero,
+      clip: true,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Products',
-            style: AppTypography.textTheme.titleMedium!.copyWith(
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Material(
-            color: AppColors.surface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              side: const BorderSide(color: AppColors.border),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: ListTile(
-              leading: const Icon(Icons.category_outlined),
-              title: const Text('Product categories'),
-              subtitle: const Text(
-                'Create, rename and archive your product categories.',
-              ),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => context.push('/settings/categories'),
-            ),
-          ),
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0) const RowDivider(indent: 64),
+            rows[i],
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// Icon, title, one-line description and a chevron.
+class _SettingsRow extends StatelessWidget {
+  const _SettingsRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListRow(
+      title: title,
+      details: [subtitle],
+      leading: IconTile(icon: icon),
+      showChevron: true,
+      onTap: onTap,
     );
   }
 }

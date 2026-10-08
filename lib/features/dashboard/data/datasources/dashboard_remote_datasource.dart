@@ -8,18 +8,12 @@ class DashboardRemoteDataSource {
   final SupabaseClient _client;
 
   Future<DashboardSummaryModel> getDashboardSummary() async {
-    final response = await _client.rpc(
-      'get_dashboard_summary',
-    );
+    final response = await _client.rpc('get_dashboard_summary');
 
     if (response is! Map) {
-      throw const FormatException(
-        'Invalid dashboard response.',
-      );
+      throw const FormatException('Invalid dashboard response.');
     }
 
-    return DashboardSummaryModel.fromJson(
-      Map<String, dynamic>.from(response),
-    );
+    return DashboardSummaryModel.fromJson(Map<String, dynamic>.from(response));
   }
 }

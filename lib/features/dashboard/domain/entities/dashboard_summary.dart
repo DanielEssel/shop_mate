@@ -21,4 +21,3 @@ class DashboardSummary {
   final int outOfStockProducts;
   final List<DashboardRecentSale> recentSales;
 }
-

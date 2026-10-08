@@ -30,12 +30,7 @@ class ProductSearch extends StatelessWidget {
         });
       },
       onSelected: onProductSelected,
-      fieldViewBuilder: (
-        context,
-        controller,
-        focusNode,
-        onFieldSubmitted,
-      ) {
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
         return TextField(
           controller: controller,
           focusNode: focusNode,
@@ -62,10 +57,7 @@ class ProductSearch extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             clipBehavior: Clip.antiAlias,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxHeight: 320,
-                minWidth: 320,
-              ),
+              constraints: const BoxConstraints(maxHeight: 320, minWidth: 320),
               child: ListView.builder(
                 padding: EdgeInsets.zero,
                 shrinkWrap: true,
@@ -87,20 +79,16 @@ class ProductSearch extends StatelessWidget {
                             height: 44,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(12),
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .primary
-                                  .withValues(alpha: 0.08),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.08),
                             ),
-                            child: const Icon(
-                              Icons.inventory_2_outlined,
-                            ),
+                            child: const Icon(Icons.inventory_2_outlined),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   product.name,
@@ -117,9 +105,9 @@ class ProductSearch extends StatelessWidget {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                                     fontSize: 12,
                                   ),
                                 ),

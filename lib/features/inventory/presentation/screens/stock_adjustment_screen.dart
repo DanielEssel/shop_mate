@@ -6,25 +6,16 @@ import '../../../products/presentation/providers/products_provider.dart';
 import '../providers/inventory_provider.dart';
 
 class StockAdjustmentScreen extends ConsumerStatefulWidget {
-  const StockAdjustmentScreen({
-    super.key,
-    this.product,
-  });
+  const StockAdjustmentScreen({super.key, this.product});
 
   final Product? product;
 
   @override
   ConsumerState<StockAdjustmentScreen> createState() =>
-      _StockAdjustmentScreenState(
-
-        
-      );
+      _StockAdjustmentScreenState();
 }
 
-
-
-class _StockAdjustmentScreenState
-    extends ConsumerState<StockAdjustmentScreen> {
+class _StockAdjustmentScreenState extends ConsumerState<StockAdjustmentScreen> {
   final _quantityController = TextEditingController();
   final _noteController = TextEditingController();
 
@@ -32,25 +23,25 @@ class _StockAdjustmentScreenState
   String _direction = 'increase';
   bool _isProcessing = false;
 
-Product? _getSelectedProduct(List<Product> products) {
-  if (_selectedProductId == null) {
+  Product? _getSelectedProduct(List<Product> products) {
+    if (_selectedProductId == null) {
+      return null;
+    }
+
+    for (final product in products) {
+      if (product.id == _selectedProductId) {
+        return product;
+      }
+    }
+
     return null;
   }
 
-  for (final product in products) {
-    if (product.id == _selectedProductId) {
-      return product;
-    }
-  }
-
-  return null;
-}
-
   @override
-void initState() {
-  super.initState();
-  _selectedProductId = widget.product?.id;
-}
+  void initState() {
+    super.initState();
+    _selectedProductId = widget.product?.id;
+  }
 
   @override
   void dispose() {
@@ -60,143 +51,119 @@ void initState() {
   }
 
   int get _quantity {
-    return int.tryParse(
-          _quantityController.text.trim(),
-        ) ??
-        0;
+    return int.tryParse(_quantityController.text.trim()) ?? 0;
   }
-
-  
 
   Future<void> _submit(List<Product> products) async {
-  final product = _getSelectedProduct(products);
+    final product = _getSelectedProduct(products);
 
-  if (product == null) {
-    _showMessage('Please select a product.');
-    return;
-  }
+    if (product == null) {
+      _showMessage('Please select a product.');
+      return;
+    }
 
-  if (_quantity <= 0) {
-    _showMessage(
-      'Enter a valid quantity greater than zero.',
-    );
-    return;
-  }
+    if (_quantity <= 0) {
+      _showMessage('Enter a valid quantity greater than zero.');
+      return;
+    }
 
-  if (_direction == 'decrease' &&
-      _quantity > product.stockQuantity) {
-    _showMessage(
-      'You cannot remove more stock than currently available.',
-    );
-    return;
-  }
+    if (_direction == 'decrease' && _quantity > product.stockQuantity) {
+      _showMessage('You cannot remove more stock than currently available.');
+      return;
+    }
 
-  setState(() {
-    _isProcessing = true;
-  });
-
-  try {
-    await ref.read(adjustStockProvider).call(
-          productId: product.id,
-          quantity: _quantity,
-          direction: _direction,
-          note: _noteController.text.trim().isEmpty
-              ? null
-              : _noteController.text.trim(),
-        );
-
-    if (!mounted) return;
-
-    // Stop the processing state before showing the dialog.
     setState(() {
-      _isProcessing = false;
+      _isProcessing = true;
     });
 
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text(
-            'Stock Updated',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
+    try {
+      await ref
+          .read(adjustStockProvider)
+          .call(
+            productId: product.id,
+            quantity: _quantity,
+            direction: _direction,
+            note: _noteController.text.trim().isEmpty
+                ? null
+                : _noteController.text.trim(),
+          );
+
+      if (!mounted) return;
+
+      // Stop the processing state before showing the dialog.
+      setState(() {
+        _isProcessing = false;
+      });
+
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text(
+              'Stock Updated',
+              style: TextStyle(fontWeight: FontWeight.w800),
             ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.check_circle_rounded,
-                size: 64,
-                color: Color(0xFF087F5B),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                product.name,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.check_circle_rounded,
+                  size: 64,
+                  color: Color(0xFF087F5B),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-  '${product.stockQuantity} → ${_direction == 'increase'
-      ? product.stockQuantity + _quantity
-      : product.stockQuantity - _quantity} units',
-  style: const TextStyle(
-    fontSize: 18,
-    fontWeight: FontWeight.w900,
-  ),
-),
-            ],
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Done'),
+                const SizedBox(height: 16),
+                Text(
+                  product.name,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${product.stockQuantity} → ${_direction == 'increase' ? product.stockQuantity + _quantity : product.stockQuantity - _quantity} units',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
             ),
-          ],
-        );
-      },
-    );
+            actions: [
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                },
+                child: const Text('Done'),
+              ),
+            ],
+          );
+        },
+      );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    // Refresh inventory AFTER leaving the adjustment screen.
-    ref.invalidate(lowStockProductsProvider);
-    ref.invalidate(productsProvider);
-    ref.invalidate(inventorySummaryProvider);
-    ref.invalidate(stockMovementsProvider);
-    ref.invalidate(
-      productStockMovementsProvider(product.id),
-    );
+      // Refresh inventory AFTER leaving the adjustment screen.
+      ref.invalidate(lowStockProductsProvider);
+      ref.invalidate(productsProvider);
+      ref.invalidate(inventorySummaryProvider);
+      ref.invalidate(stockMovementsProvider);
+      ref.invalidate(productStockMovementsProvider(product.id));
 
-    Navigator.of(context).pop(true);
-  } catch (error) {
-    if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
 
-    setState(() {
-      _isProcessing = false;
-    });
+      setState(() {
+        _isProcessing = false;
+      });
 
-    _showMessage(
-      error.toString().replaceFirst(
-            'Exception: ',
-            '',
-          ),
-    );
+      _showMessage(error.toString().replaceFirst('Exception: ', ''));
+    }
   }
-}
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
   }
 
@@ -209,16 +176,12 @@ void initState() {
       appBar: AppBar(
         title: const Text(
           'Adjust Stock',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
       body: productsAsync.when(
         loading: () {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
+          return const Center(child: CircularProgressIndicator());
         },
         error: (error, stackTrace) {
           return Center(
@@ -232,44 +195,37 @@ void initState() {
           );
         },
         data: (products) {
-  final selectedProduct =
-      _getSelectedProduct(products);
+          final selectedProduct = _getSelectedProduct(products);
 
-  final newStock = selectedProduct == null
-      ? 0
-      : _direction == 'increase'
-          ? selectedProduct.stockQuantity + _quantity
-          : selectedProduct.stockQuantity - _quantity;
+          final newStock = selectedProduct == null
+              ? 0
+              : _direction == 'increase'
+              ? selectedProduct.stockQuantity + _quantity
+              : selectedProduct.stockQuantity - _quantity;
 
-  return LayoutBuilder(
+          return LayoutBuilder(
             builder: (context, constraints) {
-              final isDesktop =
-                  constraints.maxWidth >= 900;
+              final isDesktop = constraints.maxWidth >= 900;
 
               return SingleChildScrollView(
-                padding: EdgeInsets.all(
-                  isDesktop ? 32 : 16,
-                ),
+                padding: EdgeInsets.all(isDesktop ? 32 : 16),
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: 760,
-                    ),
+                    constraints: const BoxConstraints(maxWidth: 760),
                     child: _AdjustmentCard(
                       products: products,
                       selectedProduct: selectedProduct,
                       direction: _direction,
-                      quantityController:
-                          _quantityController,
+                      quantityController: _quantityController,
                       noteController: _noteController,
                       quantity: _quantity,
                       newStock: newStock,
                       isProcessing: _isProcessing,
                       onProductChanged: (productId) {
-  setState(() {
-    _selectedProductId = productId;
-  });
-},
+                        setState(() {
+                          _selectedProductId = productId;
+                        });
+                      },
                       onDirectionChanged: (direction) {
                         setState(() {
                           _direction = direction;
@@ -329,9 +285,7 @@ class _AdjustmentCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: const Color(0xFFE9ECEF),
-        ),
+        border: Border.all(color: const Color(0xFFE9ECEF)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.035),
@@ -341,71 +295,56 @@ class _AdjustmentCard extends StatelessWidget {
         ],
       ),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'Update Inventory',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-            ),
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 6),
           Text(
             'Manually increase or decrease the available stock.',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
           ),
 
           const SizedBox(height: 26),
 
-          const _FieldLabel(
-            label: 'Product',
-          ),
+          const _FieldLabel(label: 'Product'),
           const SizedBox(height: 8),
 
           DropdownButtonFormField<String>(
-  initialValue: selectedProduct?.id,
-  isExpanded: true,
-  decoration: InputDecoration(
-    hintText: 'Select a product',
-    prefixIcon: const Icon(
-      Icons.inventory_2_outlined,
-    ),
-    filled: true,
-    fillColor: const Color(0xFFF7F8FA),
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(14),
-      borderSide: BorderSide.none,
-    ),
-  ),
-  items: products.map((product) {
-    return DropdownMenuItem<String>(
-      value: product.id,
-      child: Text(
-        '${product.name} • ${product.stockQuantity} units',
-        overflow: TextOverflow.ellipsis,
-      ),
-    );
-  }).toList(),
-  onChanged: onProductChanged,
-),
+            initialValue: selectedProduct?.id,
+            isExpanded: true,
+            decoration: InputDecoration(
+              hintText: 'Select a product',
+              prefixIcon: const Icon(Icons.inventory_2_outlined),
+              filled: true,
+              fillColor: const Color(0xFFF7F8FA),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+            ),
+            items: products.map((product) {
+              return DropdownMenuItem<String>(
+                value: product.id,
+                child: Text(
+                  '${product.name} • ${product.stockQuantity} units',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }).toList(),
+            onChanged: onProductChanged,
+          ),
 
           const SizedBox(height: 22),
 
           if (selectedProduct != null)
-            _CurrentStockCard(
-              product: selectedProduct!,
-            ),
+            _CurrentStockCard(product: selectedProduct!),
 
           const SizedBox(height: 22),
 
-          const _FieldLabel(
-            label: 'Adjustment Type',
-          ),
+          const _FieldLabel(label: 'Adjustment Type'),
           const SizedBox(height: 8),
 
           Row(
@@ -416,9 +355,7 @@ class _AdjustmentCard extends StatelessWidget {
                   icon: Icons.add_circle_outline_rounded,
                   selected: isIncrease,
                   onTap: () {
-                    onDirectionChanged(
-                      'increase',
-                    );
+                    onDirectionChanged('increase');
                   },
                 ),
               ),
@@ -429,9 +366,7 @@ class _AdjustmentCard extends StatelessWidget {
                   icon: Icons.remove_circle_outline_rounded,
                   selected: !isIncrease,
                   onTap: () {
-                    onDirectionChanged(
-                      'decrease',
-                    );
+                    onDirectionChanged('decrease');
                   },
                 ),
               ),
@@ -440,9 +375,7 @@ class _AdjustmentCard extends StatelessWidget {
 
           const SizedBox(height: 22),
 
-          const _FieldLabel(
-            label: 'Quantity',
-          ),
+          const _FieldLabel(label: 'Quantity'),
           const SizedBox(height: 8),
 
           TextField(
@@ -452,9 +385,7 @@ class _AdjustmentCard extends StatelessWidget {
             decoration: InputDecoration(
               hintText: 'Enter quantity',
               prefixIcon: Icon(
-                isIncrease
-                    ? Icons.add_rounded
-                    : Icons.remove_rounded,
+                isIncrease ? Icons.add_rounded : Icons.remove_rounded,
               ),
               filled: true,
               fillColor: const Color(0xFFF7F8FA),
@@ -467,24 +398,17 @@ class _AdjustmentCard extends StatelessWidget {
 
           const SizedBox(height: 22),
 
-          const _FieldLabel(
-            label: 'Note',
-          ),
+          const _FieldLabel(label: 'Note'),
           const SizedBox(height: 8),
 
           TextField(
             controller: noteController,
             maxLines: 3,
             decoration: InputDecoration(
-              hintText:
-                  'e.g. Damaged goods, physical count, opening stock...',
+              hintText: 'e.g. Damaged goods, physical count, opening stock...',
               prefixIcon: const Padding(
-                padding: EdgeInsets.only(
-                  bottom: 42,
-                ),
-                child: Icon(
-                  Icons.notes_rounded,
-                ),
+                padding: EdgeInsets.only(bottom: 42),
+                child: Icon(Icons.notes_rounded),
               ),
               filled: true,
               fillColor: const Color(0xFFF7F8FA),
@@ -499,8 +423,7 @@ class _AdjustmentCard extends StatelessWidget {
 
           if (selectedProduct != null)
             _NewStockPreview(
-              currentStock:
-                  selectedProduct!.stockQuantity,
+              currentStock: selectedProduct!.stockQuantity,
               newStock: newStock,
               increase: isIncrease,
             ),
@@ -511,8 +434,7 @@ class _AdjustmentCard extends StatelessWidget {
             width: double.infinity,
             height: 52,
             child: FilledButton.icon(
-              onPressed:
-                  isProcessing ? null : onSubmit,
+              onPressed: isProcessing ? null : onSubmit,
               icon: isProcessing
                   ? const SizedBox(
                       width: 18,
@@ -522,23 +444,15 @@ class _AdjustmentCard extends StatelessWidget {
                         color: Colors.white,
                       ),
                     )
-                  : const Icon(
-                      Icons.check_rounded,
-                    ),
+                  : const Icon(Icons.check_rounded),
               label: Text(
-                isProcessing
-                    ? 'Updating Stock...'
-                    : 'Update Stock',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                ),
+                isProcessing ? 'Updating Stock...' : 'Update Stock',
+                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
               style: FilledButton.styleFrom(
-                backgroundColor:
-                    const Color(0xFF087F5B),
+                backgroundColor: const Color(0xFF087F5B),
                 shape: RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
             ),
@@ -550,9 +464,7 @@ class _AdjustmentCard extends StatelessWidget {
 }
 
 class _CurrentStockCard extends StatelessWidget {
-  const _CurrentStockCard({
-    required this.product,
-  });
+  const _CurrentStockCard({required this.product});
 
   final Product product;
 
@@ -566,15 +478,11 @@ class _CurrentStockCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.inventory_2_outlined,
-            color: Color(0xFF087F5B),
-          ),
+          const Icon(Icons.inventory_2_outlined, color: Color(0xFF087F5B)),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
                   'Current Stock',
@@ -587,9 +495,7 @@ class _CurrentStockCard extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   product.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
               ],
             ),
@@ -605,10 +511,7 @@ class _CurrentStockCard extends StatelessWidget {
           const SizedBox(width: 4),
           const Text(
             'units',
-            style: TextStyle(
-              color: Color(0xFF087F5B),
-              fontSize: 11,
-            ),
+            style: TextStyle(color: Color(0xFF087F5B), fontSize: 11),
           ),
         ],
       ),
@@ -634,18 +537,14 @@ class _NewStockPreview extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFF7F8FA),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFE9ECEF),
-        ),
+        border: Border.all(color: const Color(0xFFE9ECEF)),
       ),
       child: Row(
         children: [
           const Expanded(
             child: Text(
               'New Stock Level',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
           Text(
@@ -656,20 +555,13 @@ class _NewStockPreview extends StatelessWidget {
             ),
           ),
           const Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: 10,
-            ),
-            child: Icon(
-              Icons.arrow_forward_rounded,
-              size: 18,
-            ),
+            padding: EdgeInsets.symmetric(horizontal: 10),
+            child: Icon(Icons.arrow_forward_rounded, size: 18),
           ),
           Text(
             '$newStock',
             style: TextStyle(
-              color: increase
-                  ? const Color(0xFF087F5B)
-                  : Colors.red.shade700,
+              color: increase ? const Color(0xFF087F5B) : Colors.red.shade700,
               fontSize: 18,
               fontWeight: FontWeight.w900,
             ),
@@ -696,18 +588,14 @@ class _DirectionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected
-          ? const Color(0xFFE8F5F1)
-          : const Color(0xFFF7F8FA),
+      color: selected ? const Color(0xFFE8F5F1) : const Color(0xFFF7F8FA),
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
           height: 52,
-          padding: const EdgeInsets.symmetric(
-            horizontal: 12,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
@@ -717,8 +605,7 @@ class _DirectionButton extends StatelessWidget {
             ),
           ),
           child: Row(
-            mainAxisAlignment:
-                MainAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 icon,
@@ -750,9 +637,7 @@ class _DirectionButton extends StatelessWidget {
 }
 
 class _FieldLabel extends StatelessWidget {
-  const _FieldLabel({
-    required this.label,
-  });
+  const _FieldLabel({required this.label});
 
   final String label;
 
@@ -760,10 +645,7 @@ class _FieldLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       label,
-      style: const TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w800,
-      ),
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
     );
   }
 }

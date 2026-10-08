@@ -11,7 +11,5 @@ abstract class InventoryRepository {
     String? note,
   });
 
-  Future<List<StockMovement>> getStockMovements({
-    String? productId,
-  });
+  Future<List<StockMovement>> getStockMovements({String? productId});
 }

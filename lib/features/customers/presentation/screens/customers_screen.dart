@@ -3,15 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
-import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
-import '../../../../app/theme/app_typography.dart';
-import '../../domain/entities/customer.dart';
+import '../../../../core/ui/ui.dart';
 import '../../../shop/presentation/providers/shop_provider.dart';
+import '../../domain/entities/customer.dart';
 import '../providers/customers_provider.dart';
 import '../widgets/customer_card.dart';
-import '../widgets/customer_search_bar.dart';
-import '../widgets/customer_summary_card.dart';
 
 class CustomersScreen extends ConsumerStatefulWidget {
   const CustomersScreen({super.key});
@@ -26,29 +23,67 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
   String _searchQuery = '';
 
   @override
-  void initState() {
-    super.initState();
-
-    _searchController.addListener(_handleSearchChanged);
-  }
-
-  void _handleSearchChanged() {
-    setState(() {
-      _searchQuery = _searchController.text.trim().toLowerCase();
-    });
-  }
-
-  @override
   void dispose() {
-    _searchController
-      ..removeListener(_handleSearchChanged)
-      ..dispose();
-
+    _searchController.dispose();
     super.dispose();
   }
 
   Future<void> _refresh() {
     return ref.read(customersProvider.notifier).refresh();
+  }
+
+  Future<void> _addCustomer() async {
+    final result = await context.push<bool>('/customers/add');
+
+    if (result == true && mounted) {
+      await _refresh();
+    }
+  }
+
+  void _open(Customer customer) => context.push('/customers/${customer.id}');
+
+  Future<void> _confirmDeactivate(Customer customer) async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Deactivate customer?',
+      message:
+          'This will deactivate ${customer.name}. The customer will no '
+          'longer appear in the active customer list.',
+      confirmLabel: 'Deactivate',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) return;
+
+    try {
+      await ref.read(customersProvider.notifier).deleteCustomer(customer.id);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Customer deactivated successfully.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to deactivate customer: $error')),
+      );
+    }
+  }
+
+  List<Customer> _filterCustomers(List<Customer> customers) {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) return customers;
+
+    return customers.where((customer) {
+      final name = customer.name.toLowerCase();
+      final phone = customer.phone?.toLowerCase() ?? '';
+      final email = customer.email?.toLowerCase() ?? '';
+      final address = customer.address?.toLowerCase() ?? '';
+
+      return name.contains(query) ||
+          phone.contains(query) ||
+          email.contains(query) ||
+          address.contains(query);
+    }).toList();
   }
 
   @override
@@ -58,530 +93,295 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
     final canDeactivate = ref.watch(
       shopAccessProvider.select(selectIsShopOwner),
     );
+    final isCompact = Breakpoints.ofWindow(context).isCompact;
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(
-          'Customers',
-          style: AppTypography.textTheme.titleLarge!.copyWith(
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
-          ),
+      // Phones get the thumb-reachable button; wider layouts put it in the
+      // page header.
+      floatingActionButton: isCompact
+          ? FloatingActionButton.extended(
+              heroTag: 'customers_fab',
+              onPressed: _addCustomer,
+              icon: const Icon(Icons.person_add_alt_1_rounded),
+              label: const Text('Add Customer'),
+            )
+          : null,
+      body: SafeArea(
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final horizontal = Breakpoints.pagePadding(
+              constraints.maxWidth,
+              maxWidth: ContentWidth.wide,
+            );
+
+            final header = Padding(
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                isCompact ? AppSpacing.md : AppSpacing.xxl,
+                horizontal,
+                AppSpacing.xl,
+              ),
+              child: PageHeader(
+                title: 'Customers',
+                subtitle: 'People you sell to, and how to reach them',
+                leading: pageHeaderLeading(context),
+                actions: [
+                  // Pull-to-refresh needs touch; mouse users get a button.
+                  if (!isCompact)
+                    IconButton(
+                      tooltip: 'Refresh customers',
+                      onPressed: _refresh,
+                      icon: const Icon(Icons.refresh_rounded),
+                    ),
+                  if (!isCompact)
+                    PrimaryButton(
+                      label: 'Add Customer',
+                      icon: Icons.person_add_alt_1_rounded,
+                      onPressed: _addCustomer,
+                    ),
+                ],
+              ),
+            );
+
+            return customersAsync.when(
+              loading: () => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  Expanded(
+                    child: PageSkeleton(
+                      padding: EdgeInsets.symmetric(horizontal: horizontal),
+                    ),
+                  ),
+                ],
+              ),
+              error: (error, stackTrace) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  Expanded(
+                    child: ErrorState(
+                      title: 'Unable to load customers.',
+                      message: 'Check your connection and try again.',
+                      onRetry: _refresh,
+                    ),
+                  ),
+                ],
+              ),
+              data: (customers) => RefreshIndicator(
+                onRefresh: _refresh,
+                child: _buildContent(
+                  customers,
+                  header: header,
+                  horizontal: horizontal,
+                  isCompact: isCompact,
+                  canDeactivate: canDeactivate,
+                ),
+              ),
+            );
+          },
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh customers',
-            onPressed: _refresh,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-          const SizedBox(width: AppSpacing.xs),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'customers_fab',
-        onPressed: () async {
-          final result = await context.push<bool>('/customers/add');
-
-          if (result == true && mounted) {
-            await _refresh();
-          }
-        },
-        icon: const Icon(Icons.person_add_alt_1_rounded),
-        label: const Text('Add Customer'),
-      ),
-      body: customersAsync.when(
-        loading: () => const _CustomersLoading(),
-        error: (error, stackTrace) {
-          return _CustomersError(message: error.toString(), onRetry: _refresh);
-        },
-        data: (customers) {
-          final filteredCustomers = _filterCustomers(customers);
-
-          return RefreshIndicator(
-            onRefresh: _refresh,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isDesktop = constraints.maxWidth >= 1000;
-
-                return SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: EdgeInsets.all(
-                    isDesktop ? AppSpacing.xl : AppSpacing.md,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _PageHeader(
-                        customerCount: customers.length,
-                        onAddCustomer: () async {
-                          final result = await context.push<bool>(
-                            '/customers/add',
-                          );
-
-                          if (result == true && mounted) {
-                            await _refresh();
-                          }
-                        },
-                      ),
-
-                      const SizedBox(height: AppSpacing.lg),
-
-                      _SummarySection(
-                        customers: customers,
-                        isDesktop: isDesktop,
-                      ),
-
-                      const SizedBox(height: AppSpacing.xl),
-
-                      CustomerSearchBar(controller: _searchController),
-
-                      const SizedBox(height: AppSpacing.lg),
-
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Customers',
-                              style: AppTypography.textTheme.headlineMedium!
-                                  .copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.textPrimary,
-                                  ),
-                            ),
-                          ),
-                          Text(
-                            '${filteredCustomers.length} ${filteredCustomers.length == 1 ? 'customer' : 'customers'}',
-                            style: AppTypography.textTheme.bodySmall!.copyWith(
-                              color: AppColors.textSecondary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: AppSpacing.md),
-
-                      if (filteredCustomers.isEmpty)
-                        const _EmptyCustomers()
-                      else if (isDesktop)
-                        _DesktopCustomerGrid(
-                          customers: filteredCustomers,
-                          canDeactivate: canDeactivate,
-                        )
-                      else
-                        _MobileCustomerList(
-                          customers: filteredCustomers,
-                          canDeactivate: canDeactivate,
-                        ),
-
-                      const SizedBox(height: 80),
-                    ],
-                  ),
-                );
-              },
-            ),
-          );
-        },
       ),
     );
   }
 
-  List<Customer> _filterCustomers(List<Customer> customers) {
-    if (_searchQuery.isEmpty) {
-      return customers;
-    }
+  Widget _buildContent(
+    List<Customer> customers, {
+    required Widget header,
+    required double horizontal,
+    required bool isCompact,
+    required bool canDeactivate,
+  }) {
+    final filtered = _filterCustomers(customers);
 
-    return customers.where((customer) {
-      final name = customer.name.toLowerCase();
-      final phone = customer.phone?.toLowerCase() ?? '';
-      final email = customer.email?.toLowerCase() ?? '';
-      final address = customer.address?.toLowerCase() ?? '';
+    final withPhone = customers
+        .where((customer) => customer.phone?.trim().isNotEmpty ?? false)
+        .length;
+    final withEmail = customers
+        .where((customer) => customer.email?.trim().isNotEmpty ?? false)
+        .length;
+    final noContact = customers
+        .where((customer) => customerContactLabel(customer) == null)
+        .length;
 
-      return name.contains(_searchQuery) ||
-          phone.contains(_searchQuery) ||
-          email.contains(_searchQuery) ||
-          address.contains(_searchQuery);
-    }).toList();
-  }
-}
+    ValueChanged<Customer>? onDeactivate = canDeactivate
+        ? _confirmDeactivate
+        : null;
 
-class _PageHeader extends StatelessWidget {
-  const _PageHeader({required this.customerCount, required this.onAddCustomer});
-
-  final int customerCount;
-  final VoidCallback onAddCustomer;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Customer Management',
-                style: AppTypography.textTheme.headlineLarge!.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
-                ),
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverToBoxAdapter(child: header),
+        if (customers.isNotEmpty) ...[
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              horizontal,
+              0,
+              horizontal,
+              AppSpacing.xxl,
+            ),
+            sliver: SliverToBoxAdapter(
+              child: MetricGrid(
+                cards: [
+                  MetricCard(
+                    label: 'Customers',
+                    value: '${customers.length}',
+                    caption: 'Active customers',
+                    icon: Icons.people_alt_outlined,
+                    emphasized: true,
+                  ),
+                  MetricCard(
+                    label: 'With Phone',
+                    value: '$withPhone',
+                    caption: 'Reachable by phone',
+                    icon: Icons.phone_outlined,
+                    tone: StatusTone.brand,
+                  ),
+                  MetricCard(
+                    label: 'With Email',
+                    value: '$withEmail',
+                    caption: noContact == 0
+                        ? 'Everyone has contact details'
+                        : '$noContact without contact details',
+                    captionTone: noContact == 0 ? null : StatusTone.warning,
+                    icon: Icons.email_outlined,
+                    tone: StatusTone.info,
+                  ),
+                ],
               ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                '$customerCount active customers in your shop',
-                style: AppTypography.textTheme.bodyMedium!.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-        FilledButton.icon(
-          onPressed: onAddCustomer,
-          icon: const Icon(Icons.person_add_alt_1_rounded),
-          label: const Text('Add Customer'),
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              horizontal,
+              0,
+              horizontal,
+              AppSpacing.lg,
+            ),
+            sliver: SliverToBoxAdapter(
+              child: AppSearchField(
+                controller: _searchController,
+                hintText: 'Search name, phone, email or address...',
+                onChanged: (value) => setState(() => _searchQuery = value),
+              ),
+            ),
+          ),
+        ],
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            horizontal,
+            0,
+            horizontal,
+            // Room for the floating button on phones.
+            isCompact ? 96 : AppSpacing.xxxl,
+          ),
+          sliver: filtered.isEmpty
+              ? SliverToBoxAdapter(
+                  child: SurfaceCard(
+                    child: customers.isEmpty
+                        ? EmptyState(
+                            icon: Icons.people_outline_rounded,
+                            title: 'No customers yet',
+                            message:
+                                'Add customers to record credit sales and '
+                                'keep their contacts at hand.',
+                            actionLabel: 'Add Customer',
+                            actionIcon: Icons.person_add_alt_1_rounded,
+                            onAction: _addCustomer,
+                          )
+                        : const EmptyState(
+                            icon: Icons.search_off_rounded,
+                            title: 'No customers found',
+                            message: 'Try a different name, phone or email.',
+                          ),
+                  ),
+                )
+              : SliverAdaptiveDataTable<Customer>(
+                  rows: filtered,
+                  onRowTap: _open,
+                  compactRowBuilder: (context, customer) => CustomerCard(
+                    customer: customer,
+                    onTap: () => _open(customer),
+                    onEdit: () => _open(customer),
+                    onDelete: onDeactivate == null
+                        ? null
+                        : () => onDeactivate(customer),
+                  ),
+                  columns: _columns(onEdit: _open, onDeactivate: onDeactivate),
+                ),
         ),
       ],
     );
   }
-}
 
-class _SummarySection extends StatelessWidget {
-  const _SummarySection({required this.customers, required this.isDesktop});
-
-  final List<Customer> customers;
-  final bool isDesktop;
-
-  @override
-  Widget build(BuildContext context) {
-    final active = customers.where((customer) => customer.isActive).length;
-
-    final withPhone = customers.where((customer) {
-      return customer.phone != null && customer.phone!.trim().isNotEmpty;
-    }).length;
-
-    final withEmail = customers.where((customer) {
-      return customer.email != null && customer.email!.trim().isNotEmpty;
-    }).length;
-
-    final cards = [
-      CustomerSummaryCard(
-        title: 'Total Customers',
-        value: '${customers.length}',
-        subtitle: 'Registered customers',
-        icon: Icons.people_alt_outlined,
+  static List<DataColumnSpec<Customer>> _columns({
+    required ValueChanged<Customer> onEdit,
+    required ValueChanged<Customer>? onDeactivate,
+  }) {
+    return [
+      DataColumnSpec<Customer>(
+        label: 'Customer',
+        flex: 4,
+        compare: (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+        cell: (customer) => Row(
+          children: [
+            InitialAvatar(name: customer.name, size: 32),
+            const SizedBox(width: AppSpacing.md),
+            Flexible(
+              child: Text(
+                customer.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
+            if (!customer.isActive) ...[
+              const SizedBox(width: AppSpacing.sm),
+              const StatusBadge(label: 'Inactive', tone: StatusTone.neutral),
+            ],
+          ],
+        ),
       ),
-      CustomerSummaryCard(
-        title: 'Active Customers',
-        value: '$active',
-        subtitle: 'Currently active',
-        icon: Icons.person_outline_rounded,
+      DataColumnSpec<Customer>(
+        label: 'Phone',
+        flex: 2,
+        cell: (customer) => _muted(customer.phone),
       ),
-      CustomerSummaryCard(
-        title: 'Phone Contacts',
-        value: '$withPhone',
-        subtitle: 'Customers with phone',
-        icon: Icons.phone_outlined,
+      DataColumnSpec<Customer>(
+        label: 'Email',
+        flex: 3,
+        cell: (customer) => _muted(customer.email),
       ),
-      CustomerSummaryCard(
-        title: 'Email Contacts',
-        value: '$withEmail',
-        subtitle: 'Customers with email',
-        icon: Icons.email_outlined,
+      DataColumnSpec<Customer>(
+        label: 'Address',
+        flex: 3,
+        visibleFrom: WindowSize.expanded,
+        cell: (customer) => _muted(customer.address),
+      ),
+      DataColumnSpec<Customer>(
+        label: '',
+        flex: 1,
+        numeric: true,
+        cell: (customer) => CustomerActionsMenu(
+          onEdit: () => onEdit(customer),
+          onDelete: onDeactivate == null ? null : () => onDeactivate(customer),
+        ),
       ),
     ];
+  }
 
-    if (isDesktop) {
-      return GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: cards.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 4,
-          crossAxisSpacing: AppSpacing.md,
-          mainAxisSpacing: AppSpacing.md,
-          childAspectRatio: 1.65,
-        ),
-        itemBuilder: (_, index) => cards[index],
-      );
-    }
-
-    return SizedBox(
-      height: 138,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: cards.length,
-        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.sm),
-        itemBuilder: (_, index) {
-          return SizedBox(width: 230, child: cards[index]);
-        },
+  static Widget _muted(String? value) {
+    final trimmed = value?.trim();
+    final missing = trimmed == null || trimmed.isEmpty;
+    return Text(
+      missing ? '—' : trimmed,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: missing ? AppColors.textMuted : AppColors.textSecondary,
       ),
     );
-  }
-}
-
-class _DesktopCustomerGrid extends StatelessWidget {
-  const _DesktopCustomerGrid({
-    required this.customers,
-    required this.canDeactivate,
-  });
-
-  final List<Customer> customers;
-  final bool canDeactivate;
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: customers.length,
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 430,
-        crossAxisSpacing: AppSpacing.md,
-        mainAxisSpacing: AppSpacing.md,
-        childAspectRatio: 2.25,
-      ),
-      itemBuilder: (context, index) {
-        final customer = customers[index];
-
-        return CustomerCard(
-          customer: customer,
-          onTap: () {
-            context.push('/customers/${customer.id}');
-          },
-          onEdit: () {
-            context.push('/customers/${customer.id}');
-          },
-          onDelete: canDeactivate
-              ? () {
-                  _confirmDelete(context, customer);
-                }
-              : null,
-        );
-      },
-    );
-  }
-
-  void _confirmDelete(BuildContext context, Customer customer) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Deactivate customer?'),
-          content: Text(
-            'This will deactivate ${customer.name}. '
-            'The customer will no longer appear in the active customer list.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-
-                context
-                    .findAncestorStateOfType<_CustomersScreenState>()
-                    ?._deleteCustomer(customer.id);
-              },
-              child: const Text('Deactivate'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _MobileCustomerList extends StatelessWidget {
-  const _MobileCustomerList({
-    required this.customers,
-    required this.canDeactivate,
-  });
-
-  final List<Customer> customers;
-  final bool canDeactivate;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: customers.length,
-      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-      itemBuilder: (context, index) {
-        final customer = customers[index];
-
-        return CustomerCard(
-          customer: customer,
-          onTap: () {
-            context.push('/customers/${customer.id}');
-          },
-          onEdit: () {
-            context.push('/customers/${customer.id}');
-          },
-          onDelete: canDeactivate
-              ? () {
-                  _confirmDelete(context, customer);
-                }
-              : null,
-        );
-      },
-    );
-  }
-
-  void _confirmDelete(BuildContext context, Customer customer) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Deactivate customer?'),
-          content: Text('This will deactivate ${customer.name}.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-
-                final state = context
-                    .findAncestorStateOfType<_CustomersScreenState>();
-
-                state?._deleteCustomer(customer.id);
-              },
-              child: const Text('Deactivate'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _EmptyCustomers extends StatelessWidget {
-  const _EmptyCustomers();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        vertical: AppSpacing.xxl,
-        horizontal: AppSpacing.lg,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.people_outline_rounded,
-            size: 54,
-            color: AppColors.textSecondary,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            'No customers found',
-            style: AppTypography.textTheme.titleMedium!.copyWith(
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Try changing your search or add a new customer.',
-            textAlign: TextAlign.center,
-            style: AppTypography.textTheme.bodyMedium!.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CustomersLoading extends StatelessWidget {
-  const _CustomersLoading();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(child: CircularProgressIndicator());
-  }
-}
-
-class _CustomersError extends StatelessWidget {
-  const _CustomersError({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 48,
-              color: AppColors.error,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              'Unable to load customers',
-              style: AppTypography.textTheme.titleMedium!.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.textTheme.bodySmall!.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            OutlinedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-extension on _CustomersScreenState {
-  Future<void> _deleteCustomer(String id) async {
-    try {
-      await ref.read(customersProvider.notifier).deleteCustomer(id);
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Customer deactivated successfully.')),
-      );
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to deactivate customer: $error')),
-      );
-    }
   }
 }

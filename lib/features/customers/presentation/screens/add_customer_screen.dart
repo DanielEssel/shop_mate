@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,12 +12,10 @@ class AddCustomerScreen extends ConsumerStatefulWidget {
   const AddCustomerScreen({super.key});
 
   @override
-  ConsumerState<AddCustomerScreen> createState() =>
-      _AddCustomerScreenState();
+  ConsumerState<AddCustomerScreen> createState() => _AddCustomerScreenState();
 }
 
-class _AddCustomerScreenState
-    extends ConsumerState<AddCustomerScreen> {
+class _AddCustomerScreenState extends ConsumerState<AddCustomerScreen> {
   final _formKey = GlobalKey<FormState>();
 
   final _nameController = TextEditingController();
@@ -65,9 +62,7 @@ class _AddCustomerScreenState
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Customer added successfully.'),
-        ),
+        const SnackBar(content: Text('Customer added successfully.')),
       );
 
       Navigator.of(context).pop(true);
@@ -76,9 +71,7 @@ class _AddCustomerScreenState
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Unable to add customer: ${_friendlyError(error)}',
-          ),
+          content: Text('Unable to add customer: ${_friendlyError(error)}'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -120,9 +113,7 @@ class _AddCustomerScreenState
         elevation: 0,
         leading: IconButton(
           tooltip: 'Back',
-          onPressed: _isSaving
-              ? null
-              : () => Navigator.of(context).pop(),
+          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back_rounded),
         ),
         title: Text(
@@ -140,21 +131,15 @@ class _AddCustomerScreenState
 
             return SingleChildScrollView(
               padding: EdgeInsets.all(
-                isDesktop
-                    ? AppSpacing.xl
-                    : AppSpacing.md,
+                isDesktop ? AppSpacing.xl : AppSpacing.md,
               ),
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: 900,
-                  ),
+                  constraints: const BoxConstraints(maxWidth: 900),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _PageHeader(
-                        isDesktop: isDesktop,
-                      ),
+                      _PageHeader(isDesktop: isDesktop),
                       const SizedBox(height: AppSpacing.xl),
                       _CustomerFormCard(
                         formKey: _formKey,
@@ -183,9 +168,7 @@ class _AddCustomerScreenState
 }
 
 class _PageHeader extends StatelessWidget {
-  const _PageHeader({
-    required this.isDesktop,
-  });
+  const _PageHeader({required this.isDesktop});
 
   final bool isDesktop;
 
@@ -241,15 +224,11 @@ class _CustomerFormCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(
-        isDesktop ? AppSpacing.xl : AppSpacing.lg,
-      ),
+      padding: EdgeInsets.all(isDesktop ? AppSpacing.xl : AppSpacing.lg),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(
-          color: AppColors.border,
-        ),
+        border: Border.all(color: AppColors.border),
         boxShadow: AppShadows.card,
       ),
       child: Form(
@@ -362,10 +341,7 @@ class _CustomerFormCard extends StatelessWidget {
 
             const SizedBox(height: AppSpacing.xl),
 
-            const Divider(
-              color: AppColors.border,
-              height: 1,
-            ),
+            const Divider(color: AppColors.border, height: 1),
 
             const SizedBox(height: AppSpacing.lg),
 
@@ -383,18 +359,10 @@ class _CustomerFormCard extends StatelessWidget {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Icon(
-                          Icons.person_add_alt_1_rounded,
-                        ),
-                  label: Text(
-                    isSaving
-                        ? 'Saving...'
-                        : 'Add Customer',
-                  ),
+                      : const Icon(Icons.person_add_alt_1_rounded),
+                  label: Text(isSaving ? 'Saving...' : 'Add Customer'),
                 ),
               ],
             ),
@@ -411,9 +379,7 @@ class _CustomerFormCard extends StatelessWidget {
       return null;
     }
 
-    final emailRegex = RegExp(
-      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-    );
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
     if (!emailRegex.hasMatch(email)) {
       return 'Enter a valid email address';
@@ -447,11 +413,7 @@ class _SectionHeader extends StatelessWidget {
             color: AppColors.primary.withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
-          child: Icon(
-            icon,
-            color: AppColors.primary,
-            size: 21,
-          ),
+          child: Icon(icon, color: AppColors.primary, size: 21),
         ),
         const SizedBox(width: AppSpacing.md),
         Expanded(
@@ -539,10 +501,7 @@ class _CustomerField extends StatelessWidget {
           ),
           decoration: InputDecoration(
             hintText: hint,
-            prefixIcon: Icon(
-              icon,
-              color: AppColors.textSecondary,
-            ),
+            prefixIcon: Icon(icon, color: AppColors.textSecondary),
             hintStyle: AppTypography.textTheme.bodyMedium!.copyWith(
               color: AppColors.textSecondary,
             ),
@@ -554,15 +513,11 @@ class _CustomerField extends StatelessWidget {
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: const BorderSide(
-                color: AppColors.border,
-              ),
+              borderSide: const BorderSide(color: AppColors.border),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: const BorderSide(
-                color: AppColors.border,
-              ),
+              borderSide: const BorderSide(color: AppColors.border),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppRadius.md),
@@ -573,16 +528,11 @@ class _CustomerField extends StatelessWidget {
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: const BorderSide(
-                color: AppColors.error,
-              ),
+              borderSide: const BorderSide(color: AppColors.error),
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: const BorderSide(
-                color: AppColors.error,
-                width: 1.5,
-              ),
+              borderSide: const BorderSide(color: AppColors.error, width: 1.5),
             ),
           ),
         ),

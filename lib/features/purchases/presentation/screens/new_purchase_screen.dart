@@ -3,22 +3,37 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_spacing.dart';
+import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
+import '../../../../core/utils/date_format.dart';
+import '../../../../core/utils/money_format.dart';
 import '../../domain/entities/purchase_cart_item.dart';
 import '../providers/purchases_provider.dart';
 import '../../../products/domain/entities/product.dart';
+import '../../../products/presentation/widgets/product_visuals.dart';
 import '../../../suppliers/domain/entities/supplier.dart';
 import '../../../suppliers/presentation/providers/supplier_providers.dart';
+
+/// Payment methods for a purchase, in display order.
+const _paymentMethods = <(String, String)>[
+  ('cash', 'Cash'),
+  ('mobile_money', 'Mobile Money'),
+  ('card', 'Card'),
+  ('bank_transfer', 'Bank Transfer'),
+  ('credit', 'Credit'),
+];
 
 class NewPurchaseScreen extends ConsumerStatefulWidget {
   const NewPurchaseScreen({super.key});
 
   @override
-  ConsumerState<NewPurchaseScreen> createState() =>
-      _NewPurchaseScreenState();
+  ConsumerState<NewPurchaseScreen> createState() => _NewPurchaseScreenState();
 }
 
-class _NewPurchaseScreenState
-    extends ConsumerState<NewPurchaseScreen> {
+class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   final _formKey = GlobalKey<FormState>();
 
   final _supplierNameController = TextEditingController();
@@ -39,6 +54,13 @@ class _NewPurchaseScreenState
   String _manualSupplierName = '';
   String _manualSupplierPhone = '';
 
+  /// From this width the summary sits beside the form.
+  static const double _splitFrom = 900;
+
+  /// How far messages float above the bottom so they never cover the pinned
+  /// Complete Purchase area. Set from the current layout on each build.
+  double _messageLift = 0;
+
   @override
   void dispose() {
     _supplierNameController.dispose();
@@ -49,10 +71,7 @@ class _NewPurchaseScreenState
   }
 
   double _amountPaid() {
-    return double.tryParse(
-          _amountPaidController.text.trim(),
-        ) ??
-        0;
+    return double.tryParse(_amountPaidController.text.trim()) ?? 0;
   }
 
   double _balance(double total) {
@@ -106,18 +125,14 @@ class _NewPurchaseScreenState
     FocusScope.of(context).unfocus();
 
     final cart = ref.read(purchaseCartProvider);
-    final cartNotifier =
-        ref.read(purchaseCartProvider.notifier);
+    final cartNotifier = ref.read(purchaseCartProvider.notifier);
 
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
     if (cart.isEmpty) {
-      _showMessage(
-        'Please add at least one product.',
-        isError: true,
-      );
+      _showMessage('Please add at least one product.', isError: true);
       return;
     }
 
@@ -170,21 +185,18 @@ class _NewPurchaseScreenState
           .read(createPurchaseProvider)
           .call(
             supplierId: selectedSupplier?.id,
-            supplierName:
-                supplierName.trim().isEmpty
-                    ? null
-                    : supplierName.trim(),
-            supplierPhone:
-                supplierPhone.trim().isEmpty
-                    ? null
-                    : supplierPhone.trim(),
+            supplierName: supplierName.trim().isEmpty
+                ? null
+                : supplierName.trim(),
+            supplierPhone: supplierPhone.trim().isEmpty
+                ? null
+                : supplierPhone.trim(),
             paymentMethod: _paymentMethod,
             amountPaid: amountPaid,
             purchaseDate: _purchaseDate,
-            notes:
-                _notesController.text.trim().isEmpty
-                    ? null
-                    : _notesController.text.trim(),
+            notes: _notesController.text.trim().isEmpty
+                ? null
+                : _notesController.text.trim(),
             items: items,
           );
 
@@ -198,9 +210,7 @@ class _NewPurchaseScreenState
         return;
       }
 
-      _showMessage(
-        'Purchase ${purchase.purchaseNumber} created successfully.',
-      );
+      _showMessage('Purchase ${purchase.purchaseNumber} created successfully.');
 
       context.pushReplacement('/purchases/${purchase.id}');
     } catch (error) {
@@ -208,8 +218,7 @@ class _NewPurchaseScreenState
         return;
       }
 
-      if (_selectedSupplier != null &&
-          _isUnavailableSupplierError(error)) {
+      if (_selectedSupplier != null && _isUnavailableSupplierError(error)) {
         _clearSupplier();
         ref.invalidate(suppliersProvider);
         _showMessage(
@@ -219,10 +228,7 @@ class _NewPurchaseScreenState
         return;
       }
 
-      _showMessage(
-        'Unable to create purchase: $error',
-        isError: true,
-      );
+      _showMessage('Unable to create purchase: $error', isError: true);
     } finally {
       if (mounted) {
         setState(() {
@@ -241,16 +247,19 @@ class _NewPurchaseScreenState
         );
   }
 
-  void _showMessage(
-    String message, {
-    bool isError = false,
-  }) {
+  void _showMessage(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
           content: Text(message),
           behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            0,
+            AppSpacing.lg,
+            AppSpacing.lg + _messageLift,
+          ),
         ),
       );
   }
@@ -266,224 +275,241 @@ class _NewPurchaseScreenState
 
   @override
   Widget build(BuildContext context) {
-    final productsAsync =
-        ref.watch(purchaseProductsProvider);
+    final productsAsync = ref.watch(purchaseProductsProvider);
 
     final cart = ref.watch(purchaseCartProvider);
-    final cartNotifier =
-        ref.read(purchaseCartProvider.notifier);
+    final cartNotifier = ref.read(purchaseCartProvider.notifier);
 
     final total = cartNotifier.total;
     final amountPaid = _amountPaid();
     final balance = _balance(total);
 
+    final summary = _SummaryValues(
+      cart: cart,
+      total: total,
+      amountPaid: amountPaid,
+      balance: balance,
+      paymentMethod: _paymentMethod,
+      isSaving: _isSaving,
+    );
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
-      appBar: AppBar(
-        title: const Text(
-          'New Purchase',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        actions: [
-          if (cart.isNotEmpty)
-            IconButton(
-              tooltip: 'Clear cart',
-              onPressed: _isSaving
-                  ? null
-                  : () {
-                      _showClearCartDialog();
-                    },
-              icon: const Icon(
-                Icons.delete_sweep_outlined,
-              ),
-            ),
-        ],
-      ),
-      body: productsAsync.when(
-        loading: () {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
-        },
-        error: (error, stackTrace) {
-          return _ErrorState(
-            error: error,
-            onRetry: () {
-              ref.invalidate(
-                purchaseProductsProvider,
-              );
-            },
-          );
-        },
-        data: (List<Product> products) {
-          return Form(
-            key: _formKey,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide =
-                    constraints.maxWidth >= 900;
-
-                if (isWide) {
-                  return Row(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        flex: 6,
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(
-                            20,
-                            20,
-                            10,
-                            120,
-                          ),
-                          child: _PurchaseForm(
-                            products: products,
-                            cart: cart,
-                            supplierNameController:
-                                _supplierNameController,
-                            supplierPhoneController:
-                                _supplierPhoneController,
-                            supplierPicker: _supplierPicker(),
-                            supplierLocked:
-                                _selectedSupplier != null,
-                            notesController:
-                                _notesController,
-                            purchaseDate: _purchaseDate,
-                            onDateSelected:
-                                _selectDate,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 4,
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(
-                            10,
-                            20,
-                            20,
-                            20,
-                          ),
-                          child: _PurchaseSummary(
-                            cart: cart,
-                            total: total,
-                            amountPaidController:
-                                _amountPaidController,
-                            amountPaid: amountPaid,
-                            balance: balance,
-                            paymentMethod:
-                                _paymentMethod,
-                            isSaving: _isSaving,
-                            onPaymentChanged: (value) {
-                              setState(() {
-                                _paymentMethod = value;
-                              });
-                            },
-                            onAmountChanged: (_) {
-                              setState(() {});
-                            },
-                            onComplete:
-                                _completePurchase,
-                          ),
-                        ),
-                      ),
-                    ],
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isSplit = constraints.maxWidth >= _splitFrom;
+            _messageLift = isSplit ? 200 : 104;
+            final horizontal = isSplit
+                ? Breakpoints.gutter(constraints.maxWidth)
+                : Breakpoints.pagePadding(
+                    constraints.maxWidth,
+                    maxWidth: ContentWidth.form,
                   );
-                }
 
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(
-                    16,
-                    16,
-                    16,
-                    120,
+            final header = Padding(
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                isSplit ? AppSpacing.xxl : AppSpacing.md,
+                horizontal,
+                AppSpacing.xl,
+              ),
+              child: PageHeader(
+                title: 'New Purchase',
+                subtitle: 'Record stock bought from a supplier',
+                leading: pageHeaderLeading(context),
+              ),
+            );
+
+            return productsAsync.when(
+              loading: () => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  Expanded(
+                    child: PageSkeleton(
+                      padding: EdgeInsets.symmetric(horizontal: horizontal),
+                    ),
                   ),
-                  child: Column(
-                    children: [
-                      _PurchaseForm(
-                        products: products,
-                        cart: cart,
-                        supplierNameController:
-                            _supplierNameController,
-                        supplierPhoneController:
-                            _supplierPhoneController,
-                        supplierPicker: _supplierPicker(),
-                        supplierLocked:
-                            _selectedSupplier != null,
-                        notesController:
-                            _notesController,
-                        purchaseDate: _purchaseDate,
-                        onDateSelected: _selectDate,
-                      ),
-                      const SizedBox(height: 16),
-                      _PurchaseSummary(
-                        cart: cart,
-                        total: total,
-                        amountPaidController:
-                            _amountPaidController,
-                        amountPaid: amountPaid,
-                        balance: balance,
-                        paymentMethod:
-                            _paymentMethod,
-                        isSaving: _isSaving,
-                        onPaymentChanged: (value) {
-                          setState(() {
-                            _paymentMethod = value;
-                          });
-                        },
-                        onAmountChanged: (_) {
-                          setState(() {});
-                        },
-                        onComplete:
-                            _completePurchase,
-                      ),
-                    ],
+                ],
+              ),
+              error: (error, stackTrace) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  header,
+                  Expanded(
+                    child: ErrorState(
+                      title: 'Unable to load products',
+                      message: 'Check your connection and try again.',
+                      retryLabel: 'Retry',
+                      onRetry: () => ref.invalidate(purchaseProductsProvider),
+                    ),
                   ),
+                ],
+              ),
+              data: (List<Product> products) {
+                final form = _PurchaseForm(
+                  products: products,
+                  cart: cart,
+                  supplierNameController: _supplierNameController,
+                  supplierPhoneController: _supplierPhoneController,
+                  supplierPicker: _supplierPicker(),
+                  supplierLocked: _selectedSupplier != null,
+                  notesController: _notesController,
+                  purchaseDate: _purchaseDate,
+                  onDateSelected: _selectDate,
+                  onClearCart: _isSaving ? null : _showClearCartDialog,
+                  payment: isSplit
+                      ? null
+                      : _PaymentFields(
+                          summary: summary,
+                          amountPaidController: _amountPaidController,
+                          onPaymentChanged: _changePaymentMethod,
+                          onAmountChanged: _amountChanged,
+                        ),
+                );
+
+                return Form(
+                  key: _formKey,
+                  child: isSplit
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: ListView(
+                                keyboardDismissBehavior:
+                                    ScrollViewKeyboardDismissBehavior.onDrag,
+                                padding: const EdgeInsets.only(
+                                  bottom: AppSpacing.xxxl,
+                                ),
+                                children: [
+                                  header,
+                                  Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: horizontal,
+                                    ),
+                                    child: form,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SizedBox(
+                              width: (constraints.maxWidth * 0.36).clamp(
+                                340.0,
+                                420.0,
+                              ),
+                              child: _SummaryPanel(
+                                summary: summary,
+                                amountPaidController: _amountPaidController,
+                                onPaymentChanged: _changePaymentMethod,
+                                onAmountChanged: _amountChanged,
+                                onComplete: _completePurchase,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: ListView(
+                                keyboardDismissBehavior:
+                                    ScrollViewKeyboardDismissBehavior.onDrag,
+                                padding: const EdgeInsets.only(
+                                  bottom: AppSpacing.xxl,
+                                ),
+                                children: [
+                                  header,
+                                  Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: horizontal,
+                                    ),
+                                    child: form,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            CheckoutBar(
+                              label: summary.barLabel,
+                              amount: formatGhs(total),
+                              caption: summary.balanceCaption,
+                              captionColor: AppColors.warning,
+                              action: _CompletePurchaseButton(
+                                summary: summary,
+                                onPressed: _completePurchase,
+                                showIcon:
+                                    MediaQuery.sizeOf(context).width >= 360,
+                              ),
+                            ),
+                          ],
+                        ),
                 );
               },
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
 
+  void _changePaymentMethod(String value) {
+    setState(() {
+      _paymentMethod = value;
+    });
+  }
+
+  void _amountChanged(String _) {
+    setState(() {});
+  }
+
   Future<void> _showClearCartDialog() async {
-    final shouldClear =
-        await showDialog<bool>(
-          context: context,
-          builder: (context) {
-            return AlertDialog(
-              title: const Text('Clear purchase?'),
-              content: const Text(
-                'All products currently added to this purchase will be removed.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context, false);
-                  },
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    Navigator.pop(context, true);
-                  },
-                  child: const Text('Clear'),
-                ),
-              ],
-            );
-          },
-        ) ??
-        false;
+    final shouldClear = await showConfirmDialog(
+      context,
+      title: 'Clear purchase?',
+      message: 'All products currently added to this purchase will be removed.',
+      confirmLabel: 'Clear',
+    );
 
     if (shouldClear) {
-      ref
-          .read(purchaseCartProvider.notifier)
-          .clearCart();
+      ref.read(purchaseCartProvider.notifier).clearCart();
     }
+  }
+}
+
+// =============================================================
+// SUMMARY VALUES
+// =============================================================
+
+class _SummaryValues {
+  const _SummaryValues({
+    required this.cart,
+    required this.total,
+    required this.amountPaid,
+    required this.balance,
+    required this.paymentMethod,
+    required this.isSaving,
+  });
+
+  final List<PurchaseCartItem> cart;
+  final double total;
+  final double amountPaid;
+  final double balance;
+  final String paymentMethod;
+  final bool isSaving;
+
+  int get totalQuantity =>
+      cart.fold<int>(0, (sum, item) => sum + item.quantity);
+
+  String get barLabel {
+    if (cart.isEmpty) return 'Total';
+    final products = cart.length;
+    return 'Total · $products ${products == 1 ? 'product' : 'products'}';
+  }
+
+  String? get balanceCaption {
+    if (cart.isEmpty || balance <= 0) return null;
+    return 'Balance ${formatGhs(balance)}';
   }
 }
 
@@ -502,6 +528,8 @@ class _PurchaseForm extends StatelessWidget {
     required this.notesController,
     required this.purchaseDate,
     required this.onDateSelected,
+    required this.onClearCart,
+    required this.payment,
   });
 
   final List<Product> products;
@@ -521,132 +549,153 @@ class _PurchaseForm extends StatelessWidget {
   final DateTime purchaseDate;
   final VoidCallback onDateSelected;
 
+  /// Asks before emptying the purchase; null while saving.
+  final VoidCallback? onClearCart;
+
+  /// Payment fields, shown in the form on phones (the summary panel holds
+  /// them on wide layouts).
+  final Widget? payment;
+
   @override
   Widget build(BuildContext context) {
+    final payment = this.payment;
+
+    final nameField = TextFormField(
+      controller: supplierNameController,
+      readOnly: supplierLocked,
+      textCapitalization: TextCapitalization.words,
+      textInputAction: TextInputAction.next,
+      decoration: InputDecoration(
+        labelText: 'Supplier name',
+        hintText: supplierLocked ? null : 'e.g. ABC Distributors',
+        helperText: supplierLocked ? 'From the selected saved supplier' : null,
+        prefixIcon: const Icon(Icons.storefront_outlined),
+        suffixIcon: supplierLocked
+            ? const Icon(Icons.lock_outline_rounded, size: 18)
+            : null,
+      ),
+    );
+    final phoneField = TextFormField(
+      controller: supplierPhoneController,
+      readOnly: supplierLocked,
+      keyboardType: TextInputType.phone,
+      decoration: InputDecoration(
+        labelText: 'Supplier phone',
+        hintText: supplierLocked ? 'No phone saved' : 'e.g. 0240000000',
+        prefixIcon: const Icon(Icons.phone_outlined),
+        suffixIcon: supplierLocked
+            ? const Icon(Icons.lock_outline_rounded, size: 18)
+            : null,
+      ),
+    );
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _SectionCard(
-          title: 'Supplier Information',
-          subtitle:
-              'Add supplier details for this purchase',
-          icon: Icons.business_outlined,
+        const SectionHeader(
+          title: 'Supplier',
+          subtitle: 'Choose a saved supplier or enter their details',
+        ),
+        const SizedBox(height: AppSpacing.md),
+        SurfaceCard(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               supplierPicker,
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: supplierNameController,
-                readOnly: supplierLocked,
-                textCapitalization:
-                    TextCapitalization.words,
-                decoration: InputDecoration(
-                  labelText: 'Supplier name',
-                  hintText: supplierLocked
-                      ? null
-                      : 'e.g. ABC Distributors',
-                  helperText: supplierLocked
-                      ? 'From the selected saved supplier'
-                      : null,
-                  prefixIcon: const Icon(
-                    Icons.storefront_outlined,
-                  ),
-                  suffixIcon: supplierLocked
-                      ? const Icon(
-                          Icons.lock_outline_rounded,
-                          size: 18,
-                        )
-                      : null,
-                ),
-              ),
-              const SizedBox(height: 14),
-              TextFormField(
-                controller: supplierPhoneController,
-                readOnly: supplierLocked,
-                keyboardType: TextInputType.phone,
-                decoration: InputDecoration(
-                  labelText: 'Supplier phone',
-                  hintText: supplierLocked
-                      ? 'No phone saved'
-                      : 'e.g. 0240000000',
-                  prefixIcon: const Icon(
-                    Icons.phone_outlined,
-                  ),
-                  suffixIcon: supplierLocked
-                      ? const Icon(
-                          Icons.lock_outline_rounded,
-                          size: 18,
-                        )
-                      : null,
-                ),
+              const SizedBox(height: AppSpacing.md),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth < 520) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        nameField,
+                        const SizedBox(height: AppSpacing.md),
+                        phoneField,
+                      ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: nameField),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(child: phoneField),
+                    ],
+                  );
+                },
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        _SectionCard(
-          title: 'Purchase Details',
-          subtitle:
-              'Select products and enter purchase costs',
-          icon: Icons.inventory_2_outlined,
-          child: Column(
-            children: [
-              _PurchaseProductSearch(
-                products: products,
-              ),
-              const SizedBox(height: 16),
-              if (cart.isEmpty)
-                const _EmptyPurchaseCart()
-              else
-                Column(
+        const SizedBox(height: AppSpacing.xxl),
+        SectionHeader(
+          title: 'Items',
+          subtitle: cart.isEmpty
+              ? 'Search for products and enter what you paid'
+              : '${cart.length} ${cart.length == 1 ? 'product' : 'products'}',
+          trailing: cart.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear cart',
+                  onPressed: onClearCart,
+                  color: AppColors.textSecondary,
+                  icon: const Icon(Icons.delete_sweep_outlined),
+                ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        _PurchaseProductSearch(products: products),
+        const SizedBox(height: AppSpacing.md),
+        SurfaceCard(
+          padding: cart.isEmpty
+              ? EdgeInsets.zero
+              : const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+          child: cart.isEmpty
+              ? const _EmptyPurchaseCart()
+              : Column(
                   children: [
-                    for (final item in cart)
-                      Padding(
-                        padding:
-                            const EdgeInsets.only(
-                          bottom: 10,
-                        ),
-                        child: _PurchaseCartRow(
-                          item: item,
-                        ),
+                    for (var i = 0; i < cart.length; i++) ...[
+                      if (i > 0) const RowDivider(),
+                      _PurchaseCartRow(
+                        key: ValueKey(cart[i].product.id),
+                        item: cart[i],
                       ),
+                    ],
                   ],
                 ),
-            ],
-          ),
         ),
-        const SizedBox(height: 16),
-        _SectionCard(
-          title: 'Purchase Date & Notes',
-          subtitle:
-              'Add any additional information',
-          icon: Icons.calendar_today_outlined,
+        if (payment != null) ...[
+          const SizedBox(height: AppSpacing.xxl),
+          const SectionHeader(title: 'Payment'),
+          const SizedBox(height: AppSpacing.md),
+          SurfaceCard(child: payment),
+        ],
+        const SizedBox(height: AppSpacing.xxl),
+        const SectionHeader(title: 'Date & Notes'),
+        const SizedBox(height: AppSpacing.md),
+        SurfaceCard(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               InkWell(
                 onTap: onDateSelected,
-                borderRadius:
-                    BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppRadius.md),
                 child: InputDecorator(
-                  decoration:
-                      const InputDecoration(
+                  decoration: const InputDecoration(
                     labelText: 'Purchase date',
-                    prefixIcon: Icon(
-                      Icons.calendar_month_outlined,
-                    ),
+                    prefixIcon: Icon(Icons.calendar_month_outlined),
+                    suffixIcon: Icon(Icons.expand_more_rounded),
                   ),
-                  child: Text(
-                    _formatDate(purchaseDate),
-                  ),
+                  child: Text(formatShortDate(purchaseDate)),
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: AppSpacing.md),
               TextFormField(
                 controller: notesController,
                 maxLines: 3,
                 decoration: const InputDecoration(
                   labelText: 'Notes',
-                  hintText:
-                      'Optional purchase notes...',
+                  hintText: 'Optional purchase notes...',
                   alignLabelWithHint: true,
                 ),
               ),
@@ -663,9 +712,7 @@ class _PurchaseForm extends StatelessWidget {
 // =============================================================
 
 class _PurchaseProductSearch extends ConsumerWidget {
-  const _PurchaseProductSearch({
-    required this.products,
-  });
+  const _PurchaseProductSearch({required this.products});
 
   final List<Product> products;
 
@@ -673,129 +720,100 @@ class _PurchaseProductSearch extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(purchaseCartProvider.notifier);
 
-    return Autocomplete<Product>(
-      displayStringForOption: (Product product) => product.name,
+    // The suggestion list matches the field's width, so it never runs off a
+    // narrow screen.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
 
-      optionsBuilder: (TextEditingValue textEditingValue) {
-        final query = textEditingValue.text.trim().toLowerCase();
+        return Autocomplete<Product>(
+          displayStringForOption: (Product product) => product.name,
 
-        if (query.isEmpty) {
-          return products;
-        }
+          optionsBuilder: (TextEditingValue textEditingValue) {
+            final query = textEditingValue.text.trim().toLowerCase();
 
-        return products.where((Product product) {
-          return product.name.toLowerCase().contains(query) ||
-              (product.sku?.toLowerCase().contains(query) ?? false) ||
-              (product.barcode?.toLowerCase().contains(query) ?? false);
-        });
-      },
+            if (query.isEmpty) {
+              return products;
+            }
 
-      onSelected: (Product product) {
-        notifier.addProduct(product);
-      },
+            return products.where((Product product) {
+              return product.name.toLowerCase().contains(query) ||
+                  (product.sku?.toLowerCase().contains(query) ?? false) ||
+                  (product.barcode?.toLowerCase().contains(query) ?? false);
+            });
+          },
 
-      fieldViewBuilder: (
-        BuildContext context,
-        TextEditingController controller,
-        FocusNode focusNode,
-        VoidCallback onFieldSubmitted,
-      ) {
-        return TextField(
-          controller: controller,
-          focusNode: focusNode,
-          textInputAction: TextInputAction.search,
-          decoration: const InputDecoration(
-            labelText: 'Search product',
-            hintText: 'Search by name, SKU or barcode',
-            prefixIcon: Icon(Icons.search_rounded),
-          ),
-        );
-      },
+          onSelected: (Product product) {
+            notifier.addProduct(product);
+          },
 
-      optionsViewBuilder: (
-        BuildContext context,
-        AutocompleteOnSelected<Product> onSelected,
-        Iterable<Product> options,
-      ) {
-        return Align(
-          alignment: Alignment.topLeft,
-          child: Material(
-            elevation: 8,
-            borderRadius: BorderRadius.circular(16),
-            clipBehavior: Clip.antiAlias,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxHeight: 300,
-                minWidth: 320,
-              ),
-              child: ListView.builder(
-                padding: EdgeInsets.zero,
-                shrinkWrap: true,
-                itemCount: options.length,
-                itemBuilder: (context, index) {
-                  final Product product = options.elementAt(index);
+          fieldViewBuilder:
+              (
+                BuildContext context,
+                TextEditingController controller,
+                FocusNode focusNode,
+                VoidCallback onFieldSubmitted,
+              ) {
+                return TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  textInputAction: TextInputAction.search,
+                  decoration: const InputDecoration(
+                    labelText: 'Search product',
+                    hintText: 'Search by name, SKU or barcode',
+                    prefixIcon: Icon(Icons.search_rounded),
+                  ),
+                );
+              },
 
-                  return InkWell(
-                    onTap: () => onSelected(product),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE8F5F0),
-                              borderRadius: BorderRadius.circular(12),
+          optionsViewBuilder:
+              (
+                BuildContext context,
+                AutocompleteOnSelected<Product> onSelected,
+                Iterable<Product> options,
+              ) {
+                return Align(
+                  alignment: Alignment.topLeft,
+                  child: Material(
+                    elevation: 6,
+                    color: AppColors.surface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                      side: const BorderSide(color: AppColors.border),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: 300,
+                        maxWidth: width,
+                      ),
+                      child: ListView.separated(
+                        padding: EdgeInsets.zero,
+                        shrinkWrap: true,
+                        itemCount: options.length,
+                        separatorBuilder: (_, _) =>
+                            const RowDivider(indent: 64),
+                        itemBuilder: (context, index) {
+                          final Product product = options.elementAt(index);
+
+                          return ListRow(
+                            title: product.name,
+                            details: [
+                              'Current stock: ${product.stockQuantity}',
+                            ],
+                            leading: ProductThumb(product: product),
+                            trailing: RowValue(
+                              value: formatGhs(product.costPrice),
+                              caption: 'cost',
                             ),
-                            child: const Icon(
-                              Icons.inventory_2_outlined,
-                              color: Color(0xFF087F5B),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  product.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Current stock: ${product.stockQuantity}',
-                                  style: TextStyle(
-                                    color: Colors.grey.shade600,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(width: 8),
-
-                          Text(
-                            'GHS ${product.costPrice.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+                            onTap: () => onSelected(product),
+                          );
+                        },
                       ),
                     ),
-                  );
-                },
-              ),
-            ),
-          ),
+                  ),
+                );
+              },
         );
       },
     );
@@ -806,160 +824,91 @@ class _PurchaseProductSearch extends ConsumerWidget {
 // PURCHASE CART ROW
 // =============================================================
 
+/// One product being bought: name and line total, then unit cost,
+/// quantity and remove.
 class _PurchaseCartRow extends ConsumerWidget {
-  const _PurchaseCartRow({
-    required this.item,
-  });
+  const _PurchaseCartRow({super.key, required this.item});
 
   final PurchaseCartItem item;
 
   @override
-  Widget build(
-    BuildContext context,
-    WidgetRef ref,
-  ) {
-    final notifier =
-        ref.read(purchaseCartProvider.notifier);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(purchaseCartProvider.notifier);
+    final textTheme = Theme.of(context).textTheme;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FA),
-        borderRadius:
-            BorderRadius.circular(16),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       item.product.name,
                       maxLines: 2,
-                      overflow:
-                          TextOverflow.ellipsis,
-                      style:
-                          const TextStyle(
-                        fontWeight:
-                            FontWeight.w700,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(
-                      height: 4,
-                    ),
+                    const SizedBox(height: 2),
                     Text(
-                      'Subtotal: GHS ${item.subtotal.toStringAsFixed(2)}',
-                      style: TextStyle(
-                        color: Colors
-                            .grey
-                            .shade600,
-                        fontSize: 12,
+                      'In stock now: ${item.product.stockQuantity}',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: AppColors.textMuted,
                       ),
                     ),
                   ],
                 ),
               ),
-              IconButton(
-                tooltip: 'Remove',
-                onPressed: () {
-                  notifier.removeProduct(
-                    item.product.id,
-                  );
-                },
-                icon: const Icon(
-                  Icons.delete_outline_rounded,
-                ),
-              ),
+              const SizedBox(width: AppSpacing.md),
+              Text(formatGhs(item.subtotal), style: AppTypography.amount),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpacing.md),
           Row(
             children: [
               Expanded(
                 child: TextFormField(
-                  initialValue:
-                      item.unitCost
-                          .toStringAsFixed(2),
-                  keyboardType:
-                      const TextInputType
-                          .numberWithOptions(
+                  initialValue: item.unitCost.toStringAsFixed(2),
+                  keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration:
-                      const InputDecoration(
+                  style: AppTypography.amount,
+                  decoration: const InputDecoration(
                     labelText: 'Unit cost',
                     prefixText: 'GHS ',
                     isDense: true,
                   ),
                   onChanged: (value) {
-                    final cost =
-                        double.tryParse(
-                          value.trim(),
-                        );
+                    final cost = double.tryParse(value.trim());
 
                     if (cost != null) {
-                      notifier.updateUnitCost(
-                        item.product.id,
-                        cost,
-                      );
+                      notifier.updateUnitCost(item.product.id, cost);
                     }
                   },
                 ),
               ),
-              const SizedBox(width: 10),
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Colors.grey.shade300,
-                  ),
-                  borderRadius:
-                      BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      visualDensity:
-                          VisualDensity.compact,
-                      onPressed: () {
-                        notifier.decreaseQuantity(
-                          item.product.id,
-                        );
-                      },
-                      icon: const Icon(
-                        Icons.remove_rounded,
-                      ),
-                    ),
-                    SizedBox(
-                      width: 34,
-                      child: Center(
-                        child: Text(
-                          '${item.quantity}',
-                          style:
-                              const TextStyle(
-                            fontWeight:
-                                FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      visualDensity:
-                          VisualDensity.compact,
-                      onPressed: () {
-                        notifier.increaseQuantity(
-                          item.product.id,
-                        );
-                      },
-                      icon: const Icon(
-                        Icons.add_rounded,
-                      ),
-                    ),
-                  ],
-                ),
+              const SizedBox(width: AppSpacing.sm),
+              QuantityStepper(
+                quantity: item.quantity,
+                itemName: item.product.name,
+                onDecrease: () => notifier.decreaseQuantity(item.product.id),
+                onIncrease: () => notifier.increaseQuantity(item.product.id),
+              ),
+              IconButton(
+                tooltip: 'Remove',
+                onPressed: () {
+                  notifier.removeProduct(item.product.id);
+                },
+                color: AppColors.textMuted,
+                icon: const Icon(Icons.delete_outline_rounded, size: 20),
               ),
             ],
           ),
@@ -969,292 +918,63 @@ class _PurchaseCartRow extends ConsumerWidget {
   }
 }
 
+class _EmptyPurchaseCart extends StatelessWidget {
+  const _EmptyPurchaseCart();
+
+  @override
+  Widget build(BuildContext context) {
+    return const EmptyState(
+      compact: true,
+      icon: Icons.shopping_cart_outlined,
+      title: 'No products added',
+      message: 'Search above to add products.',
+    );
+  }
+}
+
 // =============================================================
-// SUMMARY
+// PAYMENT AND SUMMARY
 // =============================================================
 
-class _PurchaseSummary extends StatelessWidget {
-  const _PurchaseSummary({
-    required this.cart,
-    required this.total,
+class _PaymentFields extends StatelessWidget {
+  const _PaymentFields({
+    required this.summary,
     required this.amountPaidController,
-    required this.amountPaid,
-    required this.balance,
-    required this.paymentMethod,
-    required this.isSaving,
     required this.onPaymentChanged,
     required this.onAmountChanged,
-    required this.onComplete,
   });
 
-  final List<PurchaseCartItem> cart;
-  final double total;
-
+  final _SummaryValues summary;
   final TextEditingController amountPaidController;
-
-  final double amountPaid;
-  final double balance;
-
-  final String paymentMethod;
-  final bool isSaving;
-
   final ValueChanged<String> onPaymentChanged;
   final ValueChanged<String> onAmountChanged;
-  final VoidCallback onComplete;
 
   @override
   Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'Purchase Summary',
-      subtitle:
-          'Review payment before completing',
-      icon: Icons.receipt_long_outlined,
-      child: Column(
-        children: [
-          _SummaryRow(
-            label: 'Items',
-            value: '${cart.length}',
-          ),
-          const SizedBox(height: 10),
-          _SummaryRow(
-            label: 'Total quantity',
-            value: '${cart.fold<int>(
-              0,
-              (sum, item) => sum + item.quantity,
-            )}',
-          ),
-          const Divider(height: 28),
-          _SummaryRow(
-            label: 'Total',
-            value:
-                'GHS ${total.toStringAsFixed(2)}',
-            large: true,
-          ),
-          const SizedBox(height: 18),
-          DropdownButtonFormField<String>(
-            initialValue: paymentMethod,
-            isExpanded: true,
-            decoration:
-                const InputDecoration(
-              labelText: 'Payment method',
-              prefixIcon: Icon(
-                Icons.payments_outlined,
-              ),
-            ),
-            items: const [
-              DropdownMenuItem(
-                value: 'cash',
-                child: Text('Cash'),
-              ),
-              DropdownMenuItem(
-                value: 'mobile_money',
-                child: Text('Mobile Money'),
-              ),
-              DropdownMenuItem(
-                value: 'card',
-                child: Text('Card'),
-              ),
-              DropdownMenuItem(
-                value: 'bank_transfer',
-                child: Text('Bank Transfer'),
-              ),
-              DropdownMenuItem(
-                value: 'credit',
-                child: Text('Credit'),
-              ),
-            ],
-            onChanged: (value) {
-              if (value != null) {
-                onPaymentChanged(value);
-              }
-            },
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: amountPaidController,
-            keyboardType:
-                const TextInputType
-                    .numberWithOptions(
-              decimal: true,
-            ),
-            onChanged: onAmountChanged,
-            decoration:
-                const InputDecoration(
-              labelText: 'Amount paid',
-              prefixText: 'GHS ',
-              prefixIcon: Icon(
-                Icons.account_balance_wallet_outlined,
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          _SummaryRow(
-            label: 'Balance',
-            value:
-                'GHS ${balance.toStringAsFixed(2)}',
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: FilledButton.icon(
-              onPressed:
-                  isSaving ? null : onComplete,
-              icon: isSaving
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child:
-                          CircularProgressIndicator(
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : const Icon(
-                      Icons.check_circle_outline_rounded,
-                    ),
-              label: Text(
-                isSaving
-                    ? 'Saving Purchase...'
-                    : 'Complete Purchase',
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// =============================================================
-// SECTION CARD
-// =============================================================
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.child,
-  });
-
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black
-                .withValues(alpha: 0.035),
-            blurRadius: 16,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color:
-                      const Color(0xFFE8F5F0),
-                  borderRadius:
-                      BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color:
-                      const Color(0xFF087F5B),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style:
-                          const TextStyle(
-                        fontSize: 16,
-                        fontWeight:
-                            FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: Colors
-                            .grey
-                            .shade600,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-// =============================================================
-// SUMMARY ROW
-// =============================================================
-
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({
-    required this.label,
-    required this.value,
-    this.large = false,
-  });
-
-  final String label;
-  final String value;
-  final bool large;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: large ? 15 : 13,
-              fontWeight:
-                  large
-                      ? FontWeight.w700
-                      : FontWeight.w600,
-            ),
-          ),
+        OptionChipGroup(
+          label: 'Payment method',
+          options: _paymentMethods,
+          selected: summary.paymentMethod,
+          onSelected: summary.isSaving ? null : onPaymentChanged,
         ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: large ? 20 : 14,
-            fontWeight: FontWeight.w800,
+        const SizedBox(height: AppSpacing.lg),
+        TextField(
+          controller: amountPaidController,
+          enabled: !summary.isSaving,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          textInputAction: TextInputAction.done,
+          onChanged: onAmountChanged,
+          style: AppTypography.amount,
+          decoration: InputDecoration(
+            labelText: 'Amount paid',
+            prefixText: 'GHS ',
+            helperText: summary.paymentMethod == 'credit'
+                ? 'Optional. Leave empty to buy fully on credit.'
+                : null,
+            helperMaxLines: 2,
           ),
         ),
       ],
@@ -1262,41 +982,114 @@ class _SummaryRow extends StatelessWidget {
   }
 }
 
-// =============================================================
-// EMPTY CART
-// =============================================================
+class _Totals extends StatelessWidget {
+  const _Totals({required this.summary});
 
-class _EmptyPurchaseCart extends StatelessWidget {
-  const _EmptyPurchaseCart();
+  final _SummaryValues summary;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding:
-          const EdgeInsets.symmetric(
-        vertical: 28,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SummaryLine(
+          label: 'Total',
+          value: formatGhs(summary.total),
+          emphasized: true,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        SummaryLine(
+          label: 'Balance',
+          value: formatGhs(summary.balance),
+          valueColor: summary.balance > 0 && summary.cart.isNotEmpty
+              ? AppColors.warning
+              : null,
+        ),
+      ],
+    );
+  }
+}
+
+/// Wide layouts: counts and payment scroll; the totals and the action stay
+/// pinned at the bottom.
+class _SummaryPanel extends StatelessWidget {
+  const _SummaryPanel({
+    required this.summary,
+    required this.amountPaidController,
+    required this.onPaymentChanged,
+    required this.onAmountChanged,
+    required this.onComplete,
+  });
+
+  final _SummaryValues summary;
+  final TextEditingController amountPaidController;
+  final ValueChanged<String> onPaymentChanged;
+  final ValueChanged<String> onAmountChanged;
+  final VoidCallback onComplete;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(left: BorderSide(color: AppColors.border)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(
-            Icons.shopping_cart_outlined,
-            size: 42,
-            color: Colors.grey.shade500,
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'No products added',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
+          const Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              AppSpacing.xl,
+              AppSpacing.xl,
+              AppSpacing.md,
+            ),
+            child: SectionHeader(
+              title: 'Purchase Summary',
+              subtitle: 'Review payment before completing',
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Search above to add products.',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 12,
+          const Divider(height: 1),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              children: [
+                SummaryLine(label: 'Items', value: '${summary.cart.length}'),
+                const SizedBox(height: AppSpacing.sm),
+                SummaryLine(
+                  label: 'Total quantity',
+                  value: '${summary.totalQuantity}',
+                ),
+                const SizedBox(height: AppSpacing.xl),
+                _PaymentFields(
+                  summary: summary,
+                  amountPaidController: amountPaidController,
+                  onPaymentChanged: onPaymentChanged,
+                  onAmountChanged: onAmountChanged,
+                ),
+              ],
+            ),
+          ),
+          DecoratedBox(
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: AppColors.border)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.xl),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _Totals(summary: summary),
+                  const SizedBox(height: AppSpacing.lg),
+                  SizedBox(
+                    width: double.infinity,
+                    child: _CompletePurchaseButton(
+                      summary: summary,
+                      onPressed: onComplete,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -1305,73 +1098,54 @@ class _EmptyPurchaseCart extends StatelessWidget {
   }
 }
 
-// =============================================================
-// ERROR STATE
-// =============================================================
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({
-    required this.error,
-    required this.onRetry,
+class _CompletePurchaseButton extends StatelessWidget {
+  const _CompletePurchaseButton({
+    required this.summary,
+    required this.onPressed,
+    this.showIcon = true,
   });
 
-  final Object error;
-  final VoidCallback onRetry;
+  final _SummaryValues summary;
+  final VoidCallback onPressed;
+  final bool showIcon;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize:
-              MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 50,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Unable to load products',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
+    final isSaving = summary.isSaving;
+    final label = Text(
+      isSaving ? 'Saving Purchase...' : 'Complete Purchase',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+    final style = FilledButton.styleFrom(
+      minimumSize: const Size(0, 52),
+      disabledBackgroundColor: isSaving ? AppColors.primary : null,
+      disabledForegroundColor: isSaving ? AppColors.textOnPrimary : null,
+    );
+    final onPressed = isSaving ? null : this.onPressed;
+
+    if (!showIcon && !isSaving) {
+      return FilledButton(onPressed: onPressed, style: style, child: label);
+    }
+
+    return FilledButton.icon(
+      onPressed: onPressed,
+      style: style,
+      icon: isSaving
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.textOnPrimary,
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error.toString(),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(
-                Icons.refresh_rounded,
-              ),
-              label:
-                  const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
+            )
+          : const Icon(Icons.check_circle_outline_rounded),
+      label: label,
     );
   }
 }
 
-// =============================================================
-// DATE FORMATTER
-// =============================================================
-
-String _formatDate(DateTime date) {
-  final day =
-      date.day.toString().padLeft(2, '0');
-  final month =
-      date.month.toString().padLeft(2, '0');
-
-  return '$day/$month/${date.year}';
-}
 // =============================================================
 // SAVED SUPPLIER PICKER
 // =============================================================
@@ -1410,7 +1184,7 @@ class _SavedSupplierPicker extends ConsumerWidget {
         icon: const Icon(
           Icons.error_outline_rounded,
           size: 18,
-          color: Colors.red,
+          color: AppColors.danger,
         ),
         text:
             'Could not load saved suppliers. You can still enter '
@@ -1423,7 +1197,11 @@ class _SavedSupplierPicker extends ConsumerWidget {
       data: (suppliers) {
         if (suppliers.isEmpty && selected == null) {
           return const _PickerMessage(
-            icon: Icon(Icons.info_outline_rounded, size: 18),
+            icon: Icon(
+              Icons.info_outline_rounded,
+              size: 18,
+              color: AppColors.textSecondary,
+            ),
             text:
                 'No saved suppliers yet. Enter supplier details '
                 'below.',
@@ -1518,9 +1296,7 @@ class _SupplierDropdown extends StatelessWidget {
                 onCleared();
                 return;
               }
-              onSelected(
-                options.firstWhere((supplier) => supplier.id == id),
-              );
+              onSelected(options.firstWhere((supplier) => supplier.id == id));
             }
           : null,
     );
@@ -1528,11 +1304,7 @@ class _SupplierDropdown extends StatelessWidget {
 }
 
 class _PickerMessage extends StatelessWidget {
-  const _PickerMessage({
-    required this.icon,
-    required this.text,
-    this.action,
-  });
+  const _PickerMessage({required this.icon, required this.text, this.action});
 
   final Widget icon;
   final String text;
@@ -1542,25 +1314,24 @@ class _PickerMessage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 10,
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
       ),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FA),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
+        color: AppColors.surfaceSubtle,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
           icon,
-          const SizedBox(width: 10),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Text(
               text,
-              style: TextStyle(
-                color: Colors.grey.shade700,
-                fontSize: 13,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
             ),
           ),
           ?action,

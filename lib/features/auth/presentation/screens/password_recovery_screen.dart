@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../domain/entities/auth_failure.dart';
 import '../providers/auth_provider.dart';
@@ -239,7 +238,7 @@ class _PasswordRecoveryScreenState
             onFieldSubmitted: (_) => _sendCode(),
           ),
           const SizedBox(height: AppSpacing.xxl),
-          _PrimaryButton(
+          AuthSubmitButton(
             label: 'Send reset code',
             busyLabel: 'Sending reset code',
             isBusy: _isBusy,
@@ -316,7 +315,7 @@ class _PasswordRecoveryScreenState
             onFieldSubmitted: (_) => _verifyCode(),
           ),
           const SizedBox(height: AppSpacing.xxl),
-          _PrimaryButton(
+          AuthSubmitButton(
             label: 'Verify code',
             busyLabel: 'Verifying code',
             isBusy: _isBusy,
@@ -400,7 +399,7 @@ class _PasswordRecoveryScreenState
               onFieldSubmitted: (_) => _savePassword(),
             ),
             const SizedBox(height: AppSpacing.xxl),
-            _PrimaryButton(
+            AuthSubmitButton(
               label: 'Update password',
               busyLabel: 'Updating password',
               isBusy: _isBusy,
@@ -427,43 +426,6 @@ class _PasswordRecoveryScreenState
       icon: Icon(
         obscured ? Icons.visibility_outlined : Icons.visibility_off_outlined,
       ),
-    );
-  }
-}
-
-class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton({
-    required this.label,
-    required this.busyLabel,
-    required this.isBusy,
-    required this.onPressed,
-  });
-
-  final String label;
-  final String busyLabel;
-  final bool isBusy;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton(
-      onPressed: isBusy ? null : onPressed,
-      style: FilledButton.styleFrom(
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-      ),
-      child: isBusy
-          ? SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.white,
-                semanticsLabel: busyLabel,
-              ),
-            )
-          : Text(label),
     );
   }
 }

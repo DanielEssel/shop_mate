@@ -11,62 +11,38 @@ import '../../domain/usecases/get_low_stock_products.dart';
 import '../../domain/usecases/update_product.dart';
 import '../../domain/usecases/delete_product.dart';
 
-final productDataSourceProvider =
-    Provider<ProductRemoteDataSource>((ref) {
-  return ProductRemoteDataSource(
-    Supabase.instance.client,
-  );
+final productDataSourceProvider = Provider<ProductRemoteDataSource>((ref) {
+  return ProductRemoteDataSource(Supabase.instance.client);
 });
 
-final updateProductProvider =
-    Provider<UpdateProduct>((ref) {
-  return UpdateProduct(
-    ref.read(productRepositoryProvider),
-  );
+final updateProductProvider = Provider<UpdateProduct>((ref) {
+  return UpdateProduct(ref.read(productRepositoryProvider));
 });
 
-final deleteProductProvider =
-    Provider<DeleteProduct>((ref) {
-  return DeleteProduct(
-    ref.read(productRepositoryProvider),
-  );
+final deleteProductProvider = Provider<DeleteProduct>((ref) {
+  return DeleteProduct(ref.read(productRepositoryProvider));
 });
 
-final getLowStockProductsProvider =
-    Provider<GetLowStockProducts>((ref) {
-  return GetLowStockProducts(
-    ref.read(productRepositoryProvider),
-  );
+final getLowStockProductsProvider = Provider<GetLowStockProducts>((ref) {
+  return GetLowStockProducts(ref.read(productRepositoryProvider));
 });
 
-final lowStockProductsProvider =
-    FutureProvider<List<Product>>((ref) {
+final lowStockProductsProvider = FutureProvider<List<Product>>((ref) {
   // Session-scoped: rebuilt when the signed-in account changes.
   ref.watch(currentUserIdProvider);
 
-  return ref
-      .read(getLowStockProductsProvider)
-      .call();
+  return ref.read(getLowStockProductsProvider).call();
 });
 
-
-
-final productRepositoryProvider =
-    Provider<ProductRepository>((ref) {
-  return ProductRepositoryImpl(
-    ref.read(productDataSourceProvider),
-  );
+final productRepositoryProvider = Provider<ProductRepository>((ref) {
+  return ProductRepositoryImpl(ref.read(productDataSourceProvider));
 });
 
-final createProductProvider =
-    Provider<CreateProduct>((ref) {
-  return CreateProduct(
-    ref.read(productRepositoryProvider),
-  );
+final createProductProvider = Provider<CreateProduct>((ref) {
+  return CreateProduct(ref.read(productRepositoryProvider));
 });
 
-final productsProvider =
-    FutureProvider<List<Product>>((ref) async {
+final productsProvider = FutureProvider<List<Product>>((ref) async {
   ref.watch(currentUserIdProvider);
 
   final repository = ref.read(productRepositoryProvider);
@@ -74,12 +50,13 @@ final productsProvider =
   return repository.getProducts();
 });
 
-final productByIdProvider =
-    FutureProvider.family<Product, String>((ref, id) async {
+final productByIdProvider = FutureProvider.family<Product, String>((
+  ref,
+  id,
+) async {
   ref.watch(currentUserIdProvider);
 
-  final repository =
-      ref.read(productRepositoryProvider);
+  final repository = ref.read(productRepositoryProvider);
 
   return repository.getProductById(id);
 });
