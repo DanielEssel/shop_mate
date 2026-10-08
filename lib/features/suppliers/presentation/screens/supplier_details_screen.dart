@@ -5,10 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
-import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
 import '../../domain/entities/supplier.dart';
 import '../providers/supplier_providers.dart';
-import '../widgets/supplier_status_badge.dart';
+import '../widgets/supplier_card.dart';
 
 /// Read-only view of one supplier, with an Edit action.
 class SupplierDetailsScreen extends ConsumerWidget {
@@ -26,39 +26,68 @@ class SupplierDetailsScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        title: Text(
-          'Supplier Details',
-          style: AppTypography.textTheme.titleLarge!.copyWith(
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: () => ref.invalidate(supplierProvider(supplierId)),
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-          if (supplierAsync.hasValue)
-            IconButton(
-              tooltip: 'Edit supplier',
-              onPressed: () => _edit(context),
-              icon: const Icon(Icons.edit_outlined),
-            ),
-          const SizedBox(width: AppSpacing.xs),
-        ],
-      ),
       body: SafeArea(
-        child: supplierAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, _) => _DetailsError(
-            onRetry: () => ref.invalidate(supplierProvider(supplierId)),
-          ),
-          data: (supplier) =>
-              _DetailsBody(supplier: supplier, onEdit: () => _edit(context)),
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final isCompact = Breakpoints.of(width).isCompact;
+            final horizontal = Breakpoints.pagePadding(
+              width,
+              maxWidth: ContentWidth.standard,
+            );
+
+            return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                isCompact ? AppSpacing.md : AppSpacing.xxl,
+                horizontal,
+                AppSpacing.xxxl,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  PageHeader(
+                    title: 'Supplier Details',
+                    leading: pageHeaderLeading(context),
+                    actions: [
+                      if (!isCompact)
+                        IconButton(
+                          tooltip: 'Refresh',
+                          onPressed: () =>
+                              ref.invalidate(supplierProvider(supplierId)),
+                          icon: const Icon(Icons.refresh_rounded),
+                        ),
+                      if (supplierAsync.hasValue)
+                        PrimaryButton(
+                          label: 'Edit supplier',
+                          icon: Icons.edit_outlined,
+                          onPressed: () => _edit(context),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xxl),
+                  supplierAsync.when(
+                    loading: () => const _DetailsSkeleton(),
+                    error: (_, _) => SurfaceCard(
+                      child: ErrorState(
+                        compact: true,
+                        title: 'Unable to load this supplier',
+                        message: 'Check your connection and try again.',
+                        retryLabel: 'Retry',
+                        onRetry: () =>
+                            ref.invalidate(supplierProvider(supplierId)),
+                      ),
+                    ),
+                    data: (supplier) => _DetailsBody(
+                      supplier: supplier,
+                      wide: width >= Breakpoints.expanded,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -66,10 +95,12 @@ class SupplierDetailsScreen extends ConsumerWidget {
 }
 
 class _DetailsBody extends StatelessWidget {
-  const _DetailsBody({required this.supplier, required this.onEdit});
+  const _DetailsBody({required this.supplier, required this.wide});
 
   final Supplier supplier;
-  final VoidCallback onEdit;
+
+  /// Desktop: contact information beside the record dates.
+  final bool wide;
 
   /// Full date (with year) and time, e.g. "Thursday, October 1, 2026, 9:30 AM".
   String _dateTime(MaterialLocalizations localizations, DateTime value) {
@@ -82,180 +113,86 @@ class _DetailsBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final localizations = MaterialLocalizations.of(context);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              border: Border.all(color: AppColors.border),
+    final identity = IdentityPanel(
+      visual: InitialAvatar(name: supplier.name, size: 64),
+      title: supplier.name,
+      subtitle: 'Supplier',
+      badges: [SupplierListStatusBadge(isActive: supplier.isActive)],
+      footer: supplier.isActive
+          ? null
+          : Text(
+              'Inactive suppliers are kept for records. Edit the supplier to '
+              'reactivate them.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SelectableText(
-                        supplier.name,
-                        style: AppTypography.textTheme.headlineSmall!.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      SupplierStatusBadge(isActive: supplier.isActive),
-                      if (!supplier.isActive) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          'Inactive suppliers are kept for records. Edit the '
-                          'supplier to reactivate them.',
-                          style: AppTypography.textTheme.bodySmall!.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.lg,
-                    vertical: AppSpacing.sm,
-                  ),
-                  child: Column(
-                    children: [
-                      _DetailRow(label: 'Phone', value: supplier.phone),
-                      _DetailRow(label: 'Email', value: supplier.email),
-                      _DetailRow(label: 'Address', value: supplier.address),
-                      _DetailRow(label: 'Notes', value: supplier.notes),
-                      _DetailRow(
-                        label: 'Created',
-                        value: _dateTime(localizations, supplier.createdAt),
-                      ),
-                      _DetailRow(
-                        label: 'Last updated',
-                        value: _dateTime(localizations, supplier.updatedAt),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton.icon(
-                      onPressed: onEdit,
-                      icon: const Icon(Icons.edit_outlined),
-                      label: const Text('Edit supplier'),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
-  }
-}
 
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
+    final information = InfoSection(
+      title: 'Supplier Information',
+      items: [
+        InfoItem(label: 'Phone', value: supplier.phone),
+        InfoItem(label: 'Email', value: supplier.email),
+        InfoItem(label: 'Address', value: supplier.address, wide: true),
+        InfoItem(label: 'Notes', value: supplier.notes, wide: true),
+      ],
+    );
 
-  final String label;
+    final record = InfoSection(
+      title: 'Record',
+      items: [
+        InfoItem(
+          label: 'Created',
+          value: _dateTime(localizations, supplier.createdAt),
+          wide: true,
+        ),
+        InfoItem(
+          label: 'Last updated',
+          value: _dateTime(localizations, supplier.updatedAt),
+          wide: true,
+        ),
+      ],
+    );
 
-  /// Shown as "Not provided" when absent.
-  final String? value;
+    const gap = SizedBox(height: AppSpacing.xxl);
 
-  @override
-  Widget build(BuildContext context) {
-    final text = value;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 110,
-            child: Text(
-              label,
-              style: AppTypography.textTheme.bodyMedium!.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: SelectableText(
-              text ?? 'Not provided',
-              style: AppTypography.textTheme.bodyMedium!.copyWith(
-                color: text == null
-                    ? AppColors.textSecondary
-                    : AppColors.textPrimary,
-                fontWeight: text == null ? FontWeight.w400 : FontWeight.w600,
-                fontStyle: text == null ? FontStyle.italic : FontStyle.normal,
-              ),
-            ),
-          ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        identity,
+        gap,
+        if (wide)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 3, child: information),
+              const SizedBox(width: AppSpacing.xxl),
+              Expanded(flex: 2, child: record),
+            ],
+          )
+        else ...[
+          information,
+          gap,
+          record,
         ],
-      ),
+      ],
     );
   }
 }
 
-class _DetailsError extends StatelessWidget {
-  const _DetailsError({required this.onRetry});
-
-  final VoidCallback onRetry;
+class _DetailsSkeleton extends StatelessWidget {
+  const _DetailsSkeleton();
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 44,
-              color: AppColors.error,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              'Unable to load this supplier',
-              textAlign: TextAlign.center,
-              style: AppTypography.textTheme.titleMedium!.copyWith(
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'Check your connection and try again.',
-              textAlign: TextAlign.center,
-              style: AppTypography.textTheme.bodySmall!.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            OutlinedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SkeletonBox(height: 112, radius: AppRadius.lg),
+        SizedBox(height: AppSpacing.xxl),
+        SkeletonBox(height: 180, radius: AppRadius.lg),
+      ],
     );
   }
 }

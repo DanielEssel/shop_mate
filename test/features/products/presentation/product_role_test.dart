@@ -66,9 +66,10 @@ class _ProductRepository implements ProductRepository {
 Future<_ProductRepository> _pump(
   WidgetTester tester,
   String role,
-  Widget screen,
-) async {
-  tester.view.physicalSize = const Size(900, 3000);
+  Widget screen, {
+  Size size = const Size(900, 3000),
+}) async {
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
 
@@ -136,9 +137,9 @@ void main() {
 
       expect(find.text('Selling Price'), findsOneWidget);
       expect(find.text('Cost Price'), findsOneWidget);
-      expect(find.text('GH₵ 10.00'), findsOneWidget);
+      expect(find.text('GHS 10.00'), findsOneWidget);
       expect(find.text('Profit / Unit'), findsOneWidget);
-      expect(find.text('GH₵ 5.00'), findsOneWidget);
+      expect(find.text('GHS 5.00'), findsOneWidget);
       expect(find.text('Profit Margin'), findsOneWidget);
     });
 
@@ -164,13 +165,13 @@ void main() {
       );
 
       expect(find.text('Selling Price'), findsOneWidget);
-      expect(find.text('GH₵ 15.00'), findsWidgets);
+      expect(find.text('GHS 15.00'), findsWidgets);
       expect(find.text('Current Stock'), findsOneWidget);
       expect(find.text('42'), findsWidgets);
       expect(find.text('Cost Price'), findsNothing);
-      expect(find.text('GH₵ 10.00'), findsNothing);
+      expect(find.text('GHS 10.00'), findsNothing);
       expect(find.text('Profit / Unit'), findsNothing);
-      expect(find.text('GH₵ 5.00'), findsNothing);
+      expect(find.text('GHS 5.00'), findsNothing);
       expect(find.text('Profit Margin'), findsNothing);
     });
   });
@@ -257,6 +258,66 @@ void main() {
       expect(saved.costPrice, 10);
       expect(saved.stockQuantity, 42);
       expect(saved.lowStockThreshold, 8);
+    });
+  });
+
+  group('layout', () {
+    for (final role in [ownerRole, attendantRole]) {
+      for (final (label, size) in [
+        ('320px', Size(320, 3000)),
+        ('desktop', Size(1440, 3000)),
+      ]) {
+        testWidgets('$role details at $label', (tester) async {
+          await _pump(
+            tester,
+            role,
+            const ProductDetailsScreen(productId: 'p1'),
+            size: size,
+          );
+
+          expect(tester.takeException(), isNull);
+          expect(find.text('Product Details'), findsOneWidget);
+          expect(find.text('Rice'), findsOneWidget);
+          expect(find.text('In stock'), findsWidgets);
+        });
+
+        testWidgets('$role edit at $label keeps Save reachable', (
+          tester,
+        ) async {
+          await _pump(
+            tester,
+            role,
+            const EditProductScreen(product: _rice),
+            size: size,
+          );
+
+          expect(tester.takeException(), isNull);
+          expect(find.text('Save Changes').hitTestable(), findsOneWidget);
+          expect(find.text('Cancel').hitTestable(), findsOneWidget);
+        });
+      }
+    }
+
+    testWidgets('an invalid edit shows the error and keeps Save reachable', (
+      tester,
+    ) async {
+      final repository = await _pump(
+        tester,
+        ownerRole,
+        const EditProductScreen(product: _rice),
+        size: const Size(390, 900),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Product Name'),
+        ' ',
+      );
+      await tester.tap(find.text('Save Changes'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Product name is required.'), findsOneWidget);
+      expect(repository.updates, isEmpty);
+      expect(find.text('Save Changes').hitTestable(), findsOneWidget);
     });
   });
 }

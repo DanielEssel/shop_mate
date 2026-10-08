@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../app/theme/app_colors.dart';
-import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
-import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
 import '../../domain/entities/supplier.dart';
 
 /// Field limits mirror the `public.suppliers` CHECK constraints, which count
@@ -72,17 +70,15 @@ class SupplierFormControllers {
   }
 }
 
-/// Shared add/edit supplier form. The active switch is shown only when
-/// [isActive] and [onActiveChanged] are given (edit mode).
+/// Shared add/edit supplier form: the fields in titled sections. The active
+/// switch is shown only when [isActive] and [onActiveChanged] are given
+/// (edit mode). The screen supplies the Save action (a [FormActionBar]).
 class SupplierForm extends StatelessWidget {
   const SupplierForm({
     super.key,
     required this.formKey,
     required this.controllers,
     required this.isSaving,
-    required this.submitLabel,
-    required this.submitIcon,
-    required this.onSubmit,
     this.isActive,
     this.onActiveChanged,
   });
@@ -90,9 +86,6 @@ class SupplierForm extends StatelessWidget {
   final GlobalKey<FormState> formKey;
   final SupplierFormControllers controllers;
   final bool isSaving;
-  final String submitLabel;
-  final IconData submitIcon;
-  final VoidCallback onSubmit;
   final bool? isActive;
   final ValueChanged<bool>? onActiveChanged;
 
@@ -100,107 +93,98 @@ class SupplierForm extends StatelessWidget {
   Widget build(BuildContext context) {
     final isActive = this.isActive;
     final onActiveChanged = this.onActiveChanged;
+    const fieldGap = SizedBox(height: AppSpacing.lg);
 
     return Form(
       key: formKey,
-      // Material (not a decorated Container) so the switch tile's ink shows.
-      child: Material(
-        color: AppColors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          side: const BorderSide(color: AppColors.border),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _SupplierField(
-                controller: controllers.name,
-                label: 'Supplier name',
-                icon: Icons.storefront_outlined,
-                requiredField: true,
-                enabled: !isSaving,
-                textCapitalization: TextCapitalization.words,
-                validator: (value) {
-                  final name = value?.trim() ?? '';
-                  if (name.isEmpty) return 'Supplier name is required';
-                  return _maxLength(name, supplierNameMaxLength);
-                },
-              ),
-              const SizedBox(height: AppSpacing.md),
-              _SupplierField(
-                controller: controllers.phone,
-                label: 'Phone',
-                icon: Icons.phone_outlined,
-                enabled: !isSaving,
-                keyboardType: TextInputType.phone,
-                validator: (value) =>
-                    _maxLength(value?.trim() ?? '', supplierPhoneMaxLength),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              _SupplierField(
-                controller: controllers.email,
-                label: 'Email',
-                icon: Icons.email_outlined,
-                enabled: !isSaving,
-                keyboardType: TextInputType.emailAddress,
-                validator: _emailValidator,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              _SupplierField(
-                controller: controllers.address,
-                label: 'Address',
-                icon: Icons.location_on_outlined,
-                enabled: !isSaving,
-                maxLines: 2,
-                textCapitalization: TextCapitalization.sentences,
-                validator: (value) =>
-                    _maxLength(value?.trim() ?? '', supplierAddressMaxLength),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              _SupplierField(
-                controller: controllers.notes,
-                label: 'Notes',
-                icon: Icons.notes_outlined,
-                enabled: !isSaving,
-                maxLines: 4,
-                textCapitalization: TextCapitalization.sentences,
-                validator: (value) =>
-                    _maxLength(value?.trim() ?? '', supplierNotesMaxLength),
-              ),
-              if (isActive != null && onActiveChanged != null) ...[
-                const SizedBox(height: AppSpacing.md),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Active supplier'),
-                  subtitle: Text(
-                    isActive
-                        ? 'Shown in the active supplier list.'
-                        : 'Kept for records but hidden from the active list.',
-                  ),
-                  value: isActive,
-                  onChanged: isSaving ? null : onActiveChanged,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          FormSection(
+            title: 'Supplier Information',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _SupplierField(
+                  controller: controllers.name,
+                  label: 'Supplier name',
+                  icon: Icons.storefront_outlined,
+                  requiredField: true,
+                  enabled: !isSaving,
+                  textCapitalization: TextCapitalization.words,
+                  validator: (value) {
+                    final name = value?.trim() ?? '';
+                    if (name.isEmpty) return 'Supplier name is required';
+                    return _maxLength(name, supplierNameMaxLength);
+                  },
+                ),
+                fieldGap,
+                FieldRow(
+                  children: [
+                    _SupplierField(
+                      controller: controllers.phone,
+                      label: 'Phone',
+                      icon: Icons.phone_outlined,
+                      enabled: !isSaving,
+                      keyboardType: TextInputType.phone,
+                      validator: (value) => _maxLength(
+                        value?.trim() ?? '',
+                        supplierPhoneMaxLength,
+                      ),
+                    ),
+                    _SupplierField(
+                      controller: controllers.email,
+                      label: 'Email',
+                      icon: Icons.email_outlined,
+                      enabled: !isSaving,
+                      keyboardType: TextInputType.emailAddress,
+                      validator: _emailValidator,
+                    ),
+                  ],
+                ),
+                fieldGap,
+                _SupplierField(
+                  controller: controllers.address,
+                  label: 'Address',
+                  icon: Icons.location_on_outlined,
+                  enabled: !isSaving,
+                  maxLines: 2,
+                  textCapitalization: TextCapitalization.sentences,
+                  validator: (value) =>
+                      _maxLength(value?.trim() ?? '', supplierAddressMaxLength),
+                ),
+                fieldGap,
+                _SupplierField(
+                  controller: controllers.notes,
+                  label: 'Notes',
+                  icon: Icons.notes_outlined,
+                  enabled: !isSaving,
+                  maxLines: 4,
+                  textCapitalization: TextCapitalization.sentences,
+                  validator: (value) =>
+                      _maxLength(value?.trim() ?? '', supplierNotesMaxLength),
                 ),
               ],
-              const SizedBox(height: AppSpacing.lg),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.icon(
-                  onPressed: isSaving ? null : onSubmit,
-                  icon: isSaving
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Icon(submitIcon),
-                  label: Text(isSaving ? 'Saving...' : submitLabel),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+          if (isActive != null && onActiveChanged != null) ...[
+            const SizedBox(height: AppSpacing.xxl),
+            FormSection(
+              title: 'Status',
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Active supplier'),
+                subtitle: Text(
+                  isActive
+                      ? 'Shown in the active supplier list.'
+                      : 'Kept for records but hidden from the active list.',
+                ),
+                value: isActive,
+                onChanged: isSaving ? null : onActiveChanged,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -260,38 +244,10 @@ class _SupplierField extends StatelessWidget {
       maxLines: maxLines,
       validator: validator,
       autovalidateMode: AutovalidateMode.onUserInteraction,
-      style: AppTypography.textTheme.bodyMedium!.copyWith(
-        color: AppColors.textPrimary,
-      ),
       decoration: InputDecoration(
         labelText: requiredField ? '$label *' : label,
-        prefixIcon: Icon(icon, color: AppColors.textSecondary),
-        filled: true,
-        fillColor: AppColors.background,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.md,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.error),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
-        ),
+        prefixIcon: Icon(icon),
+        alignLabelWithHint: maxLines > 1,
       ),
     );
   }

@@ -389,4 +389,37 @@ void main() {
       );
     });
   });
+
+  group('layout', () {
+    for (final (label, size) in [
+      ('320px', Size(320, 2400)),
+      ('desktop', Size(1440, 2400)),
+    ]) {
+      testWidgets('details and edit at $label', (tester) async {
+        await pumpSupplierApp(
+          tester,
+          FakeSupplierRepository([
+            supplier(
+              id: 's-kofi',
+              name: 'Kofi Bentley Wholesale and Distribution Limited',
+              phone: '0240000001',
+              email: 'orders@kofibentley-wholesale.example',
+              address: 'Kumasi Central Market, Block C, Shop 14',
+            ),
+          ]),
+          location: '/suppliers/s-kofi',
+          size: size,
+        );
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('Supplier Details'), findsOneWidget);
+
+        await _tapButton(tester, 'Edit supplier');
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('Edit Supplier'), findsOneWidget);
+        expect(find.text('Save changes').hitTestable(), findsOneWidget);
+      });
+    }
+  });
 }

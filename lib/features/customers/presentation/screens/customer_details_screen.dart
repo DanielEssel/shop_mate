@@ -3,9 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
-import '../../../../app/theme/app_shadows.dart';
 import '../../../../app/theme/app_spacing.dart';
-import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
 import '../../domain/entities/customer.dart';
 import '../../../shop/presentation/providers/shop_provider.dart';
 import '../providers/customers_provider.dart';
@@ -33,6 +32,9 @@ class _CustomerDetailsScreenState extends ConsumerState<CustomerDetailsScreen> {
   bool _isEditing = false;
   bool _isSaving = false;
   bool _fieldsInitialized = false;
+
+  /// Forms read best at a moderate width, even on large windows.
+  static const double _formWidth = 880;
 
   @override
   void dispose() {
@@ -111,20 +113,15 @@ class _CustomerDetailsScreenState extends ConsumerState<CustomerDetailsScreen> {
         _isEditing = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Customer updated successfully.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showFloatingMessage(context, 'Customer updated successfully.');
     } catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Unable to update customer: ${_friendlyError(error)}'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      // The form (and its Save bar) stays open, so float above the bar.
+      showFloatingMessage(
+        context,
+        'Unable to update customer: ${_friendlyError(error)}',
+        clearance: FormActionBar.messageClearance,
       );
     } finally {
       if (mounted) {
@@ -136,30 +133,17 @@ class _CustomerDetailsScreenState extends ConsumerState<CustomerDetailsScreen> {
   }
 
   Future<void> _deactivateCustomer(Customer customer) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Deactivate customer?'),
-          content: Text(
-            'This will deactivate ${customer.name}. '
-            'They will no longer appear in the active customer list.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Deactivate'),
-            ),
-          ],
-        );
-      },
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Deactivate customer?',
+      message:
+          'This will deactivate ${customer.name}. '
+          'They will no longer appear in the active customer list.',
+      confirmLabel: 'Deactivate',
+      destructive: true,
     );
 
-    if (confirmed != true) return;
+    if (!confirmed) return;
 
     try {
       await ref.read(customersProvider.notifier).deleteCustomer(customer.id);
@@ -168,24 +152,15 @@ class _CustomerDetailsScreenState extends ConsumerState<CustomerDetailsScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Customer deactivated successfully.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showFloatingMessage(context, 'Customer deactivated successfully.');
 
       Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Unable to deactivate customer: ${_friendlyError(error)}',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
+      showFloatingMessage(
+        context,
+        'Unable to deactivate customer: ${_friendlyError(error)}',
       );
     }
   }
@@ -229,553 +204,340 @@ class _CustomerDetailsScreenState extends ConsumerState<CustomerDetailsScreen> {
     final canDeactivate = ref.watch(
       shopAccessProvider.select(selectIsShopOwner),
     );
+    final customer = customerAsync.value;
+    if (customer != null) _initializeFields(customer);
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
+    return PopScope(
+      canPop: !_isSaving,
+      child: Scaffold(
         backgroundColor: AppColors.background,
-        elevation: 0,
-        leading: IconButton(
-          tooltip: 'Back',
-          onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
-        title: Text(
-          'Customer Details',
-          style: AppTypography.textTheme.titleLarge!.copyWith(
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        actions: [
-          customerAsync.whenOrNull(
-                data: (customer) {
-                  if (_isEditing) return null;
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth;
+                    final horizontal = Breakpoints.pagePadding(
+                      width,
+                      maxWidth: _isEditing ? _formWidth : ContentWidth.standard,
+                    );
 
-                  return IconButton(
-                    tooltip: 'Edit customer',
-                    onPressed: _startEditing,
-                    icon: const Icon(Icons.edit_outlined),
-                  );
-                },
-              ) ??
-              const SizedBox.shrink(),
-          const SizedBox(width: AppSpacing.xs),
-        ],
-      ),
-      body: customerAsync.when(
-        loading: () => const _DetailsLoading(),
-        error: (error, stackTrace) {
-          return _DetailsError(
-            message: error.toString(),
-            onRetry: () {
-              ref.invalidate(customerProvider(widget.customerId));
-            },
-          );
-        },
-        data: (customer) {
-          _initializeFields(customer);
-
-          return SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final isDesktop = constraints.maxWidth >= 900;
-
-                return SingleChildScrollView(
-                  padding: EdgeInsets.all(
-                    isDesktop ? AppSpacing.xl : AppSpacing.md,
-                  ),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 1000),
+                    return SingleChildScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: EdgeInsets.fromLTRB(
+                        horizontal,
+                        Breakpoints.of(width).isCompact
+                            ? AppSpacing.md
+                            : AppSpacing.xxl,
+                        horizontal,
+                        AppSpacing.xxxl,
+                      ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _CustomerHeader(
-                            customer: customer,
-                            isEditing: _isEditing,
-                            isDesktop: isDesktop,
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
-                          _DetailsCard(
-                            formKey: _formKey,
-                            customer: customer,
-                            isEditing: _isEditing,
-                            isSaving: _isSaving,
-                            isDesktop: isDesktop,
-                            nameController: _nameController,
-                            phoneController: _phoneController,
-                            emailController: _emailController,
-                            addressController: _addressController,
-                            notesController: _notesController,
-                            emailValidator: _emailValidator,
-                            onSave: () => _saveCustomer(customer),
-                            onCancel: () => _cancelEditing(customer),
-                          ),
-                          if (!_isEditing) ...[
-                            const SizedBox(height: AppSpacing.xl),
-                            CustomerCreditSection(
-                              customerId: customer.id,
-                              customerName: customer.name,
+                          PageHeader(
+                            title: _isEditing
+                                ? 'Edit Customer'
+                                : 'Customer Details',
+                            leading: IconButton(
+                              tooltip: 'Back',
+                              onPressed: _isSaving
+                                  ? null
+                                  : () => Navigator.of(context).pop(),
+                              icon: const Icon(Icons.arrow_back_rounded),
                             ),
-                          ],
-                          const SizedBox(height: AppSpacing.lg),
-                          if (!_isEditing && canDeactivate)
-                            _CustomerActions(
-                              customer: customer,
-                              onDeactivate: () => _deactivateCustomer(customer),
+                            actions: [
+                              if (customer != null && !_isEditing)
+                                SecondaryButton(
+                                  label: 'Edit Customer',
+                                  icon: Icons.edit_outlined,
+                                  onPressed: _startEditing,
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.xxl),
+                          customerAsync.when(
+                            loading: () => const _DetailsSkeleton(),
+                            error: (error, stackTrace) => SurfaceCard(
+                              child: ErrorState(
+                                compact: true,
+                                title: 'Unable to load customer',
+                                message: 'Check your connection and try again.',
+                                retryLabel: 'Retry',
+                                onRetry: () => ref.invalidate(
+                                  customerProvider(widget.customerId),
+                                ),
+                              ),
                             ),
-                          const SizedBox(height: 60),
+                            data: (customer) => _isEditing
+                                ? _EditForm(
+                                    formKey: _formKey,
+                                    isSaving: _isSaving,
+                                    nameController: _nameController,
+                                    phoneController: _phoneController,
+                                    emailController: _emailController,
+                                    addressController: _addressController,
+                                    notesController: _notesController,
+                                    emailValidator: _emailValidator,
+                                  )
+                                : _CustomerOverview(
+                                    customer: customer,
+                                    wide: width >= Breakpoints.expanded,
+                                    canDeactivate: canDeactivate,
+                                    onDeactivate: () =>
+                                        _deactivateCustomer(customer),
+                                  ),
+                          ),
                         ],
                       ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _CustomerHeader extends StatelessWidget {
-  const _CustomerHeader({
-    required this.customer,
-    required this.isEditing,
-    required this.isDesktop,
-  });
-
-  final Customer customer;
-  final bool isEditing;
-  final bool isDesktop;
-
-  @override
-  Widget build(BuildContext context) {
-    final initial = customer.name.trim().isEmpty
-        ? '?'
-        : customer.name.trim().substring(0, 1).toUpperCase();
-
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(isDesktop ? AppSpacing.xl : AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
-        boxShadow: AppShadows.card,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: isDesktop ? 78 : 64,
-            height: isDesktop ? 78 : 64,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-            ),
-            child: Text(
-              initial,
-              style: AppTypography.textTheme.displayMedium!.copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.lg),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  customer.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.textTheme.headlineMedium!.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary,
-                  ),
+                    );
+                  },
                 ),
-                const SizedBox(height: AppSpacing.xs),
-                if (customer.phone != null && customer.phone!.trim().isNotEmpty)
-                  Text(
-                    customer.phone!,
-                    style: AppTypography.textTheme.bodyMedium!.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  )
-                else
-                  Text(
-                    'No phone number',
-                    style: AppTypography.textTheme.bodyMedium!.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                const SizedBox(height: AppSpacing.sm),
-                _StatusBadge(isActive: customer.isActive),
-              ],
-            ),
-          ),
-          if (isDesktop && !isEditing)
-            OutlinedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.person_outline_rounded),
-              label: const Text('Customer'),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DetailsCard extends StatelessWidget {
-  const _DetailsCard({
-    required this.formKey,
-    required this.customer,
-    required this.isEditing,
-    required this.isSaving,
-    required this.isDesktop,
-    required this.nameController,
-    required this.phoneController,
-    required this.emailController,
-    required this.addressController,
-    required this.notesController,
-    required this.emailValidator,
-    required this.onSave,
-    required this.onCancel,
-  });
-
-  final GlobalKey<FormState> formKey;
-  final Customer customer;
-  final bool isEditing;
-  final bool isSaving;
-  final bool isDesktop;
-
-  final TextEditingController nameController;
-  final TextEditingController phoneController;
-  final TextEditingController emailController;
-  final TextEditingController addressController;
-  final TextEditingController notesController;
-
-  final String? Function(String?) emailValidator;
-  final VoidCallback onSave;
-  final VoidCallback onCancel;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(isDesktop ? AppSpacing.xl : AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
-        boxShadow: AppShadows.card,
-      ),
-      child: Form(
-        key: formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    isEditing ? 'Edit Customer' : 'Customer Information',
-                    style: AppTypography.textTheme.titleLarge!.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-                if (!isEditing)
-                  const Icon(
-                    Icons.info_outline_rounded,
-                    color: AppColors.textSecondary,
-                  ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            if (isEditing)
-              _EditableFields(
-                isDesktop: isDesktop,
-                nameController: nameController,
-                phoneController: phoneController,
-                emailController: emailController,
-                addressController: addressController,
-                notesController: notesController,
-                emailValidator: emailValidator,
-              )
-            else
-              _ReadOnlyFields(customer: customer, isDesktop: isDesktop),
-            if (isEditing) ...[
-              const SizedBox(height: AppSpacing.xl),
-              const Divider(color: AppColors.border, height: 1),
-              const SizedBox(height: AppSpacing.lg),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  OutlinedButton(
-                    onPressed: isSaving ? null : onCancel,
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  FilledButton.icon(
-                    onPressed: isSaving ? null : onSave,
-                    icon: isSaving
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.save_outlined),
-                    label: Text(isSaving ? 'Saving...' : 'Save Changes'),
-                  ),
-                ],
               ),
+              if (_isEditing && customer != null)
+                FormActionBar(
+                  primaryLabel: 'Save Changes',
+                  busyLabel: 'Saving...',
+                  primaryIcon: Icons.save_outlined,
+                  isBusy: _isSaving,
+                  onPrimary: () => _saveCustomer(customer),
+                  onSecondary: () => _cancelEditing(customer),
+                  maxContentWidth: _formWidth,
+                ),
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _EditableFields extends StatelessWidget {
-  const _EditableFields({
-    required this.isDesktop,
-    required this.nameController,
-    required this.phoneController,
-    required this.emailController,
-    required this.addressController,
-    required this.notesController,
-    required this.emailValidator,
+// =============================================================
+// VIEW
+// =============================================================
+
+class _CustomerOverview extends StatelessWidget {
+  const _CustomerOverview({
+    required this.customer,
+    required this.wide,
+    required this.canDeactivate,
+    required this.onDeactivate,
   });
 
-  final bool isDesktop;
+  final Customer customer;
+  final bool wide;
+  final bool canDeactivate;
+  final VoidCallback onDeactivate;
 
-  final TextEditingController nameController;
-  final TextEditingController phoneController;
-  final TextEditingController emailController;
-  final TextEditingController addressController;
-  final TextEditingController notesController;
+  @override
+  Widget build(BuildContext context) {
+    final phone = customer.phone?.trim();
 
-  final String? Function(String?) emailValidator;
+    final identity = IdentityPanel(
+      visual: InitialAvatar(name: customer.name, size: 64),
+      title: customer.name,
+      subtitle: phone == null || phone.isEmpty ? 'No phone number' : phone,
+      badges: [
+        customer.isActive
+            ? const StatusBadge(label: 'Active', tone: StatusTone.success)
+            : const StatusBadge(label: 'Inactive', tone: StatusTone.neutral),
+      ],
+    );
+
+    final information = InfoSection(
+      title: 'Customer Information',
+      items: [
+        InfoItem(label: 'Phone Number', value: customer.phone),
+        InfoItem(label: 'Email Address', value: customer.email),
+        InfoItem(label: 'Address', value: customer.address, wide: true),
+        InfoItem(label: 'Notes', value: customer.notes, wide: true),
+      ],
+    );
+
+    final actions = canDeactivate && customer.isActive
+        ? _CustomerActions(onDeactivate: onDeactivate)
+        : null;
+
+    final credit = CustomerCreditSection(
+      customerId: customer.id,
+      customerName: customer.name,
+    );
+
+    const gap = SizedBox(height: AppSpacing.xxl);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        identity,
+        gap,
+        if (wide && actions != null)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 3, child: information),
+              const SizedBox(width: AppSpacing.xxl),
+              Expanded(flex: 2, child: actions),
+            ],
+          )
+        else
+          information,
+        gap,
+        credit,
+        if (!wide && actions != null) ...[gap, actions],
+      ],
+    );
+  }
+}
+
+/// Owner-only: status changes, kept apart from everyday actions.
+class _CustomerActions extends StatelessWidget {
+  const _CustomerActions({required this.onDeactivate});
+
+  final VoidCallback onDeactivate;
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _DetailsField(
-          controller: nameController,
-          label: 'Customer Name',
-          icon: Icons.person_outline_rounded,
-          requiredField: true,
-          textCapitalization: TextCapitalization.words,
-          validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'Customer name is required';
-            }
-
-            if (value.trim().length < 2) {
-              return 'Enter a valid customer name';
-            }
-
-            return null;
-          },
+        const SectionHeader(
+          title: 'Customer Actions',
+          subtitle: 'Manage the status of this customer.',
         ),
         const SizedBox(height: AppSpacing.md),
-        if (isDesktop)
-          Row(
+        SurfaceCard(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: _DetailsField(
-                  controller: phoneController,
-                  label: 'Phone Number',
-                  icon: Icons.phone_outlined,
-                  keyboardType: TextInputType.phone,
-                ),
+              Text(
+                'Deactivated customers are kept for records but leave the '
+                'active list.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
               ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: _DetailsField(
-                  controller: emailController,
-                  label: 'Email Address',
-                  icon: Icons.email_outlined,
-                  keyboardType: TextInputType.emailAddress,
-                  validator: emailValidator,
+              const SizedBox(height: AppSpacing.lg),
+              OutlinedButton.icon(
+                onPressed: onDeactivate,
+                icon: const Icon(Icons.person_off_outlined, size: 18),
+                label: const Text('Deactivate Customer'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.danger,
+                  side: BorderSide(
+                    color: AppColors.danger.withValues(alpha: 0.4),
+                  ),
                 ),
               ),
             ],
-          )
-        else ...[
-          _DetailsField(
-            controller: phoneController,
-            label: 'Phone Number',
-            icon: Icons.phone_outlined,
-            keyboardType: TextInputType.phone,
           ),
-          const SizedBox(height: AppSpacing.md),
-          _DetailsField(
-            controller: emailController,
-            label: 'Email Address',
-            icon: Icons.email_outlined,
-            keyboardType: TextInputType.emailAddress,
-            validator: emailValidator,
-          ),
-        ],
-        const SizedBox(height: AppSpacing.md),
-        _DetailsField(
-          controller: addressController,
-          label: 'Address',
-          icon: Icons.location_on_outlined,
-          maxLines: 2,
-          textCapitalization: TextCapitalization.sentences,
-        ),
-        const SizedBox(height: AppSpacing.md),
-        _DetailsField(
-          controller: notesController,
-          label: 'Notes',
-          icon: Icons.notes_outlined,
-          maxLines: 4,
-          textCapitalization: TextCapitalization.sentences,
         ),
       ],
     );
   }
 }
 
-class _ReadOnlyFields extends StatelessWidget {
-  const _ReadOnlyFields({required this.customer, required this.isDesktop});
+// =============================================================
+// EDIT
+// =============================================================
 
-  final Customer customer;
-  final bool isDesktop;
-
-  @override
-  Widget build(BuildContext context) {
-    final fields = [
-      _ReadOnlyFieldData(
-        label: 'Customer Name',
-        value: customer.name,
-        icon: Icons.person_outline_rounded,
-      ),
-      _ReadOnlyFieldData(
-        label: 'Phone Number',
-        value: customer.phone,
-        icon: Icons.phone_outlined,
-      ),
-      _ReadOnlyFieldData(
-        label: 'Email Address',
-        value: customer.email,
-        icon: Icons.email_outlined,
-      ),
-      _ReadOnlyFieldData(
-        label: 'Address',
-        value: customer.address,
-        icon: Icons.location_on_outlined,
-      ),
-      _ReadOnlyFieldData(
-        label: 'Notes',
-        value: customer.notes,
-        icon: Icons.notes_outlined,
-      ),
-    ];
-
-    // MOBILE FIRST
-    if (!isDesktop) {
-      return Column(
-        children: [
-          for (int index = 0; index < fields.length; index++) ...[
-            _ReadOnlyField(data: fields[index]),
-            if (index != fields.length - 1)
-              const SizedBox(height: AppSpacing.sm),
-          ],
-        ],
-      );
-    }
-
-    // TABLET / DESKTOP
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: fields.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: AppSpacing.md,
-        mainAxisSpacing: AppSpacing.md,
-        childAspectRatio: 4.5,
-      ),
-      itemBuilder: (context, index) {
-        return _ReadOnlyField(data: fields[index]);
-      },
-    );
-  }
-}
-
-class _ReadOnlyFieldData {
-  const _ReadOnlyFieldData({
-    required this.label,
-    required this.value,
-    required this.icon,
+class _EditForm extends StatelessWidget {
+  const _EditForm({
+    required this.formKey,
+    required this.isSaving,
+    required this.nameController,
+    required this.phoneController,
+    required this.emailController,
+    required this.addressController,
+    required this.notesController,
+    required this.emailValidator,
   });
 
-  final String label;
-  final String? value;
-  final IconData icon;
-}
+  final GlobalKey<FormState> formKey;
+  final bool isSaving;
 
-class _ReadOnlyField extends StatelessWidget {
-  const _ReadOnlyField({required this.data});
+  final TextEditingController nameController;
+  final TextEditingController phoneController;
+  final TextEditingController emailController;
+  final TextEditingController addressController;
+  final TextEditingController notesController;
 
-  final _ReadOnlyFieldData data;
+  final String? Function(String?) emailValidator;
 
   @override
   Widget build(BuildContext context) {
-    final value = data.value?.trim();
+    const fieldGap = SizedBox(height: AppSpacing.lg);
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Icon(data.icon, size: 20, color: AppColors.textSecondary),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
+    return Form(
+      key: formKey,
+      child: FormSection(
+        title: 'Customer Information',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _DetailsField(
+              controller: nameController,
+              label: 'Customer Name',
+              icon: Icons.person_outline_rounded,
+              enabled: !isSaving,
+              requiredField: true,
+              textCapitalization: TextCapitalization.words,
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Customer name is required';
+                }
+
+                if (value.trim().length < 2) {
+                  return 'Enter a valid customer name';
+                }
+
+                return null;
+              },
+            ),
+            fieldGap,
+            FieldRow(
               children: [
-                Text(
-                  data.label,
-                  style: AppTypography.textTheme.labelSmall!.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
+                _DetailsField(
+                  controller: phoneController,
+                  label: 'Phone Number',
+                  icon: Icons.phone_outlined,
+                  enabled: !isSaving,
+                  keyboardType: TextInputType.phone,
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  value == null || value.isEmpty ? 'Not provided' : value,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.textTheme.bodyMedium!.copyWith(
-                    color: value == null || value.isEmpty
-                        ? AppColors.textSecondary
-                        : AppColors.textPrimary,
-                    fontWeight: value == null || value.isEmpty
-                        ? FontWeight.w400
-                        : FontWeight.w600,
-                  ),
+                _DetailsField(
+                  controller: emailController,
+                  label: 'Email Address',
+                  icon: Icons.email_outlined,
+                  enabled: !isSaving,
+                  keyboardType: TextInputType.emailAddress,
+                  validator: emailValidator,
                 ),
               ],
             ),
-          ),
-        ],
+            fieldGap,
+            _DetailsField(
+              controller: addressController,
+              label: 'Address',
+              icon: Icons.location_on_outlined,
+              enabled: !isSaving,
+              maxLines: 2,
+              textCapitalization: TextCapitalization.sentences,
+            ),
+            fieldGap,
+            _DetailsField(
+              controller: notesController,
+              label: 'Notes',
+              icon: Icons.notes_outlined,
+              enabled: !isSaving,
+              maxLines: 4,
+              textCapitalization: TextCapitalization.sentences,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -786,6 +548,7 @@ class _DetailsField extends StatelessWidget {
     required this.controller,
     required this.label,
     required this.icon,
+    required this.enabled,
     this.requiredField = false,
     this.keyboardType,
     this.textCapitalization = TextCapitalization.none,
@@ -796,6 +559,7 @@ class _DetailsField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
   final IconData icon;
+  final bool enabled;
   final bool requiredField;
   final TextInputType? keyboardType;
   final TextCapitalization textCapitalization;
@@ -806,181 +570,32 @@ class _DetailsField extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextFormField(
       controller: controller,
+      enabled: enabled,
       keyboardType: keyboardType,
       textCapitalization: textCapitalization,
       maxLines: maxLines,
       validator: validator,
-      style: AppTypography.textTheme.bodyMedium!.copyWith(
-        color: AppColors.textPrimary,
-      ),
       decoration: InputDecoration(
         labelText: requiredField ? '$label *' : label,
-        prefixIcon: Icon(icon, color: AppColors.textSecondary),
-        filled: true,
-        fillColor: AppColors.background,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md,
-          vertical: AppSpacing.md,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.error),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
-        ),
+        prefixIcon: Icon(icon),
+        alignLabelWithHint: maxLines > 1,
       ),
     );
   }
 }
 
-class _CustomerActions extends StatelessWidget {
-  const _CustomerActions({required this.customer, required this.onDeactivate});
-
-  final Customer customer;
-  final VoidCallback onDeactivate;
+class _DetailsSkeleton extends StatelessWidget {
+  const _DetailsSkeleton();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Customer Actions',
-            style: AppTypography.textTheme.titleMedium!.copyWith(
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Manage the status of this customer.',
-            style: AppTypography.textTheme.bodySmall!.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          if (customer.isActive)
-            OutlinedButton.icon(
-              onPressed: onDeactivate,
-              icon: const Icon(Icons.person_off_outlined),
-              label: const Text('Deactivate Customer'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.error,
-                side: const BorderSide(color: AppColors.error),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.isActive});
-
-  final bool isActive;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: isActive
-            ? AppColors.success.withValues(alpha: 0.10)
-            : AppColors.error.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-      ),
-      child: Text(
-        isActive ? 'Active' : 'Inactive',
-        style: AppTypography.textTheme.labelSmall!.copyWith(
-          color: isActive ? AppColors.success : AppColors.error,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-class _DetailsLoading extends StatelessWidget {
-  const _DetailsLoading();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(child: CircularProgressIndicator());
-  }
-}
-
-class _DetailsError extends StatelessWidget {
-  const _DetailsError({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 48,
-              color: AppColors.error,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              'Unable to load customer',
-              style: AppTypography.textTheme.titleMedium!.copyWith(
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.textTheme.bodySmall!.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            OutlinedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SkeletonBox(height: 112, radius: AppRadius.lg),
+        SizedBox(height: AppSpacing.xxl),
+        SkeletonBox(height: 180, radius: AppRadius.lg),
+      ],
     );
   }
 }

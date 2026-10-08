@@ -4,6 +4,7 @@ library;
 export 'adaptive_data_table.dart';
 export 'app_shell_scope.dart';
 export 'buttons.dart';
+export 'details.dart';
 export 'dialogs.dart';
 export 'headers.dart';
 export 'inputs.dart';

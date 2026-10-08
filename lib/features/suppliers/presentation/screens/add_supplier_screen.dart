@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
-import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
 import '../providers/supplier_providers.dart';
 import '../utils/supplier_error_message.dart';
 import '../widgets/supplier_form.dart';
@@ -20,6 +20,9 @@ class _AddSupplierScreenState extends ConsumerState<AddSupplierScreen> {
   final _controllers = SupplierFormControllers();
 
   bool _isSaving = false;
+
+  /// Forms read best at a moderate width, even on large windows.
+  static const double _formWidth = 880;
 
   @override
   void dispose() {
@@ -50,23 +53,17 @@ class _AddSupplierScreenState extends ConsumerState<AddSupplierScreen> {
       if (!mounted) return;
       invalidateSupplierData(ref);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Supplier ${values.name} added.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showFloatingMessage(context, 'Supplier ${values.name} added.');
       Navigator.of(context).pop(true);
     } catch (error) {
       if (!mounted) return;
       setState(() => _isSaving = false);
 
       // The form keeps everything the user typed.
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(supplierSaveErrorMessage(error)),
-          behavior: SnackBarBehavior.floating,
-        ),
+      showFloatingMessage(
+        context,
+        supplierSaveErrorMessage(error),
+        clearance: FormActionBar.messageClearance,
       );
     }
   }
@@ -77,38 +74,67 @@ class _AddSupplierScreenState extends ConsumerState<AddSupplierScreen> {
       canPop: !_isSaving,
       child: Scaffold(
         backgroundColor: AppColors.background,
-        appBar: AppBar(
-          backgroundColor: AppColors.background,
-          elevation: 0,
-          leading: IconButton(
-            tooltip: 'Back',
-            onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back_rounded),
-          ),
-          title: Text(
-            'Add Supplier',
-            style: AppTypography.textTheme.titleLarge!.copyWith(
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-            ),
-          ),
-        ),
         body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 640),
-                child: SupplierForm(
-                  formKey: _formKey,
-                  controllers: _controllers,
-                  isSaving: _isSaving,
-                  submitLabel: 'Save supplier',
-                  submitIcon: Icons.save_outlined,
-                  onSubmit: _save,
+          bottom: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth;
+                    final horizontal = Breakpoints.pagePadding(
+                      width,
+                      maxWidth: _formWidth,
+                    );
+
+                    return SingleChildScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: EdgeInsets.fromLTRB(
+                        horizontal,
+                        Breakpoints.of(width).isCompact
+                            ? AppSpacing.md
+                            : AppSpacing.xxl,
+                        horizontal,
+                        AppSpacing.xxl,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          PageHeader(
+                            title: 'Add Supplier',
+                            subtitle: 'Save a supplier you buy stock from',
+                            leading: IconButton(
+                              tooltip: 'Back',
+                              onPressed: _isSaving
+                                  ? null
+                                  : () => Navigator.of(context).pop(),
+                              icon: const Icon(Icons.arrow_back_rounded),
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xxl),
+                          SupplierForm(
+                            formKey: _formKey,
+                            controllers: _controllers,
+                            isSaving: _isSaving,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
-            ),
+              FormActionBar(
+                primaryLabel: 'Save supplier',
+                busyLabel: 'Saving...',
+                primaryIcon: Icons.save_outlined,
+                isBusy: _isSaving,
+                onPrimary: _save,
+                onSecondary: () => Navigator.of(context).pop(),
+                maxContentWidth: _formWidth,
+              ),
+            ],
           ),
         ),
       ),

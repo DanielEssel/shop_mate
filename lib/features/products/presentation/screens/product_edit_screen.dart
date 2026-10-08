@@ -6,11 +6,16 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
+import '../../../../core/utils/money_format.dart';
 import '../../../product_categories/presentation/widgets/product_category_field.dart';
 import '../../domain/entities/product.dart';
 import '../../../shop/presentation/providers/shop_provider.dart';
 import '../providers/products_provider.dart';
+import '../widgets/product_visuals.dart';
 
 class EditProductScreen extends ConsumerStatefulWidget {
   const EditProductScreen({required this.product, super.key});
@@ -42,6 +47,9 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
 
   /// Optional; null clears the product's category.
   String? _selectedCategoryId;
+
+  /// Forms read best at a moderate width, even on large windows.
+  static const double _formWidth = 880;
 
   @override
   void initState() {
@@ -175,18 +183,21 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
       builder: (context) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
+              AppSpacing.sm,
+              AppSpacing.xl,
+              AppSpacing.xxl,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Change Product Image',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
+                Text(
+                  'Change Product Image',
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: AppSpacing.lg),
                 ListTile(
                   leading: const Icon(Icons.photo_library_outlined),
                   title: const Text('Choose from gallery'),
@@ -328,283 +339,247 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
     return trimmed.isEmpty ? null : trimmed;
   }
 
+  /// Floats above the Save bar so it never covers the action.
   void _showMessage(String message, {bool success = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: success ? AppColors.success : null,
-        behavior: SnackBarBehavior.floating,
-      ),
+    showFloatingMessage(
+      context,
+      message,
+      clearance: FormActionBar.messageClearance,
+      backgroundColor: success ? AppColors.success : null,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final isOwner = ref.watch(shopAccessProvider.select(selectIsShopOwner));
+    const gap = SizedBox(height: AppSpacing.xxl);
+    const fieldGap = SizedBox(height: AppSpacing.lg);
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text(
-          'Edit Product',
-          style: TextStyle(fontWeight: FontWeight.w700),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _ImagePickerCard(
-                    product: widget.product,
-                    selectedImageBytes: _selectedImageBytes,
-                    isPicking: _isPickingImage,
-                    onTap: _showImageSourceSheet,
-                  ),
+    final basics = FormSection(
+      title: 'Basic Information',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _textField(
+            controller: _nameController,
+            label: 'Product Name',
+            icon: Icons.inventory_2_outlined,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Product name is required.';
+              }
 
-                  const SizedBox(height: AppSpacing.xl),
-
-                  _SectionCard(
-                    title: 'Basic Information',
-                    icon: Icons.inventory_2_outlined,
-                    child: Column(
-                      children: [
-                        _textField(
-                          controller: _nameController,
-                          label: 'Product Name',
-                          icon: Icons.inventory_2_outlined,
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'Product name is required.';
-                            }
-
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        ProductCategoryField(
-                          selectedCategoryId: _selectedCategoryId,
-                          currentCategoryName: widget.product.categoryName,
-                          currentCategoryIsActive:
-                              widget.product.categoryIsActive,
-                          decoration: _inputDecoration(
-                            label: 'Category',
-                            icon: Icons.category_outlined,
-                          ),
-                          onChanged: _isSaving
-                              ? null
-                              : (value) {
-                                  setState(() {
-                                    _selectedCategoryId = value;
-                                  });
-                                },
-                        ),
-                        const SizedBox(height: 16),
-                        _textField(
-                          controller: _skuController,
-                          label: 'SKU',
-                          icon: Icons.qr_code_2_outlined,
-                        ),
-                        const SizedBox(height: 16),
-                        _textField(
-                          controller: _barcodeController,
-                          label: 'Barcode',
-                          icon: Icons.barcode_reader,
-                        ),
-                        const SizedBox(height: 16),
-                        _textField(
-                          controller: _descriptionController,
-                          label: 'Description',
-                          icon: Icons.notes_outlined,
-                          maxLines: 4,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: AppSpacing.lg),
-
-                  _SectionCard(
-                    title: 'Pricing',
-                    icon: Icons.payments_outlined,
-                    child: Column(
-                      children: [
-                        _textField(
-                          controller: _costPriceController,
-                          label: 'Cost Price',
-                          icon: Icons.shopping_cart_outlined,
-                          locked: !isOwner,
-                          lockedHint: _ownerOnlyPriceHint,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          validator: (value) {
-                            final number = double.tryParse(value?.trim() ?? '');
-
-                            if (number == null || number < 0) {
-                              return 'Enter a valid cost price.';
-                            }
-
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        _textField(
-                          controller: _sellingPriceController,
-                          label: 'Selling Price',
-                          icon: Icons.sell_outlined,
-                          locked: !isOwner,
-                          lockedHint: _ownerOnlyPriceHint,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          validator: (value) {
-                            final number = double.tryParse(value?.trim() ?? '');
-
-                            if (number == null || number < 0) {
-                              return 'Enter a valid selling price.';
-                            }
-
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryLight,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'Profit / Unit',
-                                  style: TextStyle(
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                'GH₵ ${_profit.toStringAsFixed(2)}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  color: _profit >= 0
-                                      ? AppColors.success
-                                      : AppColors.error,
-                                ),
-                              ),
-                              const SizedBox(width: 18),
-                              Text(
-                                '${_margin.toStringAsFixed(1)}%',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: AppSpacing.lg),
-
-                  _SectionCard(
-                    title: 'Inventory',
-                    icon: Icons.inventory_2_outlined,
-                    child: Column(
-                      children: [
-                        _textField(
-                          controller: _stockController,
-                          label: 'Stock Quantity',
-                          icon: Icons.numbers_outlined,
-                          locked: !isOwner,
-                          lockedHint:
-                              'Stock changes through sales and purchases.',
-                          keyboardType: TextInputType.number,
-                          validator: (value) {
-                            final number = int.tryParse(value?.trim() ?? '');
-
-                            if (number == null || number < 0) {
-                              return 'Enter a valid stock quantity.';
-                            }
-
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        _textField(
-                          controller: _lowStockController,
-                          label: 'Low Stock Threshold',
-                          icon: Icons.warning_amber_outlined,
-                          keyboardType: TextInputType.number,
-                          validator: (value) {
-                            final number = int.tryParse(value?.trim() ?? '');
-
-                            if (number == null || number < 0) {
-                              return 'Enter a valid threshold.';
-                            }
-
-                            return null;
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: AppSpacing.xl),
-
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: FilledButton.icon(
-                      onPressed: _isSaving ? null : _saveProduct,
-                      icon: _isSaving
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.save_outlined),
-                      label: Text(
-                        _isSaving ? 'Saving Changes...' : 'Save Changes',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              return null;
+            },
+          ),
+          fieldGap,
+          ProductCategoryField(
+            selectedCategoryId: _selectedCategoryId,
+            currentCategoryName: widget.product.categoryName,
+            currentCategoryIsActive: widget.product.categoryIsActive,
+            decoration: _inputDecoration(
+              label: 'Category',
+              icon: Icons.category_outlined,
             ),
+            onChanged: _isSaving
+                ? null
+                : (value) {
+                    setState(() {
+                      _selectedCategoryId = value;
+                    });
+                  },
+          ),
+          fieldGap,
+          FieldRow(
+            children: [
+              _textField(
+                controller: _skuController,
+                label: 'SKU',
+                icon: Icons.qr_code_2_outlined,
+              ),
+              _textField(
+                controller: _barcodeController,
+                label: 'Barcode',
+                icon: Icons.barcode_reader,
+              ),
+            ],
+          ),
+          fieldGap,
+          _textField(
+            controller: _descriptionController,
+            label: 'Description',
+            icon: Icons.notes_outlined,
+            maxLines: 4,
+          ),
+        ],
+      ),
+    );
+
+    final pricing = FormSection(
+      title: 'Pricing',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          FieldRow(
+            children: [
+              _textField(
+                controller: _costPriceController,
+                label: 'Cost Price',
+                icon: Icons.shopping_cart_outlined,
+                locked: !isOwner,
+                lockedHint: _ownerOnlyPriceHint,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                validator: _priceValidator('Enter a valid cost price.'),
+              ),
+              _textField(
+                controller: _sellingPriceController,
+                label: 'Selling Price',
+                icon: Icons.sell_outlined,
+                locked: !isOwner,
+                lockedHint: _ownerOnlyPriceHint,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                validator: _priceValidator('Enter a valid selling price.'),
+              ),
+            ],
+          ),
+          fieldGap,
+          _ProfitPreview(profit: _profit, margin: _margin),
+        ],
+      ),
+    );
+
+    final inventory = FormSection(
+      title: 'Inventory',
+      child: FieldRow(
+        children: [
+          _textField(
+            controller: _stockController,
+            label: 'Stock Quantity',
+            icon: Icons.numbers_outlined,
+            locked: !isOwner,
+            lockedHint: 'Stock changes through sales and purchases.',
+            keyboardType: TextInputType.number,
+            validator: _countValidator('Enter a valid stock quantity.'),
+          ),
+          _textField(
+            controller: _lowStockController,
+            label: 'Low Stock Threshold',
+            icon: Icons.warning_amber_outlined,
+            keyboardType: TextInputType.number,
+            validator: _countValidator('Enter a valid threshold.'),
+          ),
+        ],
+      ),
+    );
+
+    return PopScope(
+      canPop: !_isSaving,
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth;
+                    final horizontal = Breakpoints.pagePadding(
+                      width,
+                      maxWidth: _formWidth,
+                    );
+
+                    return SingleChildScrollView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: EdgeInsets.fromLTRB(
+                        horizontal,
+                        Breakpoints.of(width).isCompact
+                            ? AppSpacing.md
+                            : AppSpacing.xxl,
+                        horizontal,
+                        AppSpacing.xxl,
+                      ),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            PageHeader(
+                              title: 'Edit Product',
+                              subtitle: widget.product.name,
+                              leading: pageHeaderLeading(context),
+                            ),
+                            const SizedBox(height: AppSpacing.xxl),
+                            _ImagePickerCard(
+                              product: widget.product,
+                              selectedImageBytes: _selectedImageBytes,
+                              isPicking: _isPickingImage,
+                              onTap: _showImageSourceSheet,
+                            ),
+                            gap,
+                            basics,
+                            gap,
+                            pricing,
+                            gap,
+                            inventory,
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              FormActionBar(
+                primaryLabel: 'Save Changes',
+                busyLabel: 'Saving Changes...',
+                primaryIcon: Icons.save_outlined,
+                isBusy: _isSaving,
+                onPrimary: _saveProduct,
+                onSecondary: () => context.pop(),
+                maxContentWidth: _formWidth,
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
+  static String? Function(String?) _priceValidator(String message) {
+    return (value) {
+      final number = double.tryParse(value?.trim() ?? '');
+
+      if (number == null || number < 0) {
+        return message;
+      }
+
+      return null;
+    };
+  }
+
+  static String? Function(String?) _countValidator(String message) {
+    return (value) {
+      final number = int.tryParse(value?.trim() ?? '');
+
+      if (number == null || number < 0) {
+        return message;
+      }
+
+      return null;
+    };
+  }
+
   InputDecoration _inputDecoration({
     required String label,
     required IconData icon,
   }) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon),
-      filled: true,
-      fillColor: AppColors.background,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide.none,
-      ),
-    );
+    return InputDecoration(labelText: label, prefixIcon: Icon(icon));
   }
 
   static const _ownerOnlyPriceHint = 'Only the shop owner can change prices.';
@@ -627,14 +602,67 @@ class _EditProductScreenState extends ConsumerState<EditProductScreen> {
       validator: locked ? null : validator,
       maxLines: maxLines,
       enabled: !_isSaving && !locked,
-      decoration: _inputDecoration(
-        label: label,
-        icon: icon,
-      ).copyWith(helperText: locked ? lockedHint : null),
+      decoration: _inputDecoration(label: label, icon: icon).copyWith(
+        helperText: locked ? lockedHint : null,
+        helperMaxLines: 2,
+        suffixIcon: locked
+            ? const Icon(Icons.lock_outline_rounded, size: 18)
+            : null,
+      ),
     );
   }
 }
 
+/// Live profit per unit and margin from the entered prices.
+class _ProfitPreview extends StatelessWidget {
+  const _ProfitPreview({required this.profit, required this.margin});
+
+  final double profit;
+  final double margin;
+
+  @override
+  Widget build(BuildContext context) {
+    final positive = profit >= 0;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSubtle,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Profit / Unit',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+            ),
+          ),
+          Text(
+            formatGhs(profit),
+            style: AppTypography.amount.copyWith(
+              color: positive ? AppColors.success : AppColors.danger,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          StatusBadge(
+            label: '${margin.toStringAsFixed(1)}%',
+            tone: positive ? StatusTone.success : StatusTone.danger,
+            showDot: false,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The product photo and how to change it.
 class _ImagePickerCard extends StatelessWidget {
   const _ImagePickerCard({
     required this.product,
@@ -648,9 +676,12 @@ class _ImagePickerCard extends StatelessWidget {
   final bool isPicking;
   final VoidCallback onTap;
 
+  static const double _size = 72;
+
   @override
   Widget build(BuildContext context) {
-    Widget image;
+    final textTheme = Theme.of(context).textTheme;
+    final Widget image;
 
     if (selectedImageBytes != null) {
       image = Image.memory(selectedImageBytes!, fit: BoxFit.cover);
@@ -659,105 +690,62 @@ class _ImagePickerCard extends StatelessWidget {
       image = Image.network(
         product.imageUrl!,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => const Icon(
-          Icons.inventory_2_rounded,
-          size: 42,
-          color: AppColors.primary,
-        ),
+        errorBuilder: (_, _, _) =>
+            InitialAvatar(name: product.name, size: _size),
       );
     } else {
-      image = const Icon(
-        Icons.inventory_2_rounded,
-        size: 42,
-        color: AppColors.primary,
-      );
+      image = ProductThumb(product: product, size: _size);
     }
 
-    return InkWell(
+    return SurfaceCard(
+      padding: const EdgeInsets.all(AppSpacing.lg),
       onTap: isPicking ? null : onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 92,
-              height: 92,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: AppColors.primaryLight,
-                borderRadius: BorderRadius.circular(16),
-              ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            child: SizedBox(
+              width: _size,
+              height: _size,
               child: isPicking
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
                   : image,
             ),
-            const SizedBox(width: 18),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Product Image',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  SizedBox(height: 5),
-                  Text('Tap to change the product image.'),
-                ],
-              ),
-            ),
-            const Icon(Icons.camera_alt_outlined),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.icon,
-    required this.child,
-  });
-
-  final String title;
-  final IconData icon;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: AppColors.primary),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ],
           ),
-          const SizedBox(height: AppSpacing.lg),
-          child,
+          const SizedBox(width: AppSpacing.lg),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Product Image',
+                  style: textTheme.titleSmall?.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  selectedImageBytes != null
+                      ? 'New image selected. It uploads when you save.'
+                      : 'Tap to change the product image.',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          const Icon(
+            Icons.photo_camera_outlined,
+            color: AppColors.textSecondary,
+          ),
         ],
       ),
     );
