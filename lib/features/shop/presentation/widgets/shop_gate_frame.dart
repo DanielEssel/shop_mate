@@ -8,6 +8,7 @@ import '../../../../app/theme/app_shadows.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../admin/presentation/providers/admin_providers.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../../core/ui/brand.dart';
 
 /// Page frame shared by the shop gate screens (register, pending, suspended,
 /// unavailable, loading). Mirrors the login/signup look: brand lockup above a
@@ -66,41 +67,13 @@ class ShopGateFrame extends StatelessWidget {
   }
 }
 
-/// Same mark as the drawer header: mint chip with the storefront icon.
+/// The official ShopMate logo and name, centred above the gate content.
 class _BrandLockup extends StatelessWidget {
   const _BrandLockup();
 
-  static const double _chipSize = 48;
-
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        ExcludeSemantics(
-          child: Container(
-            width: _chipSize,
-            height: _chipSize,
-            decoration: BoxDecoration(
-              color: AppColors.primaryLight,
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-            ),
-            child: const Icon(
-              Icons.storefront_outlined,
-              size: 26,
-              color: AppColors.primary,
-            ),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.md),
-        Text(
-          'ShopMate',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-        ),
-      ],
-    );
+    return const Center(child: ShopMateBrand(logoSize: 48));
   }
 }
 

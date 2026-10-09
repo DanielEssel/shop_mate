@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/theme/app_colors.dart';
-import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
-import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
 import '../../../shop/presentation/providers/shop_provider.dart';
 import '../../domain/entities/product_category.dart';
 import '../../domain/entities/product_category_exception.dart';
@@ -99,27 +98,15 @@ class _ProductCategoriesScreenState
 
   Future<void> _archive(ProductCategorySummary summary) async {
     final category = summary.category;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Archive ${category.name}?'),
-        content: const Text(
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Archive ${category.name}?',
+      message:
           "It won't be offered for new products. Products already in this "
           'category keep it, and you can restore it later.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Archive'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Archive',
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     await _run(
       () => ref
           .read(setProductCategoryActiveProvider)
@@ -157,27 +144,22 @@ class _ProductCategoriesScreenState
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        title: Text(
-          'Product Categories',
-          style: AppTypography.textTheme.titleLarge!.copyWith(
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(2),
-          child: _isSaving
-              ? const LinearProgressIndicator(minHeight: 2)
-              : const SizedBox(height: 2),
-        ),
-      ),
       body: SafeArea(
+        bottom: false,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final isDesktop = constraints.maxWidth >= 900;
+            final width = constraints.maxWidth;
+            final horizontal = Breakpoints.pagePadding(
+              width,
+              maxWidth: ContentWidth.standard,
+            );
+
+            SliverPadding boxed(Widget child, {double bottom = 0}) {
+              return SliverPadding(
+                padding: EdgeInsets.fromLTRB(horizontal, 0, horizontal, bottom),
+                sliver: SliverToBoxAdapter(child: child),
+              );
+            }
 
             return RefreshIndicator(
               onRefresh: () async {
@@ -188,101 +170,110 @@ class _ProductCategoriesScreenState
                   // Shown inline by the error state.
                 }
               },
-              child: ListView(
+              child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: EdgeInsets.fromLTRB(
-                  isDesktop ? AppSpacing.xl : AppSpacing.md,
-                  isDesktop ? AppSpacing.lg : AppSpacing.sm,
-                  isDesktop ? AppSpacing.xl : AppSpacing.md,
-                  AppSpacing.xxxl,
-                ),
-                children: [
-                  Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 720),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _Header(
-                            isOwner: isOwner,
-                            onCreate: _isSaving ? null : _create,
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
-                          TextField(
-                            controller: _searchController,
-                            decoration: InputDecoration(
-                              labelText: 'Search categories',
-                              prefixIcon: const Icon(Icons.search_rounded),
-                              suffixIcon: _query.isEmpty
-                                  ? null
-                                  : IconButton(
-                                      tooltip: 'Clear search',
-                                      onPressed: _searchController.clear,
-                                      icon: const Icon(Icons.clear_rounded),
-                                    ),
+                slivers: [
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontal,
+                      Breakpoints.of(width).isCompact
+                          ? AppSpacing.md
+                          : AppSpacing.xxl,
+                      horizontal,
+                      AppSpacing.xl,
+                    ),
+                    sliver: SliverToBoxAdapter(
+                      child: PageHeader(
+                        title: 'Product Categories',
+                        subtitle: isOwner
+                            ? 'Organise your products into your own categories.'
+                            : 'Only the shop owner can manage categories.',
+                        leading: pageHeaderLeading(context),
+                        actions: [
+                          if (isOwner)
+                            PrimaryButton(
+                              label: 'New category',
+                              icon: Icons.add_rounded,
+                              onPressed: _isSaving ? null : _create,
                             ),
-                          ),
-                          const SizedBox(height: AppSpacing.md),
-                          Wrap(
-                            spacing: AppSpacing.sm,
-                            children: [
-                              ChoiceChip(
-                                label: const Text('Active'),
-                                selected: _view == _CategoryView.active,
-                                onSelected: (_) => setState(
-                                  () => _view = _CategoryView.active,
-                                ),
-                              ),
-                              ChoiceChip(
-                                label: const Text('Archived'),
-                                selected: _view == _CategoryView.archived,
-                                onSelected: (_) => setState(
-                                  () => _view = _CategoryView.archived,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: AppSpacing.lg),
-                          categoriesAsync.when(
-                            loading: () => const Padding(
-                              padding: EdgeInsets.symmetric(
-                                vertical: AppSpacing.section,
-                              ),
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  semanticsLabel: 'Loading categories',
-                                ),
-                              ),
-                            ),
-                            error: (error, _) => _StateCard(
-                              icon: Icons.error_outline_rounded,
-                              title: 'Unable to load categories',
-                              message: error is ProductCategoryException
-                                  ? error.message
-                                  : ProductCategoryErrorKind.loadFailed.message,
-                              action: OutlinedButton.icon(
-                                onPressed: () =>
-                                    ref.invalidate(productCategoriesProvider),
-                                icon: const Icon(Icons.refresh_rounded),
-                                label: const Text('Retry'),
-                              ),
-                            ),
-                            data: (summaries) => _CategoryList(
-                              summaries: summaries,
-                              view: _view,
-                              query: _query,
-                              isOwner: isOwner,
-                              isSaving: _isSaving,
-                              onCreate: _create,
-                              onClearSearch: _searchController.clear,
-                              onRename: (summary) => _rename(summary.category),
-                              onArchive: _archive,
-                              onRestore: (summary) =>
-                                  _restore(summary.category),
-                            ),
-                          ),
                         ],
                       ),
+                    ),
+                  ),
+                  // A thin bar while a change is being saved.
+                  boxed(
+                    SizedBox(
+                      height: 2,
+                      child: _isSaving
+                          ? const LinearProgressIndicator(minHeight: 2)
+                          : null,
+                    ),
+                    bottom: AppSpacing.sm,
+                  ),
+                  boxed(
+                    AppSearchField(
+                      controller: _searchController,
+                      hintText: 'Search categories',
+                      onChanged: (_) {},
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: FilterChipBar(
+                      padding: EdgeInsets.fromLTRB(
+                        horizontal,
+                        AppSpacing.md,
+                        horizontal,
+                        AppSpacing.lg,
+                      ),
+                      children: [
+                        AppFilterChip(
+                          label: 'Active',
+                          selected: _view == _CategoryView.active,
+                          onSelected: () =>
+                              setState(() => _view = _CategoryView.active),
+                        ),
+                        AppFilterChip(
+                          label: 'Archived',
+                          selected: _view == _CategoryView.archived,
+                          onSelected: () =>
+                              setState(() => _view = _CategoryView.archived),
+                        ),
+                      ],
+                    ),
+                  ),
+                  ...categoriesAsync.when(
+                    loading: () => [
+                      boxed(
+                        Semantics(
+                          container: true,
+                          label: 'Loading categories',
+                          child: const ExcludeSemantics(
+                            child: SkeletonList(rows: 4),
+                          ),
+                        ),
+                      ),
+                    ],
+                    error: (error, _) => [
+                      boxed(
+                        SurfaceCard(
+                          child: ErrorState(
+                            compact: true,
+                            icon: Icons.error_outline_rounded,
+                            title: 'Unable to load categories',
+                            message: error is ProductCategoryException
+                                ? error.message
+                                : ProductCategoryErrorKind.loadFailed.message,
+                            retryLabel: 'Retry',
+                            onRetry: () =>
+                                ref.invalidate(productCategoriesProvider),
+                          ),
+                        ),
+                      ),
+                    ],
+                    data: (summaries) => _categorySlivers(
+                      summaries,
+                      horizontal: horizontal,
+                      isOwner: isOwner,
                     ),
                   ),
                 ],
@@ -293,149 +284,231 @@ class _ProductCategoriesScreenState
       ),
     );
   }
-}
 
-class _Header extends StatelessWidget {
-  const _Header({required this.isOwner, required this.onCreate});
-
-  final bool isOwner;
-  final VoidCallback? onCreate;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: AppSpacing.md,
-      runSpacing: AppSpacing.md,
-      children: [
-        Text(
-          isOwner
-              ? 'Organise your products into your own categories.'
-              : 'Only the shop owner can manage categories.',
-          style: AppTypography.textTheme.bodyMedium!.copyWith(
-            color: AppColors.textSecondary,
-          ),
-        ),
-        if (isOwner)
-          FilledButton.icon(
-            onPressed: onCreate,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('New category'),
-          ),
-      ],
-    );
-  }
-}
-
-class _CategoryList extends StatelessWidget {
-  const _CategoryList({
-    required this.summaries,
-    required this.view,
-    required this.query,
-    required this.isOwner,
-    required this.isSaving,
-    required this.onCreate,
-    required this.onClearSearch,
-    required this.onRename,
-    required this.onArchive,
-    required this.onRestore,
-  });
-
-  final List<ProductCategorySummary> summaries;
-  final _CategoryView view;
-  final String query;
-  final bool isOwner;
-  final bool isSaving;
-  final VoidCallback onCreate;
-  final VoidCallback onClearSearch;
-  final ValueChanged<ProductCategorySummary> onRename;
-  final ValueChanged<ProductCategorySummary> onArchive;
-  final ValueChanged<ProductCategorySummary> onRestore;
-
-  @override
-  Widget build(BuildContext context) {
+  List<Widget> _categorySlivers(
+    List<ProductCategorySummary> summaries, {
+    required double horizontal,
+    required bool isOwner,
+  }) {
     final inView = summaries
         .where(
           (summary) =>
-              summary.category.isActive == (view == _CategoryView.active),
+              summary.category.isActive == (_view == _CategoryView.active),
         )
         .toList(growable: false);
-    final results = query.isEmpty
+    final results = _query.isEmpty
         ? inView
         : inView
               .where(
                 (summary) =>
-                    summary.category.name.toLowerCase().contains(query),
+                    summary.category.name.toLowerCase().contains(_query),
               )
               .toList(growable: false);
 
-    if (inView.isEmpty) {
-      return view == _CategoryView.active
-          ? _StateCard(
-              icon: Icons.category_outlined,
-              title: 'No categories yet',
-              message:
-                  'Categories help you organise and filter your products. '
-                  'Products can also have no category.',
-              action: isOwner
-                  ? FilledButton.icon(
-                      onPressed: isSaving ? null : onCreate,
-                      icon: const Icon(Icons.add_rounded),
-                      label: const Text('New category'),
-                    )
-                  : null,
-            )
-          : const _StateCard(
-              icon: Icons.inventory_2_outlined,
-              title: 'No archived categories',
-              message: 'Categories you archive will appear here.',
-            );
-    }
-
-    if (results.isEmpty) {
-      return _StateCard(
-        icon: Icons.search_off_rounded,
-        title: 'No categories found',
-        message: 'No categories match your search.',
-        action: OutlinedButton(
-          onPressed: onClearSearch,
-          child: const Text('Clear search'),
+    SliverPadding message(Widget child) {
+      return SliverPadding(
+        padding: EdgeInsets.fromLTRB(
+          horizontal,
+          0,
+          horizontal,
+          AppSpacing.xxxl,
         ),
+        sliver: SliverToBoxAdapter(child: SurfaceCard(child: child)),
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final summary in results) ...[
-          _CategoryTile(
-            summary: summary,
-            isOwner: isOwner,
-            enabled: !isSaving,
-            onRename: () => onRename(summary),
-            onArchive: () => onArchive(summary),
-            onRestore: () => onRestore(summary),
+    if (inView.isEmpty) {
+      return [
+        message(
+          _view == _CategoryView.active
+              ? EmptyState(
+                  icon: Icons.category_outlined,
+                  title: 'No categories yet',
+                  message:
+                      'Categories help you organise and filter your products. '
+                      'Products can also have no category.',
+                  actions: isOwner
+                      ? [
+                          FilledButton.icon(
+                            onPressed: _isSaving ? null : _create,
+                            icon: const Icon(Icons.add_rounded),
+                            label: const Text('New category'),
+                          ),
+                        ]
+                      : null,
+                )
+              : const EmptyState(
+                  icon: Icons.inventory_2_outlined,
+                  title: 'No archived categories',
+                  message: 'Categories you archive will appear here.',
+                ),
+        ),
+      ];
+    }
+
+    if (results.isEmpty) {
+      return [
+        message(
+          EmptyState(
+            icon: Icons.search_off_rounded,
+            title: 'No categories found',
+            message: 'No categories match your search.',
+            actions: [
+              OutlinedButton(
+                onPressed: _searchController.clear,
+                child: const Text('Clear search'),
+              ),
+            ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-        ],
+        ),
+      ];
+    }
+
+    Widget? menu(ProductCategorySummary summary) {
+      if (!isOwner) return null;
+      return _CategoryMenu(
+        category: summary.category,
+        enabled: !_isSaving,
+        onRename: () => _rename(summary.category),
+        onArchive: () => _archive(summary),
+        onRestore: () => _restore(summary.category),
+      );
+    }
+
+    return [
+      SliverPadding(
+        padding: EdgeInsets.fromLTRB(
+          horizontal,
+          0,
+          horizontal,
+          AppSpacing.xxxl,
+        ),
+        sliver: SliverAdaptiveDataTable<ProductCategorySummary>(
+          rows: results,
+          compactRowBuilder: (context, summary) =>
+              _CategoryRow(summary: summary, menu: menu(summary)),
+          columns: [
+            DataColumnSpec<ProductCategorySummary>(
+              label: 'Category',
+              flex: 5,
+              compare: (a, b) => a.category.name.toLowerCase().compareTo(
+                b.category.name.toLowerCase(),
+              ),
+              cell: (summary) => Row(
+                children: [
+                  const IconTile(icon: Icons.category_outlined, size: 32),
+                  const SizedBox(width: AppSpacing.md),
+                  Flexible(
+                    child: Text(
+                      summary.category.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            DataColumnSpec<ProductCategorySummary>(
+              label: 'Products',
+              flex: 2,
+              numeric: true,
+              compare: (a, b) =>
+                  a.activeProductCount.compareTo(b.activeProductCount),
+              cell: (summary) => Text(
+                _productCount(summary.activeProductCount),
+                style: const TextStyle(color: AppColors.textSecondary),
+              ),
+            ),
+            DataColumnSpec<ProductCategorySummary>(
+              label: 'Status',
+              flex: 2,
+              cell: (summary) => Align(
+                alignment: Alignment.centerLeft,
+                child: _StatusBadge(isActive: summary.category.isActive),
+              ),
+            ),
+            if (isOwner)
+              DataColumnSpec<ProductCategorySummary>(
+                label: '',
+                flex: 1,
+                numeric: true,
+                cell: (summary) => menu(summary)!,
+              ),
+          ],
+        ),
+      ),
+    ];
+  }
+}
+
+String _productCount(int count) {
+  return '$count ${count == 1 ? 'product' : 'products'}';
+}
+
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.isActive});
+
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    return isActive
+        ? const StatusBadge(
+            label: 'Active',
+            tone: StatusTone.success,
+            icon: Icons.check_circle_outline_rounded,
+          )
+        : const StatusBadge(
+            label: 'Archived',
+            tone: StatusTone.neutral,
+            icon: Icons.inventory_2_outlined,
+          );
+  }
+}
+
+/// A category on phones: name, product count and the owner's actions.
+class _CategoryRow extends StatelessWidget {
+  const _CategoryRow({required this.summary, this.menu});
+
+  final ProductCategorySummary summary;
+  final Widget? menu;
+
+  @override
+  Widget build(BuildContext context) {
+    final category = summary.category;
+    final menu = this.menu;
+
+    return ListRow(
+      title: category.name,
+      titleMaxLines: 2,
+      details: [
+        '${_productCount(summary.activeProductCount)}'
+            '${category.isActive ? '' : ' · Archived'}',
       ],
+      leading: const IconTile(icon: Icons.category_outlined),
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.lg,
+        AppSpacing.md,
+        menu == null ? AppSpacing.lg : AppSpacing.xs,
+        AppSpacing.md,
+      ),
+      trailing: menu,
     );
   }
 }
 
-class _CategoryTile extends StatelessWidget {
-  const _CategoryTile({
-    required this.summary,
-    required this.isOwner,
+/// Owner-only: rename, and archive or restore.
+class _CategoryMenu extends StatelessWidget {
+  const _CategoryMenu({
+    required this.category,
     required this.enabled,
     required this.onRename,
     required this.onArchive,
     required this.onRestore,
   });
 
-  final ProductCategorySummary summary;
-  final bool isOwner;
+  final ProductCategory category;
   final bool enabled;
   final VoidCallback onRename;
   final VoidCallback onArchive;
@@ -443,126 +516,48 @@ class _CategoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final category = summary.category;
-    final count = summary.activeProductCount;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: AppSpacing.sm,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.category_outlined, color: AppColors.textSecondary),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  category.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.textTheme.titleSmall!.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '$count ${count == 1 ? 'product' : 'products'}'
-                  '${category.isActive ? '' : ' · Archived'}',
-                  style: AppTypography.textTheme.bodySmall!.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
+    return PopupMenuButton<String>(
+      tooltip: 'Actions for ${category.name}',
+      enabled: enabled,
+      icon: const Icon(Icons.more_vert_rounded, color: AppColors.textSecondary),
+      onSelected: (action) {
+        switch (action) {
+          case 'rename':
+            onRename();
+          case 'archive':
+            onArchive();
+          case 'restore':
+            onRestore();
+        }
+      },
+      itemBuilder: (_) => [
+        const PopupMenuItem(
+          value: 'rename',
+          child: ListTile(
+            leading: Icon(Icons.edit_outlined),
+            title: Text('Rename'),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        if (category.isActive)
+          const PopupMenuItem(
+            value: 'archive',
+            child: ListTile(
+              leading: Icon(Icons.inventory_2_outlined),
+              title: Text('Archive'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          )
+        else
+          const PopupMenuItem(
+            value: 'restore',
+            child: ListTile(
+              leading: Icon(Icons.unarchive_outlined),
+              title: Text('Restore'),
+              contentPadding: EdgeInsets.zero,
             ),
           ),
-          if (isOwner)
-            PopupMenuButton<String>(
-              tooltip: 'Actions for ${category.name}',
-              enabled: enabled,
-              onSelected: (action) {
-                switch (action) {
-                  case 'rename':
-                    onRename();
-                  case 'archive':
-                    onArchive();
-                  case 'restore':
-                    onRestore();
-                }
-              },
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'rename', child: Text('Rename')),
-                if (category.isActive)
-                  const PopupMenuItem(value: 'archive', child: Text('Archive'))
-                else
-                  const PopupMenuItem(value: 'restore', child: Text('Restore')),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StateCard extends StatelessWidget {
-  const _StateCard({
-    required this.icon,
-    required this.title,
-    required this.message,
-    this.action,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        vertical: AppSpacing.xxl,
-        horizontal: AppSpacing.lg,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, size: 44, color: AppColors.textSecondary),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: AppTypography.textTheme.titleMedium!.copyWith(
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: AppTypography.textTheme.bodyMedium!.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          if (action case final action?) ...[
-            const SizedBox(height: AppSpacing.lg),
-            action,
-          ],
-        ],
-      ),
+      ],
     );
   }
 }
@@ -599,23 +594,50 @@ class _CategoryNameDialogState extends State<_CategoryNameDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(widget.title),
-      content: Form(
-        key: _formKey,
-        child: TextFormField(
-          controller: _controller,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          textInputAction: TextInputAction.done,
-          onFieldSubmitted: (_) => _save(),
-          decoration: const InputDecoration(labelText: 'Category name'),
-          validator: (value) => ProductCategoryName.isValid(value ?? '')
-              ? null
-              : ProductCategoryErrorKind.invalidName.message,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 320, maxWidth: 420),
+        child: Form(
+          key: _formKey,
+          // The counter shows the length the validator checks (trimmed,
+          // counted by character) without capping what can be typed.
+          child: ListenableBuilder(
+            listenable: _controller,
+            builder: (context, _) {
+              final length = _controller.text.trim().runes.length;
+              final over = length > ProductCategoryName.maxLength;
+
+              return TextFormField(
+                controller: _controller,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) => _save(),
+                decoration: InputDecoration(
+                  labelText: 'Category name',
+                  prefixIcon: const Icon(Icons.category_outlined),
+                  counterText: '$length / ${ProductCategoryName.maxLength}',
+                  counterStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: over ? AppColors.danger : AppColors.textMuted,
+                  ),
+                ),
+                validator: (value) => ProductCategoryName.isValid(value ?? '')
+                    ? null
+                    : ProductCategoryErrorKind.invalidName.message,
+              );
+            },
+          ),
         ),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(
+        AppSpacing.xxl,
+        0,
+        AppSpacing.xxl,
+        AppSpacing.xl,
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
+          style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
           child: const Text('Cancel'),
         ),
         FilledButton(onPressed: _save, child: const Text('Save')),

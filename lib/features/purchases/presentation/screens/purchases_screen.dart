@@ -128,7 +128,7 @@ class _PurchasesScreenState extends ConsumerState<PurchasesScreen> {
                   header,
                   Expanded(
                     child: ErrorState(
-                      title: 'Unable to load purchases.',
+                      title: 'Unable to load purchases',
                       message: 'Check your connection and try again.',
                       onRetry: _refresh,
                     ),

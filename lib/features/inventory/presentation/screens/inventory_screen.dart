@@ -119,20 +119,13 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     bottom: AppSpacing.xxl,
                   ),
                   ...productsAsync.when(
-                    loading: () => [
-                      boxed(
-                        const SurfaceCard(
-                          padding: EdgeInsets.zero,
-                          child: SkeletonList(),
-                        ),
-                      ),
-                    ],
+                    loading: () => [boxed(const SkeletonList())],
                     error: (error, stackTrace) => [
                       boxed(
                         SurfaceCard(
                           child: ErrorState(
                             compact: true,
-                            title: 'Unable to load inventory.',
+                            title: 'Unable to load inventory',
                             message: 'Check your connection and try again.',
                             onRetry: _refresh,
                           ),

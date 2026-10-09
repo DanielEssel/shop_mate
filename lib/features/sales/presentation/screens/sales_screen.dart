@@ -116,7 +116,7 @@ class _SalesScreenState extends ConsumerState<SalesScreen> {
                   header,
                   Expanded(
                     child: ErrorState(
-                      title: 'Unable to load sales.',
+                      title: 'Unable to load sales',
                       message: 'Check your connection and try again.',
                       onRetry: () => ref.invalidate(salesProvider),
                     ),

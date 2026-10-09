@@ -107,6 +107,39 @@ void main() {
       );
     });
 
+    testWidgets('on a short window the active item is shown whole, clear of '
+        'Sign Out', (tester) async {
+      // Tablet landscape, shorter than the destination list.
+      final h = await _pumpAt(tester, const Size(1180, 560));
+
+      h.router.go('/users');
+      await _settle(tester);
+
+      final signOut = tester.getRect(_sidebarItem('Sign Out'));
+      final users = tester.getRect(_sidebarItem('Users & Permissions'));
+      final screen = Offset.zero & tester.view.physicalSize;
+
+      expect(
+        tester
+            .widget<NavItemTile>(_sidebarItem('Users & Permissions'))
+            .selected,
+        isTrue,
+      );
+      // Scrolled into view, fully above the footer.
+      expect(users.top, greaterThanOrEqualTo(0));
+      expect(users.bottom, lessThanOrEqualTo(signOut.top));
+      // Sign Out stays on screen and usable.
+      expect(screen.contains(signOut.center), isTrue);
+      expect(
+        find.descendant(
+          of: find.byType(AppSidebar),
+          matching: find.byType(Scrollbar),
+        ),
+        findsOne,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('a nested route keeps its area active', (tester) async {
       final h = await _pumpAt(tester, desktop);
 

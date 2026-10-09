@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../products/domain/entities/product.dart';
+import '../../../../core/ui/ui.dart';
 
 class LowStockProductCard extends StatelessWidget {
   const LowStockProductCard({
@@ -23,10 +24,6 @@ class LowStockProductCard extends StatelessWidget {
     final isOutOfStock = product.isOutOfStock;
 
     final statusColor = isOutOfStock ? AppColors.error : AppColors.warning;
-
-    final statusBackground = isOutOfStock
-        ? AppColors.errorLight
-        : AppColors.warningLight;
 
     return Material(
       color: Colors.transparent,
@@ -71,23 +68,10 @@ class LowStockProductCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.sm,
-                    vertical: AppSpacing.xs,
-                  ),
-                  decoration: BoxDecoration(
-                    color: statusBackground,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    isOutOfStock ? 'OUT OF STOCK' : 'LOW STOCK',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: statusColor,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
+                // The shared badge, with the wording used across the app.
+                StatusBadge(
+                  label: isOutOfStock ? 'Out of stock' : 'Low stock',
+                  tone: isOutOfStock ? StatusTone.danger : StatusTone.warning,
                 ),
               ],
             ),

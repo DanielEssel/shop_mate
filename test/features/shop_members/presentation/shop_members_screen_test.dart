@@ -553,4 +553,78 @@ void main() {
       expect(find.text('Esi Mensah'), findsOne);
     });
   });
+
+  group('layout', () {
+    final longMembers = [
+      ownerMember,
+      shopMember(
+        'staff-1',
+        displayName: 'Akosua Darko-Appiah Mensah-Bonsu Owusu-Ansah',
+        email: 'akosua.darko-appiah.mensah-bonsu@kaneshie-market-branch.test',
+      ),
+      shopMember(
+        'staff-2',
+        displayName: 'Kofi Boateng',
+        email: 'kofi@shop.test',
+        status: ShopMemberStatus.suspended,
+      ),
+    ];
+
+    for (final (label, size) in [
+      ('320px', const Size(320, 1600)),
+      ('tablet', const Size(820, 1400)),
+      ('desktop', const Size(1440, 1000)),
+    ]) {
+      testWidgets('long member details fit at $label', (tester) async {
+        await _pump(tester, _repository(members: longMembers), size: size);
+
+        expect(tester.takeException(), isNull);
+        expect(find.text('Users & Permissions'), findsOne);
+        expect(_button('Add Shop Attendant').hitTestable(), findsOne);
+        // Every attendant keeps reachable actions; the owner has none.
+        expect(_button('Revoke access'), findsNWidgets(2));
+        expect(_inCard('Kofi Boateng', _button('Restore access')), findsOne);
+      });
+    }
+
+    testWidgets('the add form fits at 320px and keeps its actions', (
+      tester,
+    ) async {
+      await _pump(tester, _repository(), size: const Size(320, 700));
+      await _openForm(tester);
+
+      expect(tester.takeException(), isNull);
+      expect(_button('Add Attendant').hitTestable(), findsOne);
+      expect(_button('Cancel').hitTestable(), findsOne);
+    });
+
+    testWidgets('suspend and revoke confirm destructively; restore does not', (
+      tester,
+    ) async {
+      await _pump(tester, _repository());
+
+      Color? confirmColor(String label) => tester
+          .widget<FilledButton>(
+            find.descendant(
+              of: find.byType(AlertDialog),
+              matching: find.widgetWithText(FilledButton, label),
+            ),
+          )
+          .style
+          ?.backgroundColor
+          ?.resolve({});
+
+      await tester.tap(_inCard('Ama Mensah', _button('Revoke access')));
+      await tester.pumpAndSettle();
+      expect(confirmColor('Revoke access'), isNotNull);
+      await tester.tap(_dialogButton('Cancel'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(_inCard('Kofi Boateng', _button('Restore access')));
+      await tester.pumpAndSettle();
+      expect(confirmColor('Restore access'), isNull);
+      await tester.tap(_dialogButton('Cancel'));
+      await tester.pumpAndSettle();
+    });
+  });
 }

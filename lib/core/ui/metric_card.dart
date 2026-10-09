@@ -22,6 +22,8 @@ class MetricCard extends StatelessWidget {
     this.captionTone,
     this.emphasized = false,
     this.onTap,
+    this.badge,
+    this.valueColor,
   });
 
   final String label;
@@ -38,6 +40,14 @@ class MetricCard extends StatelessWidget {
   final bool emphasized;
   final VoidCallback? onTap;
 
+  /// A status shown under the value (e.g. Profit / Loss), so meaning is
+  /// carried by text and not by colour alone.
+  final Widget? badge;
+
+  /// Colours the value on a plain card (e.g. a loss); ignored when
+  /// [emphasized].
+  final Color? valueColor;
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -48,7 +58,8 @@ class MetricCard extends StatelessWidget {
         : AppColors.textSecondary;
     final valueColor = emphasized
         ? AppColors.textOnPrimary
-        : AppColors.textPrimary;
+        : this.valueColor ?? AppColors.textPrimary;
+    final badge = this.badge;
     final iconColor = emphasized ? AppColors.primaryBright : tone.foreground;
     final captionColor = emphasized
         ? AppColors.textOnPrimary.withValues(alpha: 0.64)
@@ -91,6 +102,7 @@ class MetricCard extends StatelessWidget {
               style: AppTypography.metricLarge.copyWith(color: valueColor),
             ),
           ),
+          if (badge != null) ...[const SizedBox(height: AppSpacing.sm), badge],
           if (caption case final caption?) ...[
             const SizedBox(height: AppSpacing.xs),
             Text(

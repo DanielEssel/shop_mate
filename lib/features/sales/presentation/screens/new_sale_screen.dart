@@ -147,7 +147,7 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
                   header,
                   Expanded(
                     child: ErrorState(
-                      title: 'Unable to load products.',
+                      title: 'Unable to load products',
                       message: 'Check your connection and try again.',
                       retryLabel: 'Retry',
                       onRetry: () => ref.invalidate(salesProductsProvider),
@@ -1174,7 +1174,9 @@ class _CartLine extends ConsumerWidget {
                       ? '${formatGhs(item.product.sellingPrice)} each · '
                             'all ${item.product.stockQuantity} in stock'
                       : '${formatGhs(item.product.sellingPrice)} each',
-                  maxLines: 1,
+                  // Wraps beside the stepper on small phones rather than
+                  // cutting off the price or the stock warning.
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: textTheme.bodySmall?.copyWith(
                     color: atStockLimit

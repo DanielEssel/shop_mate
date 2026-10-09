@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:shopmate/core/utils/date_format.dart';
 import 'package:shopmate/features/admin/domain/entities/admin_exception.dart';
 import 'package:shopmate/features/admin/domain/entities/admin_shop.dart';
 import 'package:shopmate/features/admin/presentation/providers/admin_providers.dart';
@@ -99,12 +101,19 @@ void main() {
   testWidgets('pending shops are listed with their details', (tester) async {
     await _pump(tester, _repository());
 
-    expect(find.text('Admin'), findsOne);
+    expect(find.text('Platform Admin'), findsOne);
     expect(find.text('Manage shops and platform access'), findsOne);
     expect(find.text('Pending Mart'), findsOne);
     expect(find.text('Owner: ama@gmail.com'), findsOne);
     expect(find.text('+233241234567'), findsOne);
     expect(find.textContaining('Registered'), findsOne);
+    // The shared date format, on the admin's local calendar day.
+    expect(
+      find.text(
+        'Registered ${formatShortDate(DateTime.utc(2026, 10, 1, 9).toLocal())}',
+      ),
+      findsOne,
+    );
     expect(_button('Approve'), findsOne);
   });
 
@@ -320,4 +329,67 @@ void main() {
     expect(find.text('Pending Mart'), findsNothing);
     expect(find.byType(TabBar), findsNothing);
   });
+
+  testWidgets('the platform scope is stated for admins only', (tester) async {
+    await _pump(tester, _repository());
+    expect(
+      find.textContaining('apply to whole shops and everyone in them'),
+      findsOne,
+    );
+  });
+
+  testWidgets('a non-admin is not shown the platform scope notice', (
+    tester,
+  ) async {
+    await _pump(tester, _repository()..isAdmin = false);
+    expect(
+      find.textContaining('apply to whole shops and everyone in them'),
+      findsNothing,
+    );
+  });
+
+  for (final (label, size) in [
+    ('320px', const Size(320, 900)),
+    ('tablet', const Size(820, 1180)),
+    ('desktop', const Size(1440, 900)),
+  ]) {
+    testWidgets('long names and emails fit at $label', (tester) async {
+      const email =
+          'kwame.mensah.procurement.department@kaneshie-wholesale-traders.com';
+      await _pump(
+        tester,
+        _repository(
+          shops: [
+            adminShop(
+              'p1',
+              'Kaneshie Wholesale & Retail Traders Association Limited Branch',
+              AdminShopStatus.pending,
+              ownerEmail: email,
+            ),
+            adminShop('p2', 'Second Mart', AdminShopStatus.pending),
+          ],
+        ),
+        size: size,
+      );
+
+      expect(tester.takeException(), isNull);
+      // The whole owner address stays readable, not clipped.
+      expect(find.text('Owner: $email'), findsOne);
+      final text = tester.renderObject<RenderParagraph>(
+        find.text('Owner: $email'),
+      );
+      expect(text.didExceedMaxLines, isFalse);
+      // Every row keeps a reachable action.
+      expect(_button('Approve'), findsNWidgets(2));
+      for (final button in tester.widgetList<ButtonStyleButton>(
+        _button('Approve'),
+      )) {
+        expect(button.enabled, isTrue);
+      }
+
+      await _tapAction(tester, 'Approve');
+      expect(tester.takeException(), isNull);
+      expect(find.byType(AlertDialog), findsOne);
+    });
+  }
 }

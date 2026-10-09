@@ -22,9 +22,14 @@ class ListRow extends StatelessWidget {
       vertical: AppSpacing.md,
     ),
     this.showChevron = false,
+    this.titleMaxLines = 1,
   });
 
   final String title;
+
+  /// Lines before the title is cut off; raise it where the full name
+  /// matters more than row height (e.g. category names).
+  final int titleMaxLines;
 
   /// Supporting facts under the title (category, time, payment method…),
   /// each its own text, separated by dots.
@@ -62,7 +67,7 @@ class ListRow extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    maxLines: 1,
+                    maxLines: titleMaxLines,
                     overflow: TextOverflow.ellipsis,
                     style: textTheme.bodyMedium?.copyWith(
                       color: AppColors.textPrimary,

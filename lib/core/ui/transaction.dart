@@ -209,14 +209,18 @@ class CheckoutBar extends StatelessWidget {
                         ),
                       ),
                     ),
+                    // Never clipped: the caption can be the change due.
                     if (caption != null)
-                      Text(
-                        caption,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: captionColor ?? AppColors.textMuted,
-                          fontWeight: FontWeight.w500,
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          caption,
+                          maxLines: 1,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: captionColor ?? AppColors.textMuted,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                   ],

@@ -163,7 +163,7 @@ class _CustomersScreenState extends ConsumerState<CustomersScreen> {
                   header,
                   Expanded(
                     child: ErrorState(
-                      title: 'Unable to load customers.',
+                      title: 'Unable to load customers',
                       message: 'Check your connection and try again.',
                       onRetry: _refresh,
                     ),

@@ -5,6 +5,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
 import '../../domain/entities/new_shop_attendant.dart';
 import '../../domain/entities/shop_members_exception.dart';
 import '../providers/shop_members_providers.dart';
@@ -147,10 +148,10 @@ class _AddShopAttendantFormState extends ConsumerState<AddShopAttendantForm> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
               AppSpacing.lg,
               AppSpacing.md,
-              AppSpacing.sm,
-              AppSpacing.sm,
+              AppSpacing.md,
             ),
             child: Row(
               children: [
@@ -161,7 +162,7 @@ class _AddShopAttendantFormState extends ConsumerState<AddShopAttendantForm> {
                       Text(
                         'Add Shop Attendant',
                         style: AppTypography.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: AppSpacing.xs),
@@ -187,41 +188,42 @@ class _AddShopAttendantFormState extends ConsumerState<AddShopAttendantForm> {
           const Divider(height: 1),
           Flexible(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(AppSpacing.lg),
+              padding: const EdgeInsets.all(AppSpacing.xl),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    TextFormField(
-                      controller: _nameController,
-                      enabled: !_isSubmitting,
-                      textCapitalization: TextCapitalization.words,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Full name',
-                        prefixIcon: Icon(Icons.person_outline_rounded),
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: AttendantInput.validateName,
-                      onChanged: (_) => _clearError(),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    TextFormField(
-                      controller: _emailController,
-                      enabled: !_isSubmitting,
-                      keyboardType: TextInputType.emailAddress,
-                      autocorrect: false,
-                      enableSuggestions: false,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        prefixIcon: Icon(Icons.mail_outline_rounded),
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: AttendantInput.validateEmail,
-                      onChanged: (_) => _clearError(),
+                    FieldRow(
+                      children: [
+                        TextFormField(
+                          controller: _nameController,
+                          enabled: !_isSubmitting,
+                          textCapitalization: TextCapitalization.words,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: 'Full name',
+                            prefixIcon: Icon(Icons.person_outline_rounded),
+                          ),
+                          validator: AttendantInput.validateName,
+                          onChanged: (_) => _clearError(),
+                        ),
+                        TextFormField(
+                          controller: _emailController,
+                          enabled: !_isSubmitting,
+                          keyboardType: TextInputType.emailAddress,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: 'Email',
+                            prefixIcon: Icon(Icons.mail_outline_rounded),
+                          ),
+                          validator: AttendantInput.validateEmail,
+                          onChanged: (_) => _clearError(),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: AppSpacing.md),
                     // No autofill hints: this is someone else's password and
@@ -238,7 +240,6 @@ class _AddShopAttendantFormState extends ConsumerState<AddShopAttendantForm> {
                         helperText: AttendantInput.passwordHelperText,
                         helperMaxLines: 3,
                         prefixIcon: const Icon(Icons.lock_outline_rounded),
-                        border: const OutlineInputBorder(),
                         suffixIcon: IconButton(
                           tooltip: _obscurePassword
                               ? 'Show password'
@@ -279,6 +280,9 @@ class _AddShopAttendantFormState extends ConsumerState<AddShopAttendantForm> {
               children: [
                 Expanded(
                   child: OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
                     onPressed: _isSubmitting
                         ? null
                         : () => Navigator.of(context).pop(),
@@ -287,7 +291,11 @@ class _AddShopAttendantFormState extends ConsumerState<AddShopAttendantForm> {
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
+                  flex: 2,
                   child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
                     onPressed: _isSubmitting ? null : _submit,
                     child: _isSubmitting
                         ? const SizedBox(
@@ -320,8 +328,9 @@ class _SubmitErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.errorLight,
+        color: AppColors.dangerLight,
         borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -330,7 +339,7 @@ class _SubmitErrorBanner extends StatelessWidget {
             child: Icon(
               Icons.error_outline_rounded,
               size: 20,
-              color: AppColors.error,
+              color: AppColors.danger,
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
@@ -338,7 +347,7 @@ class _SubmitErrorBanner extends StatelessWidget {
             child: Text(
               message,
               style: AppTypography.textTheme.bodyMedium?.copyWith(
-                color: AppColors.error,
+                color: AppColors.danger,
               ),
             ),
           ),

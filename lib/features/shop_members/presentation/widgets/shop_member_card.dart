@@ -4,6 +4,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
 import '../../domain/entities/shop_member.dart';
 
 /// The access changes an owner can make to an attendant.
@@ -17,9 +18,13 @@ enum ShopMemberAction {
   final String label;
 }
 
-/// One shop member. Access actions are offered only for an attendant who is
-/// not the signed-in account; the owner never gets controls over
-/// themselves, and the database refuses such changes regardless.
+/// One shop member as a row in a bordered list: identity, role, status and
+/// (for attendants) the access actions. Wide rows align these in columns;
+/// narrow rows stack the actions under the identity.
+///
+/// Access actions are offered only for an attendant who is not the
+/// signed-in account; the owner never gets controls over themselves, and
+/// the database refuses such changes regardless.
 class ShopMemberCard extends StatelessWidget {
   const ShopMemberCard({
     super.key,
@@ -43,106 +48,171 @@ class ShopMemberCard extends StatelessWidget {
 
   bool get _canManage => !member.isOwner && !isCurrentUser;
 
+  /// From this width the role, status and actions sit in columns.
+  static const double _columnsFrom = 880;
+
+  /// From this width the actions sit beside the identity.
+  static const double _sideActionsFrom = 560;
+
   @override
   Widget build(BuildContext context) {
-    final textTheme = AppTypography.textTheme;
     final email = member.email;
     final showEmail = email != null && email != member.label;
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    final identity = Row(
+      children: [
+        _Initial(label: member.label, isOwner: member.isOwner),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              _Initial(label: member.label, isOwner: member.isOwner),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isCurrentUser ? '${member.label} (You)' : member.label,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    if (showEmail) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        email,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: AppSpacing.sm),
-                    Wrap(
-                      spacing: AppSpacing.sm,
-                      runSpacing: AppSpacing.xs,
-                      children: [
-                        _Chip(
-                          label: member.isOwner
-                              ? 'Shop Owner'
-                              : 'Shop Attendant',
-                          color: member.isOwner
-                              ? AppColors.primary
-                              : AppColors.info,
-                          background: member.isOwner
-                              ? AppColors.primaryLight
-                              : AppColors.infoLight,
-                        ),
-                        if (member.isActive)
-                          const _Chip(
-                            label: 'Active',
-                            color: AppColors.success,
-                            background: AppColors.successLight,
-                          )
-                        else
-                          const _Chip(
-                            label: 'Suspended',
-                            color: AppColors.error,
-                            background: AppColors.errorLight,
-                          ),
-                      ],
-                    ),
-                  ],
+              Text(
+                isCurrentUser ? '${member.label} (You)' : member.label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
                 ),
               ),
+              if (showEmail) ...[
+                const SizedBox(height: 2),
+                Text(
+                  email,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.textTheme.bodySmall?.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ],
             ],
           ),
-          if (_canManage) ...[
-            const SizedBox(height: AppSpacing.md),
-            Wrap(
-              alignment: WrapAlignment.end,
-              spacing: AppSpacing.sm,
-              runSpacing: AppSpacing.xs,
-              children: [
-                TextButton(
-                  onPressed: isLocked
-                      ? null
-                      : () => onAction(member, ShopMemberAction.revoke),
-                  style: TextButton.styleFrom(foregroundColor: AppColors.error),
-                  child: Text(ShopMemberAction.revoke.label),
-                ),
-                _statusButton(),
-              ],
-            ),
-          ],
-        ],
+        ),
+      ],
+    );
+
+    final role = StatusBadge(
+      label: member.isOwner ? 'Shop Owner' : 'Shop Attendant',
+      tone: member.isOwner ? StatusTone.brand : StatusTone.neutral,
+      icon: member.isOwner
+          ? Icons.workspace_premium_outlined
+          : Icons.badge_outlined,
+    );
+
+    final status = member.isActive
+        ? const StatusBadge(
+            label: 'Active',
+            tone: StatusTone.success,
+            icon: Icons.check_circle_outline_rounded,
+          )
+        : const StatusBadge(
+            label: 'Suspended',
+            tone: StatusTone.warning,
+            icon: Icons.block_rounded,
+          );
+
+    final actions = _canManage ? _actions() : null;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
       ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final badges = Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            children: [role, status],
+          );
+
+          // Desktop: identity, role, status and actions in aligned columns.
+          if (constraints.maxWidth >= _columnsFrom) {
+            return Row(
+              children: [
+                Expanded(child: identity),
+                const SizedBox(width: AppSpacing.md),
+                SizedBox(
+                  width: 160,
+                  child: Align(alignment: Alignment.centerLeft, child: role),
+                ),
+                SizedBox(
+                  width: 130,
+                  child: Align(alignment: Alignment.centerLeft, child: status),
+                ),
+                // Keeps owner and attendant rows aligned even when only
+                // attendants have actions.
+                SizedBox(
+                  width: 330,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: actions ?? const SizedBox.shrink(),
+                  ),
+                ),
+              ],
+            );
+          }
+
+          final details = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              identity,
+              const SizedBox(height: AppSpacing.sm),
+              Padding(
+                padding: const EdgeInsets.only(left: 40 + AppSpacing.md),
+                child: badges,
+              ),
+            ],
+          );
+
+          // Tablet: the actions sit beside the identity.
+          if (constraints.maxWidth >= _sideActionsFrom && actions != null) {
+            return Row(
+              children: [
+                Expanded(child: details),
+                const SizedBox(width: AppSpacing.lg),
+                actions,
+              ],
+            );
+          }
+
+          // Phone: actions under the identity.
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              details,
+              if (actions != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                Align(alignment: Alignment.centerRight, child: actions),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// Revoke is quieter (and asks first); suspend/restore is the everyday
+  /// action.
+  Widget _actions() {
+    return Wrap(
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.xs,
+      children: [
+        TextButton(
+          onPressed: isLocked
+              ? null
+              : () => onAction(member, ShopMemberAction.revoke),
+          style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+          child: Text(ShopMemberAction.revoke.label),
+        ),
+        _statusButton(),
+      ],
     );
   }
 
@@ -167,17 +237,11 @@ class ShopMemberCard extends StatelessWidget {
           );
     final onPressed = isLocked ? null : () => onAction(member, action);
 
-    return action == ShopMemberAction.suspend
-        ? OutlinedButton.icon(
-            onPressed: onPressed,
-            icon: icon,
-            label: Text(action.label),
-          )
-        : FilledButton.icon(
-            onPressed: onPressed,
-            icon: icon,
-            label: Text(action.label),
-          );
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: icon,
+      label: Text(action.label),
+    );
   }
 }
 
@@ -199,48 +263,15 @@ class _Initial extends StatelessWidget {
         height: 40,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isOwner ? AppColors.primaryLight : AppColors.surfaceMuted,
+          color: isOwner ? AppColors.primarySoft : AppColors.surfaceMuted,
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         child: Text(
           initial,
           style: AppTypography.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: isOwner ? AppColors.primary : AppColors.textSecondary,
+            fontWeight: FontWeight.w600,
+            color: isOwner ? AppColors.primaryDark : AppColors.textSecondary,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  const _Chip({
-    required this.label,
-    required this.color,
-    required this.background,
-  });
-
-  final String label;
-  final Color color;
-  final Color background;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: 2,
-      ),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-      ),
-      child: Text(
-        label,
-        style: AppTypography.textTheme.labelSmall?.copyWith(
-          color: color,
-          fontWeight: FontWeight.w700,
         ),
       ),
     );

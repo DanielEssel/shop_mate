@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../../core/ui/brand.dart';
 
 /// The layout shared by the sign-in, sign-up and password recovery screens.
 ///
@@ -223,7 +224,7 @@ class _BrandPanel extends StatelessWidget {
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const _BrandLockup(),
+                        const _BrandLockup(logoSize: 64),
                         const Spacer(),
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 440),
@@ -275,41 +276,16 @@ class _BrandPanel extends StatelessWidget {
   }
 }
 
-/// ShopMate mark for dark surfaces: the storefront chip used in the drawer
-/// and shop gate, in its on-dark colours.
+/// The official ShopMate logo and name, in their on-dark colours. Larger
+/// on the wide brand panel than in the compact phone band.
 class _BrandLockup extends StatelessWidget {
-  const _BrandLockup();
+  const _BrandLockup({this.logoSize = 48});
+
+  final double logoSize;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ExcludeSemantics(
-          child: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.primaryBright.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-            child: const Icon(
-              Icons.storefront_outlined,
-              size: 22,
-              color: AppColors.primaryBright,
-            ),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.md),
-        Text(
-          'ShopMate',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: AppColors.textOnPrimary,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
+    return ShopMateBrand(onDark: true, logoSize: logoSize);
   }
 }
 

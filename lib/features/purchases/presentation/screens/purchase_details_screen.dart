@@ -1,619 +1,284 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_spacing.dart';
+import '../../../../core/ui/ui.dart';
+import '../../../../core/utils/date_format.dart';
+import '../../../../core/utils/money_format.dart';
 import '../../domain/entities/purchase.dart';
 import '../../domain/entities/purchase_item.dart';
 import '../providers/purchases_provider.dart';
+import '../widgets/purchase_card.dart';
 
 class PurchaseDetailsScreen extends ConsumerWidget {
   const PurchaseDetailsScreen({super.key, required this.purchaseId});
 
   final String purchaseId;
 
+  void _invalidate(WidgetRef ref) {
+    ref.invalidate(purchaseProvider(purchaseId));
+    ref.invalidate(purchaseItemsProvider(purchaseId));
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final purchaseAsync = ref.watch(purchaseProvider(purchaseId));
-
     final itemsAsync = ref.watch(purchaseItemsProvider(purchaseId));
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
-      appBar: AppBar(
-        title: const Text(
-          'Purchase Details',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: () {
-              ref.invalidate(purchaseProvider(purchaseId));
-              ref.invalidate(purchaseItemsProvider(purchaseId));
-            },
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
-      body: purchaseAsync.when(
-        loading: () {
-          return const Center(child: CircularProgressIndicator());
-        },
-        error: (error, stackTrace) {
-          return _PurchaseErrorState(
-            error: error,
-            onRetry: () {
-              ref.invalidate(purchaseProvider(purchaseId));
-              ref.invalidate(purchaseItemsProvider(purchaseId));
-            },
-          );
-        },
-        data: (purchase) {
-          return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(purchaseProvider(purchaseId));
-              ref.invalidate(purchaseItemsProvider(purchaseId));
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final isCompact = Breakpoints.of(width).isCompact;
+            final horizontal = Breakpoints.pagePadding(
+              width,
+              maxWidth: ContentWidth.standard,
+            );
 
-              await ref.read(purchaseProvider(purchaseId).future);
-            },
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-              children: [
-                _PurchaseHeader(purchase: purchase),
-                const SizedBox(height: 16),
-                _PurchaseSummaryCard(purchase: purchase),
-                const SizedBox(height: 16),
-                _SupplierCard(purchase: purchase),
-                const SizedBox(height: 16),
-                _PurchaseItemsCard(itemsAsync: itemsAsync),
-                if (purchase.notes != null &&
-                    purchase.notes!.trim().isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  _NotesCard(notes: purchase.notes!),
-                ],
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-// =============================================================
-// PURCHASE HEADER
-// =============================================================
-
-class _PurchaseHeader extends StatelessWidget {
-  const _PurchaseHeader({required this.purchase});
-
-  final Purchase purchase;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF087F5B),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(14),
+            return RefreshIndicator(
+              onRefresh: () async {
+                _invalidate(ref);
+                await ref.read(purchaseProvider(purchaseId).future);
+              },
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(
+                  horizontal,
+                  isCompact ? AppSpacing.md : AppSpacing.xxl,
+                  horizontal,
+                  AppSpacing.xxxl,
                 ),
-                child: const Icon(
-                  Icons.shopping_bag_rounded,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text(
-                      'Purchase',
-                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                    PageHeader(
+                      title: 'Purchase Details',
+                      leading: pageHeaderLeading(context),
+                      actions: [
+                        IconButton(
+                          tooltip: 'Refresh',
+                          onPressed: () => _invalidate(ref),
+                          icon: const Icon(Icons.refresh_rounded),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      purchase.purchaseNumber,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 19,
-                        fontWeight: FontWeight.w800,
+                    const SizedBox(height: AppSpacing.xxl),
+                    purchaseAsync.when(
+                      loading: () => const _DetailsSkeleton(),
+                      error: (error, stackTrace) => SurfaceCard(
+                        child: ErrorState(
+                          compact: true,
+                          title: 'Unable to load purchase',
+                          message: error.toString(),
+                          onRetry: () => _invalidate(ref),
+                        ),
+                      ),
+                      data: (purchase) => _PurchaseDetailsBody(
+                        purchase: purchase,
+                        itemsAsync: itemsAsync,
+                        wide: width >= Breakpoints.expanded,
                       ),
                     ),
                   ],
                 ),
               ),
-              _StatusBadge(status: purchase.status),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              const Icon(
-                Icons.calendar_today_outlined,
-                size: 16,
-                color: Colors.white70,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                _formatDate(purchase.purchaseDate),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ],
+            );
+          },
+        ),
       ),
     );
   }
 }
 
-// =============================================================
-// SUMMARY
-// =============================================================
-
-class _PurchaseSummaryCard extends StatelessWidget {
-  const _PurchaseSummaryCard({required this.purchase});
+class _PurchaseDetailsBody extends StatelessWidget {
+  const _PurchaseDetailsBody({
+    required this.purchase,
+    required this.itemsAsync,
+    required this.wide,
+  });
 
   final Purchase purchase;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'Payment Summary',
-      icon: Icons.payments_outlined,
-      child: Column(
-        children: [
-          _AmountRow(
-            label: 'Total amount',
-            amount: purchase.totalAmount,
-            emphasized: true,
-          ),
-          const SizedBox(height: 12),
-          _AmountRow(label: 'Amount paid', amount: purchase.amountPaid),
-          const SizedBox(height: 12),
-          _AmountRow(
-            label: 'Balance',
-            amount: purchase.balance,
-            valueColor: purchase.hasBalance
-                ? Colors.redAccent
-                : const Color(0xFF087F5B),
-            emphasized: purchase.hasBalance,
-          ),
-          const SizedBox(height: 16),
-          const Divider(height: 1),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _InfoTile(
-                  icon: Icons.payment_rounded,
-                  label: 'Payment method',
-                  value: _paymentMethodLabel(purchase.paymentMethod),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _InfoTile(
-                  icon: Icons.verified_outlined,
-                  label: 'Payment status',
-                  value: purchase.isFullyPaid ? 'Fully Paid' : 'Outstanding',
-                  valueColor: purchase.isFullyPaid
-                      ? const Color(0xFF087F5B)
-                      : Colors.orange.shade700,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// =============================================================
-// SUPPLIER
-// =============================================================
-
-class _SupplierCard extends StatelessWidget {
-  const _SupplierCard({required this.purchase});
-
-  final Purchase purchase;
-
-  @override
-  Widget build(BuildContext context) {
-    final hasSupplier =
-        purchase.supplierName != null &&
-        purchase.supplierName!.trim().isNotEmpty;
-
-    final hasPhone =
-        purchase.supplierPhone != null &&
-        purchase.supplierPhone!.trim().isNotEmpty;
-
-    return _SectionCard(
-      title: 'Supplier',
-      icon: Icons.storefront_outlined,
-      child: Column(
-        children: [
-          _DetailRow(
-            icon: Icons.person_outline_rounded,
-            label: 'Name',
-            value: hasSupplier ? purchase.supplierName! : 'Not provided',
-          ),
-          const SizedBox(height: 12),
-          _DetailRow(
-            icon: Icons.phone_outlined,
-            label: 'Phone',
-            value: hasPhone ? purchase.supplierPhone! : 'Not provided',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// =============================================================
-// ITEMS
-// =============================================================
-
-class _PurchaseItemsCard extends StatelessWidget {
-  const _PurchaseItemsCard({required this.itemsAsync});
-
   final AsyncValue<List<PurchaseItem>> itemsAsync;
 
+  /// Desktop: items beside the supplier and payment information.
+  final bool wide;
+
   @override
   Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'Purchased Products',
-      icon: Icons.inventory_2_outlined,
-      child: itemsAsync.when(
-        loading: () {
-          return const Padding(
-            padding: EdgeInsets.all(20),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        },
-        error: (error, stackTrace) {
-          return Padding(
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              children: [
-                const Icon(Icons.error_outline_rounded, size: 40),
-                const SizedBox(height: 8),
-                const Text(
-                  'Unable to load purchase items.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  error.toString(),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                ),
-              ],
-            ),
-          );
-        },
-        data: (items) {
-          if (items.isEmpty) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
-              child: Center(child: Text('No purchase items found.')),
-            );
-          }
+    const gap = SizedBox(height: AppSpacing.xxl);
+    final notes = purchase.notes?.trim();
 
-          return Column(
-            children: [
-              for (int index = 0; index < items.length; index++) ...[
-                _PurchaseItemRow(item: items[index]),
-                if (index < items.length - 1) const Divider(height: 24),
-              ],
-            ],
-          );
-        },
+    final identity = IdentityPanel(
+      visual: const IconTile(icon: Icons.shopping_bag_outlined, size: 56),
+      title: purchase.purchaseNumber,
+      subtitle:
+          '${purchaseSupplierLabel(purchase)} · '
+          '${formatShortDate(purchase.purchaseDate)}',
+      badges: [
+        _PurchaseStatusBadge(status: purchase.status),
+        PurchaseStatusBadge(purchase: purchase),
+      ],
+    );
+
+    final figures = MetricGrid(
+      cards: [
+        MetricCard(
+          label: 'Total',
+          value: formatGhs(purchase.totalAmount),
+          caption: _paymentMethodLabel(purchase.paymentMethod),
+          icon: Icons.shopping_bag_outlined,
+          emphasized: true,
+        ),
+        MetricCard(
+          label: 'Amount Paid',
+          value: formatGhs(purchase.amountPaid),
+          caption: 'Paid to the supplier',
+          icon: Icons.check_circle_outline_rounded,
+          tone: StatusTone.success,
+        ),
+        MetricCard(
+          label: 'Balance',
+          value: formatGhs(purchase.balance),
+          caption: purchase.hasBalance ? 'Still owed' : 'Fully paid',
+          captionTone: purchase.hasBalance ? StatusTone.warning : null,
+          icon: Icons.account_balance_wallet_outlined,
+          tone: StatusTone.warning,
+        ),
+      ],
+    );
+
+    final lineItems = itemsAsync.when(
+      loading: () => const Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SectionHeader(title: 'Purchased Products'),
+          SizedBox(height: AppSpacing.md),
+          SkeletonList(rows: 3),
+        ],
+      ),
+      error: (error, stackTrace) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SectionHeader(title: 'Purchased Products'),
+          const SizedBox(height: AppSpacing.md),
+          SurfaceCard(
+            child: ErrorState(
+              compact: true,
+              title: 'Unable to load purchase items',
+              message: error.toString(),
+            ),
+          ),
+        ],
+      ),
+      data: (items) => LineItemsSection(
+        title: 'Purchased Products',
+        unitLabel: 'Unit Cost',
+        items: [
+          for (final item in items)
+            LineItem(
+              name: item.productName,
+              quantity: item.quantity,
+              unitPrice: item.unitCost,
+              total: item.subtotal,
+            ),
+        ],
+        total: purchase.totalAmount,
+        emptyMessage: 'No purchase items found.',
       ),
     );
-  }
-}
 
-class _PurchaseItemRow extends StatelessWidget {
-  const _PurchaseItemRow({required this.item});
+    final supplier = InfoSection(
+      title: 'Supplier',
+      items: [
+        InfoItem(label: 'Name', value: purchase.supplierName),
+        InfoItem(label: 'Phone', value: purchase.supplierPhone),
+      ],
+    );
 
-  final PurchaseItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 46,
-          height: 46,
-          decoration: BoxDecoration(
-            color: const Color(0xFFE8F5F0),
-            borderRadius: BorderRadius.circular(13),
-          ),
-          child: const Icon(
-            Icons.inventory_2_outlined,
-            color: Color(0xFF087F5B),
-          ),
+    final payment = InfoSection(
+      title: 'Payment',
+      items: [
+        InfoItem(
+          label: 'Payment method',
+          value: _paymentMethodLabel(purchase.paymentMethod),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
+        InfoItem(
+          label: 'Payment status',
+          value: purchase.isFullyPaid ? 'Fully Paid' : 'Outstanding',
+        ),
+        InfoItem(
+          label: 'Purchase date',
+          value: formatShortDate(purchase.purchaseDate),
+        ),
+        InfoItem(label: 'Status', value: _capitalize(purchase.status)),
+      ],
+    );
+
+    final notesSection = notes == null || notes.isEmpty
+        ? null
+        : InfoSection(
+            title: 'Notes',
+            items: [InfoItem(label: 'Notes', value: notes, wide: true)],
+          );
+
+    if (wide) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          identity,
+          const SizedBox(height: AppSpacing.lg),
+          figures,
+          gap,
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                item.productName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                '${item.quantity} × GHS ${item.unitCost.toStringAsFixed(2)}',
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        Text(
-          'GHS ${item.subtotal.toStringAsFixed(2)}',
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
-      ],
-    );
-  }
-}
-
-// =============================================================
-// NOTES
-// =============================================================
-
-class _NotesCard extends StatelessWidget {
-  const _NotesCard({required this.notes});
-
-  final String notes;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'Notes',
-      icon: Icons.notes_rounded,
-      child: Text(
-        notes,
-        style: TextStyle(color: Colors.grey.shade700, height: 1.5),
-      ),
-    );
-  }
-}
-
-// =============================================================
-// SECTION CARD
-// =============================================================
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.icon,
-    required this.child,
-  });
-
-  final String title;
-  final IconData icon;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.035),
-            blurRadius: 14,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5F0),
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Icon(icon, color: const Color(0xFF087F5B), size: 20),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+              Expanded(flex: 3, child: lineItems),
+              const SizedBox(width: AppSpacing.xxl),
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    supplier,
+                    gap,
+                    payment,
+                    if (notesSection != null) ...[gap, notesSection],
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          child,
         ],
-      ),
-    );
-  }
-}
+      );
+    }
 
-// =============================================================
-// AMOUNT ROW
-// =============================================================
-
-class _AmountRow extends StatelessWidget {
-  const _AmountRow({
-    required this.label,
-    required this.amount,
-    this.valueColor,
-    this.emphasized = false,
-  });
-
-  final String label;
-  final double amount;
-  final Color? valueColor;
-  final bool emphasized;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontWeight: emphasized ? FontWeight.w700 : FontWeight.w500,
-            ),
-          ),
-        ),
-        Text(
-          'GHS ${amount.toStringAsFixed(2)}',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: emphasized ? 16 : 14,
-            color: valueColor,
-          ),
-        ),
+        identity,
+        const SizedBox(height: AppSpacing.lg),
+        figures,
+        gap,
+        supplier,
+        gap,
+        lineItems,
+        gap,
+        payment,
+        if (notesSection != null) ...[gap, notesSection],
       ],
     );
   }
 }
 
-// =============================================================
-// INFO TILE
-// =============================================================
-
-class _InfoTile extends StatelessWidget {
-  const _InfoTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.valueColor,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color? valueColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FA),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 19, color: const Color(0xFF087F5B)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: valueColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// =============================================================
-// DETAIL ROW
-// =============================================================
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 19, color: const Color(0xFF087F5B)),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 70,
-          child: Text(
-            label,
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            value,
-            textAlign: TextAlign.end,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// =============================================================
-// STATUS BADGE
-// =============================================================
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.status});
+/// The purchase record's status (completed, cancelled, ...), as text with
+/// an icon so it never relies on colour alone.
+class _PurchaseStatusBadge extends StatelessWidget {
+  const _PurchaseStatusBadge({required this.status});
 
   final String status;
 
@@ -621,81 +286,42 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final normalized = status.toLowerCase();
 
-    final Color background;
-    final Color foreground;
-
     if (normalized == 'completed') {
-      background = Colors.white.withValues(alpha: 0.16);
-      foreground = Colors.white;
-    } else if (normalized == 'cancelled' || normalized == 'canceled') {
-      background = Colors.red.withValues(alpha: 0.16);
-      foreground = Colors.white;
-    } else {
-      background = Colors.orange.withValues(alpha: 0.18);
-      foreground = Colors.white;
+      return const StatusBadge(
+        label: 'Completed',
+        tone: StatusTone.neutral,
+        icon: Icons.check_rounded,
+      );
     }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        _capitalize(status),
-        style: TextStyle(
-          color: foreground,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
+    if (normalized == 'cancelled' || normalized == 'canceled') {
+      return StatusBadge(
+        label: _capitalize(status),
+        tone: StatusTone.danger,
+        icon: Icons.block_rounded,
+      );
+    }
+    return StatusBadge(
+      label: _capitalize(status),
+      tone: StatusTone.warning,
+      icon: Icons.schedule_rounded,
     );
   }
 }
 
-// =============================================================
-// ERROR STATE
-// =============================================================
-
-class _PurchaseErrorState extends StatelessWidget {
-  const _PurchaseErrorState({required this.error, required this.onRetry});
-
-  final Object error;
-  final VoidCallback onRetry;
+class _DetailsSkeleton extends StatelessWidget {
+  const _DetailsSkeleton();
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 52,
-              color: Colors.redAccent,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Unable to load purchase',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              error.toString(),
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 18),
-            OutlinedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Try Again'),
-            ),
-          ],
-        ),
-      ),
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SkeletonBox(height: 112, radius: AppRadius.lg),
+        SizedBox(height: AppSpacing.lg),
+        SkeletonBox(height: 104, radius: AppRadius.lg),
+        SizedBox(height: AppSpacing.xxl),
+        SkeletonBox(height: 220, radius: AppRadius.lg),
+      ],
     );
   }
 }
@@ -727,24 +353,4 @@ String _capitalize(String value) {
   }
 
   return value[0].toUpperCase() + value.substring(1).toLowerCase();
-}
-
-String _formatDate(DateTime date) {
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-
-  return '${months[date.month - 1]} '
-      '${date.day}, ${date.year}';
 }

@@ -94,7 +94,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                   header,
                   Expanded(
                     child: ErrorState(
-                      title: 'Unable to load products.',
+                      title: 'Unable to load products',
                       message: 'Check your connection and try again.',
                       onRetry: () => ref.invalidate(productsProvider),
                     ),

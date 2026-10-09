@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
+import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
+import '../../../../core/utils/date_format.dart';
 import '../../../shop/presentation/providers/shop_provider.dart';
 import '../../domain/entities/admin_exception.dart';
 import '../../domain/entities/admin_shop.dart';
@@ -63,6 +66,33 @@ enum _AdminAction {
   };
 }
 
+/// How each status reads in tabs, badges and list headings.
+extension on AdminShopStatus {
+  String get label => switch (this) {
+    AdminShopStatus.pending => 'Pending',
+    AdminShopStatus.active => 'Active',
+    AdminShopStatus.suspended => 'Suspended',
+  };
+
+  Widget badge() => switch (this) {
+    AdminShopStatus.pending => const StatusBadge(
+      label: 'Pending',
+      tone: StatusTone.warning,
+      icon: Icons.hourglass_top_rounded,
+    ),
+    AdminShopStatus.active => const StatusBadge(
+      label: 'Active',
+      tone: StatusTone.success,
+      icon: Icons.check_circle_outline_rounded,
+    ),
+    AdminShopStatus.suspended => const StatusBadge(
+      label: 'Suspended',
+      tone: StatusTone.danger,
+      icon: Icons.block_rounded,
+    ),
+  };
+}
+
 /// Platform administration: review new shops and control shop access.
 ///
 /// Only confirmed platform admins reach this screen (see the router), and
@@ -81,27 +111,14 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
   Future<void> _run(AdminShop shop, _AdminAction action) async {
     if (_busyShopId != null) return;
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('${action.label} ${shop.name}?'),
-        content: Text(action.explanation),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: action == _AdminAction.suspend
-                ? FilledButton.styleFrom(backgroundColor: AppColors.error)
-                : null,
-            child: Text(action.label),
-          ),
-        ],
-      ),
+    final confirmed = await showConfirmDialog(
+      context,
+      title: '${action.label} ${shop.name}?',
+      message: action.explanation,
+      confirmLabel: action.label,
+      destructive: action == _AdminAction.suspend,
     );
-    if (confirmed != true || !mounted || _busyShopId != null) return;
+    if (!confirmed || !mounted || _busyShopId != null) return;
 
     setState(() => _busyShopId = shop.id);
     try {
@@ -137,15 +154,11 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
 
   void _showMessage(String message, {bool isError = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: isError ? AppColors.error : AppColors.success,
-        ),
-      );
+    showFloatingMessage(
+      context,
+      message,
+      backgroundColor: isError ? AppColors.error : AppColors.success,
+    );
   }
 
   void _leave() {
@@ -160,55 +173,181 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
   @override
   Widget build(BuildContext context) {
     final admin = ref.watch(isPlatformAdminProvider);
+    final confirmed = admin.isConfirmedAdmin;
 
     return DefaultTabController(
       length: AdminShopStatus.values.length,
       child: Scaffold(
         backgroundColor: AppColors.background,
-        appBar: AppBar(
-          leading: IconButton(
-            tooltip: 'Back',
-            icon: const Icon(Icons.arrow_back_rounded),
-            onPressed: _leave,
-          ),
-          title: const Text('Admin'),
-          bottom: admin.isConfirmedAdmin
-              ? const TabBar(
-                  tabs: [
-                    Tab(text: 'Pending'),
-                    Tab(text: 'Active'),
-                    Tab(text: 'Suspended'),
-                  ],
-                )
-              : null,
-        ),
         body: SafeArea(
-          child: admin.isLoading
-              ? const _Centered(
-                  child: CircularProgressIndicator(
-                    semanticsLabel: 'Checking admin access',
+          bottom: false,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final horizontal = Breakpoints.pagePadding(
+                width,
+                maxWidth: ContentWidth.standard,
+              );
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontal,
+                      Breakpoints.of(width).isCompact
+                          ? AppSpacing.md
+                          : AppSpacing.xxl,
+                      horizontal,
+                      0,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        PageHeader(
+                          title: 'Platform Admin',
+                          subtitle: 'Manage shops and platform access',
+                          leading: IconButton(
+                            tooltip: 'Back',
+                            icon: const Icon(Icons.arrow_back_rounded),
+                            onPressed: _leave,
+                          ),
+                        ),
+                        if (confirmed) ...[
+                          const SizedBox(height: AppSpacing.lg),
+                          const _PlatformScopeNotice(),
+                          const SizedBox(height: AppSpacing.md),
+                          const _StatusTabs(),
+                        ],
+                      ],
+                    ),
                   ),
-                )
-              : !admin.isConfirmedAdmin
-              ? const _Centered(
-                  child: _Message(
-                    icon: Icons.lock_outline_rounded,
-                    title: 'Not available',
-                    message: 'This area is only for ShopMate platform admins.',
+                  Expanded(
+                    child: admin.isLoading
+                        ? _Centered(
+                            child: Semantics(
+                              container: true,
+                              label: 'Checking admin access',
+                              child: const ExcludeSemantics(
+                                child: CircularProgressIndicator(),
+                              ),
+                            ),
+                          )
+                        : !confirmed
+                        ? const _Centered(
+                            child: SurfaceCard(
+                              child: EmptyState(
+                                compact: true,
+                                icon: Icons.lock_outline_rounded,
+                                title: 'Not available',
+                                message:
+                                    'This area is only for ShopMate platform '
+                                    'admins.',
+                              ),
+                            ),
+                          )
+                        : TabBarView(
+                            children: [
+                              for (final status in AdminShopStatus.values)
+                                _ShopList(
+                                  status: status,
+                                  horizontal: horizontal,
+                                  busyShopId: _busyShopId,
+                                  onAction: _run,
+                                ),
+                            ],
+                          ),
                   ),
-                )
-              : TabBarView(
-                  children: [
-                    for (final status in AdminShopStatus.values)
-                      _ShopList(
-                        status: status,
-                        busyShopId: _busyShopId,
-                        onAction: _run,
-                      ),
-                  ],
-                ),
+                ],
+              );
+            },
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// Makes the elevated scope explicit: these controls act on whole shops
+/// across the platform, not on the admin's own shop.
+class _PlatformScopeNotice extends StatelessWidget {
+  const _PlatformScopeNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.infoLight,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const ExcludeSemantics(
+            child: Icon(
+              Icons.admin_panel_settings_outlined,
+              size: 20,
+              color: AppColors.info,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: 'Platform admin. ',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppColors.info,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const TextSpan(
+                    text:
+                        'Changes here apply to whole shops and everyone in '
+                        'them, not to your own shop.',
+                  ),
+                ],
+              ),
+              style: textTheme.bodySmall?.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusTabs extends StatelessWidget {
+  const _StatusTabs();
+
+  @override
+  Widget build(BuildContext context) {
+    return TabBar(
+      isScrollable: true,
+      tabAlignment: TabAlignment.start,
+      labelColor: AppColors.primary,
+      unselectedLabelColor: AppColors.textSecondary,
+      indicatorColor: AppColors.primary,
+      indicatorSize: TabBarIndicatorSize.label,
+      dividerColor: AppColors.border,
+      labelStyle: AppTypography.textTheme.titleSmall,
+      unselectedLabelStyle: AppTypography.textTheme.titleSmall?.copyWith(
+        fontWeight: FontWeight.w500,
+      ),
+      padding: EdgeInsets.zero,
+      labelPadding: const EdgeInsets.only(right: AppSpacing.xxl),
+      tabs: [
+        for (final status in AdminShopStatus.values) Tab(text: status.label),
+      ],
     );
   }
 }
@@ -216,11 +355,13 @@ class _AdminScreenState extends ConsumerState<AdminScreen> {
 class _ShopList extends ConsumerWidget {
   const _ShopList({
     required this.status,
+    required this.horizontal,
     required this.busyShopId,
     required this.onAction,
   });
 
   final AdminShopStatus status;
+  final double horizontal;
   final String? busyShopId;
   final void Function(AdminShop shop, _AdminAction action) onAction;
 
@@ -228,30 +369,28 @@ class _ShopList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final shops = ref.watch(adminShopsProvider(status));
 
-    return shops.when(
-      loading: () => _Centered(
-        child: CircularProgressIndicator(
-          semanticsLabel: 'Loading ${status.value} shops',
-        ),
+    final Widget content = shops.when(
+      loading: () => Semantics(
+        container: true,
+        label: 'Loading ${status.value} shops',
+        child: const ExcludeSemantics(child: SkeletonList(rows: 4)),
       ),
-      error: (error, _) => _Centered(
-        child: _Message(
-          icon: Icons.cloud_off_rounded,
+      error: (error, _) => SurfaceCard(
+        child: ErrorState(
+          compact: true,
           title: 'Unable to load shops',
           message: error is AdminException
               ? error.message
               : AdminErrorKind.loadFailed.message,
-          action: FilledButton.icon(
-            onPressed: () => ref.invalidate(adminShopsProvider(status)),
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Retry'),
-          ),
+          retryLabel: 'Retry',
+          onRetry: () => ref.invalidate(adminShopsProvider(status)),
         ),
       ),
       data: (items) {
         if (items.isEmpty) {
-          return _Centered(
-            child: _Message(
+          return SurfaceCard(
+            child: EmptyState(
+              compact: true,
               icon: Icons.storefront_outlined,
               title: switch (status) {
                 AdminShopStatus.pending => 'No shops waiting for approval',
@@ -268,58 +407,58 @@ class _ShopList extends ConsumerWidget {
           );
         }
 
-        return RefreshIndicator(
-          onRefresh: () => ref.refresh(adminShopsProvider(status).future),
-          child: ListView.separated(
-            padding: const EdgeInsets.all(AppSpacing.lg),
-            itemCount: items.length + 1,
-            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
-            itemBuilder: (context, index) {
-              if (index == 0) return const _Header();
-              final shop = items[index - 1];
-              return Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 720),
-                  child: _ShopCard(
-                    shop: shop,
-                    isBusy: busyShopId == shop.id,
-                    isLocked: busyShopId != null,
-                    onAction: onAction,
-                  ),
-                ),
-              );
-            },
-          ),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '${items.length} ${items.length == 1 ? 'shop' : 'shops'}',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            SurfaceCard(
+              padding: EdgeInsets.zero,
+              clip: true,
+              child: Column(
+                children: [
+                  for (var i = 0; i < items.length; i++) ...[
+                    if (i > 0) const RowDivider(),
+                    _ShopRow(
+                      shop: items[i],
+                      isBusy: busyShopId == items[i].id,
+                      isLocked: busyShopId != null,
+                      onAction: onAction,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
         );
       },
     );
-  }
-}
 
-class _Header extends StatelessWidget {
-  const _Header();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720),
-        child: SizedBox(
-          width: double.infinity,
-          child: Text(
-            'Manage shops and platform access',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
-          ),
+    return RefreshIndicator(
+      onRefresh: () => ref.refresh(adminShopsProvider(status).future),
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.fromLTRB(
+          horizontal,
+          AppSpacing.lg,
+          horizontal,
+          AppSpacing.xxxl,
         ),
+        children: [content],
       ),
     );
   }
 }
 
-class _ShopCard extends StatelessWidget {
-  const _ShopCard({
+/// One shop: identity, contact and dates, status and its one action. Wide
+/// rows align these in columns; narrow rows stack them.
+class _ShopRow extends StatelessWidget {
+  const _ShopRow({
     required this.shop,
     required this.isBusy,
     required this.isLocked,
@@ -331,82 +470,172 @@ class _ShopCard extends StatelessWidget {
   final bool isLocked;
   final void Function(AdminShop shop, _AdminAction action) onAction;
 
+  /// From this width the details, status and action sit in columns.
+  static const double _columnsFrom = 880;
+
+  /// From this width the action sits beside the details.
+  static const double _sideActionFrom = 560;
+
+  static const double _avatar = 40;
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final localizations = MaterialLocalizations.of(context);
-    final action = _AdminAction.forStatus(shop.status);
     final approvedAt = shop.approvedAt;
     final phone = shop.phone;
 
-    // Medium dates omit the year; registrations can span years.
-    String date(DateTime value) {
-      final local = value.toLocal();
-      return '${localizations.formatMediumDate(local)}, ${local.year}';
-    }
+    // Timestamps: shown as the admin's local calendar day, with the year
+    // (registrations can span years).
+    String date(DateTime value) => formatShortDate(value.toLocal());
 
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    final identity = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InitialAvatar(name: shop.name, size: _avatar),
+        const SizedBox(width: AppSpacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: Text(
-                  shop.name,
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              Text(
+                shop.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.titleSmall?.copyWith(
+                  color: AppColors.textPrimary,
                 ),
               ),
-              const SizedBox(width: AppSpacing.sm),
-              _StatusChip(status: shop.status),
+              const SizedBox(height: 2),
+              // Emails have no spaces; let them break rather than clip, so
+              // the admin always sees the whole owner address.
+              Text(
+                'Owner: ${shop.ownerEmail ?? 'Unknown'}',
+                style: textTheme.bodySmall?.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          _Detail(
-            icon: Icons.person_outline_rounded,
-            text: 'Owner: ${shop.ownerEmail ?? 'Unknown'}',
-          ),
-          if (phone != null && phone.trim().isNotEmpty)
-            _Detail(icon: Icons.phone_outlined, text: phone),
-          _Detail(
-            icon: Icons.event_outlined,
-            text: 'Registered ${date(shop.createdAt)}',
-          ),
-          if (approvedAt != null)
-            _Detail(
-              icon: Icons.verified_outlined,
-              text: 'Approved ${date(approvedAt)}',
-            ),
-          const SizedBox(height: AppSpacing.md),
-          Align(
-            alignment: Alignment.centerRight,
-            child: action == _AdminAction.suspend
-                ? OutlinedButton.icon(
-                    onPressed: isLocked ? null : () => onAction(shop, action),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                    ),
-                    icon: _ActionIcon(isBusy: isBusy, icon: action.icon),
-                    label: Text(action.label),
-                  )
-                : FilledButton.icon(
-                    onPressed: isLocked ? null : () => onAction(shop, action),
-                    icon: _ActionIcon(isBusy: isBusy, icon: action.icon),
-                    label: Text(action.label),
-                  ),
-          ),
-        ],
+        ),
+      ],
+    );
+
+    final details = <Widget>[
+      if (phone != null && phone.trim().isNotEmpty)
+        _Detail(icon: Icons.phone_outlined, text: phone),
+      _Detail(
+        icon: Icons.event_outlined,
+        text: 'Registered ${date(shop.createdAt)}',
       ),
+      if (approvedAt != null)
+        _Detail(
+          icon: Icons.verified_outlined,
+          text: 'Approved ${date(approvedAt)}',
+        ),
+    ];
+
+    final action = _actionButton();
+    final status = shop.status.badge();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.md,
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Desktop: identity, details, status and action in columns.
+          if (constraints.maxWidth >= _columnsFrom) {
+            return Row(
+              children: [
+                Expanded(flex: 5, child: identity),
+                const SizedBox(width: AppSpacing.lg),
+                Expanded(
+                  flex: 4,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: details,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.lg),
+                SizedBox(
+                  width: 120,
+                  child: Align(alignment: Alignment.centerLeft, child: status),
+                ),
+                SizedBox(
+                  width: 150,
+                  child: Align(alignment: Alignment.centerRight, child: action),
+                ),
+              ],
+            );
+          }
+
+          final summary = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              identity,
+              Padding(
+                padding: const EdgeInsets.only(
+                  left: _avatar + AppSpacing.md,
+                  top: AppSpacing.sm,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    status,
+                    const SizedBox(height: AppSpacing.xs),
+                    ...details,
+                  ],
+                ),
+              ),
+            ],
+          );
+
+          // Tablet: the action sits beside the details.
+          if (constraints.maxWidth >= _sideActionFrom) {
+            return Row(
+              children: [
+                Expanded(child: summary),
+                const SizedBox(width: AppSpacing.lg),
+                action,
+              ],
+            );
+          }
+
+          // Phone: the action under the details.
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              summary,
+              const SizedBox(height: AppSpacing.md),
+              Align(alignment: Alignment.centerRight, child: action),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _actionButton() {
+    final action = _AdminAction.forStatus(shop.status);
+    final onPressed = isLocked ? null : () => onAction(shop, action);
+    final icon = _ActionIcon(isBusy: isBusy, icon: action.icon);
+
+    // Every row has an action, so none is a solid primary button (a list
+    // of them would compete). Suspending removes access: styled as a
+    // caution.
+    final suspend = action == _AdminAction.suspend;
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: suspend ? AppColors.error : AppColors.primary,
+        side: BorderSide(
+          color: suspend ? AppColors.border : AppColors.primary,
+        ),
+      ),
+      icon: icon,
+      label: Text(action.label),
     );
   }
 }
@@ -431,51 +660,6 @@ class _ActionIcon extends StatelessWidget {
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-
-  final AdminShopStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final (label, color, background) = switch (status) {
-      AdminShopStatus.pending => (
-        'Pending',
-        AppColors.warning,
-        AppColors.warningLight,
-      ),
-      AdminShopStatus.active => (
-        'Active',
-        AppColors.success,
-        AppColors.successLight,
-      ),
-      AdminShopStatus.suspended => (
-        'Suspended',
-        AppColors.error,
-        AppColors.errorLight,
-      ),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-      ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-          color: color,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
 class _Detail extends StatelessWidget {
   const _Detail({required this.icon, required this.text});
 
@@ -489,15 +673,15 @@ class _Detail extends StatelessWidget {
       child: Row(
         children: [
           ExcludeSemantics(
-            child: Icon(icon, size: 16, color: AppColors.textMuted),
+            child: Icon(icon, size: 15, color: AppColors.textMuted),
           ),
           const SizedBox(width: AppSpacing.sm),
-          Expanded(
+          Flexible(
             child: Text(
               text,
               style: Theme.of(
                 context,
-              ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+              ).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
             ),
           ),
         ],
@@ -517,52 +701,10 @@ class _Centered extends StatelessWidget {
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.xl),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
+          constraints: const BoxConstraints(maxWidth: 480),
           child: child,
         ),
       ),
-    );
-  }
-}
-
-class _Message extends StatelessWidget {
-  const _Message({
-    required this.icon,
-    required this.title,
-    required this.message,
-    this.action,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final action = this.action;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ExcludeSemantics(
-          child: Icon(icon, size: 40, color: AppColors.textMuted),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          message,
-          textAlign: TextAlign.center,
-          style: textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
-        ),
-        if (action != null) ...[const SizedBox(height: AppSpacing.lg), action],
-      ],
     );
   }
 }

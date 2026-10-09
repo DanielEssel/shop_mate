@@ -5,9 +5,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
-import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/money_format.dart';
 import '../../domain/entities/expense.dart';
+import '../../domain/entities/expense_category.dart';
 import '../providers/expenses_provider.dart';
 
 /// Read-only view of a single recorded expense.
@@ -22,33 +23,71 @@ class ExpenseDetailsScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        title: Text(
-          'Expense Details',
-          style: AppTypography.textTheme.titleLarge!.copyWith(
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: () => ref.invalidate(expenseProvider(expenseId)),
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-          const SizedBox(width: AppSpacing.xs),
-        ],
-      ),
       body: SafeArea(
-        child: expenseAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => _DetailsError(
-            error: error,
-            onRetry: () => ref.invalidate(expenseProvider(expenseId)),
-          ),
-          data: (expense) => _DetailsBody(expense: expense),
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final horizontal = Breakpoints.pagePadding(
+              width,
+              maxWidth: ContentWidth.standard,
+            );
+
+            return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                Breakpoints.of(width).isCompact
+                    ? AppSpacing.md
+                    : AppSpacing.xxl,
+                horizontal,
+                AppSpacing.xxxl,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  PageHeader(
+                    title: 'Expense Details',
+                    leading: pageHeaderLeading(context),
+                    actions: [
+                      IconButton(
+                        tooltip: 'Refresh',
+                        onPressed: () =>
+                            ref.invalidate(expenseProvider(expenseId)),
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xxl),
+                  expenseAsync.when(
+                    loading: () => const Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SkeletonBox(height: 112, radius: AppRadius.lg),
+                        SizedBox(height: AppSpacing.xxl),
+                        SkeletonBox(height: 200, radius: AppRadius.lg),
+                      ],
+                    ),
+                    error: (error, _) => SurfaceCard(
+                      child: ErrorState(
+                        compact: true,
+                        title: 'Unable to load this expense',
+                        message: error is PostgrestException
+                            ? error.message
+                            : error.toString(),
+                        retryLabel: 'Retry',
+                        onRetry: () =>
+                            ref.invalidate(expenseProvider(expenseId)),
+                      ),
+                    ),
+                    data: (expense) => _DetailsBody(
+                      expense: expense,
+                      wide: width >= Breakpoints.expanded,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -56,188 +95,114 @@ class ExpenseDetailsScreen extends ConsumerWidget {
 }
 
 class _DetailsBody extends StatelessWidget {
-  const _DetailsBody({required this.expense});
+  const _DetailsBody({required this.expense, required this.wide});
 
   final Expense expense;
+
+  /// Desktop: expense information beside the record dates.
+  final bool wide;
+
+  String _dateTime(MaterialLocalizations localizations, DateTime value) {
+    final local = value.toLocal();
+    return '${localizations.formatMediumDate(local)}, '
+        '${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(local))}';
+  }
 
   @override
   Widget build(BuildContext context) {
     final localizations = MaterialLocalizations.of(context);
-    final createdAt = expense.createdAt.toLocal();
-    final recorded =
-        '${localizations.formatMediumDate(createdAt)}, '
-        '${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(createdAt))}';
+    final expenseDate = localizations.formatMediumDate(expense.expenseDate);
+    const gap = SizedBox(height: AppSpacing.xxl);
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        expense.category.label,
-                        style: AppTypography.textTheme.bodyMedium!.copyWith(
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        formatGhs(expense.amount),
-                        style: AppTypography.textTheme.headlineSmall!.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.lg,
-                    vertical: AppSpacing.sm,
-                  ),
-                  child: Column(
-                    children: [
-                      _DetailRow(
-                        label: 'Category',
-                        value: expense.category.label,
-                      ),
-                      _DetailRow(
-                        label: 'Amount',
-                        value: formatGhs(expense.amount),
-                      ),
-                      _DetailRow(
-                        label: 'Payment method',
-                        value: expense.paymentMethod.label,
-                      ),
-                      _DetailRow(
-                        label: 'Expense date',
-                        value: localizations.formatMediumDate(
-                          expense.expenseDate,
-                        ),
-                      ),
-                      _DetailRow(label: 'Reference', value: expense.reference),
-                      _DetailRow(label: 'Note', value: expense.note),
-                      _DetailRow(label: 'Recorded', value: recorded),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    final identity = IdentityPanel(
+      visual: IconTile(icon: _categoryIcon(expense.category), size: 56),
+      title: expense.category.label,
+      subtitle: expenseDate,
     );
-  }
-}
 
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
+    final figures = MetricGrid(
+      cards: [
+        MetricCard(
+          label: 'Amount',
+          value: formatGhs(expense.amount),
+          caption: expense.category.label,
+          icon: Icons.account_balance_wallet_outlined,
+          emphasized: true,
+        ),
+        MetricCard(
+          label: 'Payment method',
+          value: expense.paymentMethod.label,
+          caption: 'How it was paid',
+          icon: Icons.payments_outlined,
+          tone: StatusTone.neutral,
+        ),
+      ],
+    );
 
-  final String label;
+    final information = InfoSection(
+      title: 'Expense Information',
+      items: [
+        InfoItem(label: 'Category', value: expense.category.label),
+        InfoItem(label: 'Amount', value: formatGhs(expense.amount)),
+        InfoItem(label: 'Payment method', value: expense.paymentMethod.label),
+        InfoItem(label: 'Expense date', value: expenseDate),
+        InfoItem(label: 'Reference', value: expense.reference, wide: true),
+        InfoItem(label: 'Note', value: expense.note, wide: true),
+      ],
+    );
 
-  /// Shown as an em dash when absent.
-  final String? value;
+    final record = InfoSection(
+      title: 'Record',
+      items: [
+        InfoItem(
+          label: 'Recorded',
+          value: _dateTime(localizations, expense.createdAt),
+          wide: true,
+        ),
+        InfoItem(
+          label: 'Last updated',
+          value: _dateTime(localizations, expense.updatedAt),
+          wide: true,
+        ),
+      ],
+    );
 
-  @override
-  Widget build(BuildContext context) {
-    final text = value;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 130,
-            child: Text(
-              label,
-              style: AppTypography.textTheme.bodyMedium!.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: SelectableText(
-              text ?? '—',
-              style: AppTypography.textTheme.bodyMedium!.copyWith(
-                color: text == null
-                    ? AppColors.textSecondary
-                    : AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        identity,
+        const SizedBox(height: AppSpacing.lg),
+        figures,
+        gap,
+        if (wide)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 3, child: information),
+              const SizedBox(width: AppSpacing.xxl),
+              Expanded(flex: 2, child: record),
+            ],
+          )
+        else ...[
+          information,
+          gap,
+          record,
         ],
-      ),
+      ],
     );
   }
-}
 
-class _DetailsError extends StatelessWidget {
-  const _DetailsError({required this.error, required this.onRetry});
-
-  final Object error;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final detail = error is PostgrestException
-        ? (error as PostgrestException).message
-        : error.toString();
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xxl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 44,
-              color: AppColors.error,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Text(
-              'Unable to load this expense',
-              style: AppTypography.textTheme.titleMedium!.copyWith(
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              detail,
-              textAlign: TextAlign.center,
-              style: AppTypography.textTheme.bodySmall!.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            OutlinedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
-    );
+  static IconData _categoryIcon(ExpenseCategory category) {
+    return switch (category) {
+      ExpenseCategory.rent => Icons.home_work_outlined,
+      ExpenseCategory.utilities => Icons.bolt_outlined,
+      ExpenseCategory.transport => Icons.local_shipping_outlined,
+      ExpenseCategory.salaries => Icons.badge_outlined,
+      ExpenseCategory.supplies => Icons.inventory_2_outlined,
+      ExpenseCategory.maintenance => Icons.build_outlined,
+      ExpenseCategory.marketing => Icons.campaign_outlined,
+      ExpenseCategory.communication => Icons.phone_in_talk_outlined,
+      ExpenseCategory.other => Icons.receipt_outlined,
+    };
   }
 }

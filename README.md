@@ -720,6 +720,7 @@ Possible examples:
 * Notifications
 * Multi-user permissions
 * Advanced supplier management
+* Flexible selling units, such as crates, packs and loose items (see section 29)
 
 These should not delay the initial release unless the client specifically requires them.
 
@@ -1154,6 +1155,113 @@ Release decision
 ```
 
 Not by the presence of a placeholder, a theoretical feature, or a generic inventory-app checklist.
+
+---
+
+# 29. Planned Feature: Flexible Selling Units for Retailers and Wholesalers
+
+> **Status: planned, not implemented.**
+> The current application sells every product in a single unit. Nothing in this section describes existing behaviour.
+
+> **Guiding principle:** ShopMate should adapt to how each product is sold, rather than forcing every business to use the same selling-unit workflow. Standard products must remain simple, while products that need multiple selling units receive the additional controls they require.
+
+## Objective
+
+Support different selling patterns, such as single items, full crates, half crates and loose bottles, with one inventory and sales system.
+
+The same system should serve retailers, wholesalers and businesses selling different kinds of goods. Businesses that sell standard individual products must keep a sales workflow that is no more complicated than it is today.
+
+---
+
+## A. Product selling configurations
+
+Each product uses one of two configurations.
+
+### 1. Single selling unit (default)
+
+For products normally sold by the piece or item, such as car batteries, furniture, electronics and individual packaged goods.
+
+* The owner selects a base unit, such as piece or item.
+* The owner sets the purchase cost, selling price and stock, as today.
+* New Sale keeps its simple quantity-entry workflow.
+* No crate, pack, half-pack or other unit selector appears.
+
+### 2. Multiple selling units (optional)
+
+For products sold in different quantities or packaging sizes, such as drinks, bottled water and boxed goods.
+
+* The owner sets a base stock unit, such as bottle, can or piece.
+* The owner defines the purchase pack's contents, such as 24 bottles per crate.
+* The owner enables the selling units that apply, such as full crate, half crate, quarter crate or single bottle.
+* The owner sets a selling price for each enabled unit.
+* Pack sizes and available units are set per product.
+
+Do not assume every product or business uses the same packaging or selling units.
+
+---
+
+## B. Supplier purchases and opening stock
+
+The initial target scenario is suppliers selling drinks in full crates or boxes.
+
+* Purchase entry supports full purchase packs and their cost.
+* Received quantities are converted into the product's base stock unit.
+* Opening stock supports the configured purchase pack plus any remaining loose items.
+* The design must account for businesses that already hold stock when they start using ShopMate (see **Opening stock** in section 7).
+
+---
+
+## C. New Sale experience
+
+The sales screen adapts to each product's configuration.
+
+* Standard products keep the current fast quantity entry.
+* Products with multiple selling units offer only their enabled units.
+* Staff choose a unit and a quantity, with no manual conversion.
+* The line total uses the configured price for the selected unit.
+* Stock validation uses the converted base quantity, and a sale can never exceed available stock.
+* Products of either configuration can be added to the same sale through the existing cart.
+* The experience stays responsive on phones, tablets and desktop.
+
+---
+
+## D. Inventory, receipts and reporting
+
+The implementation must cover:
+
+* **Stock balance:** one authoritative balance per product, in its base unit.
+* **Stock movements:** correct deductions for sales and correct receipts for purchases.
+* **Stock history:** actual quantity movements, with enough transaction context for traceability.
+* **Low-stock alerts:** a consistent threshold in the base unit.
+* **Receipts:** what the customer bought, including the selling unit and quantity.
+* **Cost and profit:** calculated under the existing costing rules.
+* **Partial packs:** correct behaviour when less than one full crate or box remains.
+* **Compatibility:** existing products and historical transactions keep working.
+
+---
+
+## E. Permissions
+
+* Owners, or users with the appropriate permission, configure packaging, conversions and selling prices.
+* Shop attendants sell the enabled units within their existing permissions.
+* Current role restrictions stay in place. Attendants must not be able to bypass protected pricing or stock controls.
+
+---
+
+## F. Technical planning requirements
+
+Before implementation, inspect the existing product, purchase, sale-item, inventory, stock-movement and reporting models, together with the database schema and the relevant RPCs.
+
+The implementation plan must decide:
+
+* How base units, purchase units and selling units are represented in the database.
+* How unit conversions and per-unit prices are validated.
+* How existing data and historical transactions remain compatible.
+* Whether database migrations or RPC changes are needed.
+* How stock integrity and transaction consistency are enforced.
+* How the feature fits the existing feature-first Clean Architecture and Riverpod structure.
+
+Do not settle on a schema or implementation details until that review is done.
 
 ---
 

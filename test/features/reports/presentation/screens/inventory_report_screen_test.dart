@@ -99,7 +99,7 @@ void main() {
       find.text('Current stock position and inventory value'),
       findsOneWidget,
     );
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.bySemanticsLabel('Loading inventory report'), findsOneWidget);
     expect(find.text('GHS 0.00'), findsNothing);
 
     pending.complete(_populated);

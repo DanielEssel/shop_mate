@@ -3,9 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
-import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../shop/presentation/providers/shop_provider.dart';
 import '../../domain/entities/shop_member.dart';
@@ -144,7 +144,7 @@ class _ShopMembersScreenState extends ConsumerState<ShopMembersScreen> {
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: isDestructive
-                ? FilledButton.styleFrom(backgroundColor: AppColors.error)
+                ? FilledButton.styleFrom(backgroundColor: AppColors.danger)
                 : null,
             child: Text(action.label),
           ),
@@ -161,7 +161,7 @@ class _ShopMembersScreenState extends ConsumerState<ShopMembersScreen> {
         SnackBar(
           content: Text(message),
           behavior: SnackBarBehavior.floating,
-          backgroundColor: isError ? AppColors.error : AppColors.success,
+          backgroundColor: isError ? AppColors.danger : AppColors.success,
         ),
       );
   }
@@ -181,73 +181,124 @@ class _ShopMembersScreenState extends ConsumerState<ShopMembersScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        leading: IconButton(
-          tooltip: 'Back',
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: _leave,
-        ),
-        title: Text(
-          'Users & Permissions',
-          style: AppTypography.textTheme.titleLarge!.copyWith(
-            fontWeight: FontWeight.w800,
-            color: AppColors.textPrimary,
-          ),
-        ),
-      ),
       body: SafeArea(
-        child: members.when(
-          loading: () => const _Centered(
-            child: CircularProgressIndicator(
-              semanticsLabel: 'Loading shop users',
-            ),
-          ),
-          error: (error, _) => _Centered(
-            child: _Message(
-              icon: Icons.cloud_off_rounded,
-              title: 'Unable to load shop users',
-              message: error is ShopMembersException
-                  ? error.message
-                  : ShopMembersErrorKind.loadFailed.message,
-              action: FilledButton.icon(
-                onPressed: () => ref.invalidate(shopMembersProvider),
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Retry'),
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final horizontal = Breakpoints.pagePadding(
+              width,
+              maxWidth: ContentWidth.standard,
+            );
+
+            final header = Padding(
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                Breakpoints.of(width).isCompact
+                    ? AppSpacing.md
+                    : AppSpacing.xxl,
+                horizontal,
+                AppSpacing.xl,
               ),
-            ),
-          ),
-          data: (items) => _MemberList(
-            members: items,
-            currentUserId: currentUserId,
-            busyUserId: _busyUserId,
-            onAdd: _add,
-            onAction: _run,
-            onRefresh: () => ref.refresh(shopMembersProvider.future),
-          ),
+              child: PageHeader(
+                title: 'Users & Permissions',
+                subtitle:
+                    'Give the people who work in your shop their own login. '
+                    'Attendants get the day-to-day shop tools; expenses, '
+                    'reports, settings and Users & Permissions stay with you.',
+                leading: IconButton(
+                  tooltip: 'Back',
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  onPressed: _leave,
+                ),
+                actions: [
+                  if (members.hasValue)
+                    PrimaryButton(
+                      label: 'Add Shop Attendant',
+                      icon: Icons.person_add_alt_1_rounded,
+                      onPressed: _add,
+                    ),
+                ],
+              ),
+            );
+
+            return members.when(
+              loading: () => ListView(
+                children: [
+                  header,
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: horizontal),
+                    child: Semantics(
+                      container: true,
+                      label: 'Loading shop users',
+                      // Replaces the skeleton's generic "Loading" label.
+                      child: const ExcludeSemantics(
+                        child: SkeletonList(rows: 3),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              error: (error, _) => ListView(
+                children: [
+                  header,
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: horizontal),
+                    child: SurfaceCard(
+                      child: ErrorState(
+                        compact: true,
+                        icon: Icons.cloud_off_rounded,
+                        title: 'Unable to load shop users',
+                        message: error is ShopMembersException
+                            ? error.message
+                            : ShopMembersErrorKind.loadFailed.message,
+                        retryLabel: 'Retry',
+                        onRetry: () => ref.invalidate(shopMembersProvider),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              data: (items) => RefreshIndicator(
+                onRefresh: () => ref.refresh(shopMembersProvider.future),
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.only(bottom: AppSpacing.xxxl),
+                  children: [
+                    header,
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: horizontal),
+                      child: _MemberList(
+                        members: items,
+                        currentUserId: currentUserId,
+                        busyUserId: _busyUserId,
+                        onAction: _run,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
 }
 
+/// The owner, then the attendants, each as rows in one bordered section.
 class _MemberList extends StatelessWidget {
   const _MemberList({
     required this.members,
     required this.currentUserId,
     required this.busyUserId,
-    required this.onAdd,
     required this.onAction,
-    required this.onRefresh,
   });
 
   final List<ShopMember> members;
   final String? currentUserId;
   final String? busyUserId;
-  final VoidCallback onAdd;
   final void Function(ShopMember member, ShopMemberAction action) onAction;
-  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -260,62 +311,39 @@ class _MemberList extends StatelessWidget {
         if (!member.isOwner) member,
     ];
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth >= 900;
-        final columns = isDesktop ? 2 : 1;
-
-        return RefreshIndicator(
-          onRefresh: onRefresh,
-          child: ListView(
-            padding: EdgeInsets.all(isDesktop ? AppSpacing.xl : AppSpacing.md),
-            children: [
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 1100),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _Header(isDesktop: isDesktop, onAdd: onAdd),
-                      if (owners.isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.xl),
-                        const _SectionTitle(title: 'Shop owner'),
-                        const SizedBox(height: AppSpacing.sm),
-                        _CardGrid(
-                          columns: columns,
-                          children: [
-                            for (final member in owners) _card(member),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: AppSpacing.xl),
-                      _SectionTitle(
-                        title: attendants.isEmpty
-                            ? 'Shop attendants'
-                            : 'Shop attendants (${attendants.length})',
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      if (attendants.isEmpty)
-                        const _EmptyAttendants()
-                      else
-                        _CardGrid(
-                          columns: columns,
-                          children: [
-                            for (final member in attendants) _card(member),
-                          ],
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (owners.isNotEmpty) ...[
+          const SectionHeader(title: 'Shop owner'),
+          const SizedBox(height: AppSpacing.md),
+          _Rows(children: [for (final member in owners) _row(member)]),
+          const SizedBox(height: AppSpacing.xxl),
+        ],
+        SectionHeader(
+          title: attendants.isEmpty
+              ? 'Shop attendants'
+              : 'Shop attendants (${attendants.length})',
+        ),
+        const SizedBox(height: AppSpacing.md),
+        if (attendants.isEmpty)
+          const SurfaceCard(
+            child: EmptyState(
+              compact: true,
+              icon: Icons.group_add_outlined,
+              title: 'No shop attendants yet',
+              message:
+                  'Add a Shop Attendant to give someone who works in your '
+                  'shop their own login.',
+            ),
+          )
+        else
+          _Rows(children: [for (final member in attendants) _row(member)]),
+      ],
     );
   }
 
-  Widget _card(ShopMember member) {
+  Widget _row(ShopMember member) {
     return ShopMemberCard(
       key: ValueKey(member.memberId),
       member: member,
@@ -327,183 +355,25 @@ class _MemberList extends StatelessWidget {
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header({required this.isDesktop, required this.onAdd});
+class _Rows extends StatelessWidget {
+  const _Rows({required this.children});
 
-  final bool isDesktop;
-  final VoidCallback onAdd;
-
-  @override
-  Widget build(BuildContext context) {
-    final description = Text(
-      'Give the people who work in your shop their own login. Attendants '
-      'get the day-to-day shop tools; expenses, reports, settings and Users '
-      '& Permissions stay with you.',
-      style: AppTypography.textTheme.bodyMedium?.copyWith(
-        color: AppColors.textSecondary,
-      ),
-    );
-    final button = FilledButton.icon(
-      onPressed: onAdd,
-      icon: const Icon(Icons.person_add_alt_1_rounded),
-      label: const Text('Add Shop Attendant'),
-    );
-
-    if (isDesktop) {
-      return Row(
-        children: [
-          Expanded(child: description),
-          const SizedBox(width: AppSpacing.xl),
-          button,
-        ],
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        description,
-        const SizedBox(height: AppSpacing.md),
-        button,
-      ],
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: AppTypography.textTheme.titleMedium!.copyWith(
-        fontWeight: FontWeight.w800,
-        color: AppColors.textPrimary,
-      ),
-    );
-  }
-}
-
-/// Lays cards out in [columns] equal columns, rows sized to their content.
-class _CardGrid extends StatelessWidget {
-  const _CardGrid({required this.columns, required this.children});
-
-  final int columns;
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    final rows = <Widget>[];
-    for (var start = 0; start < children.length; start += columns) {
-      if (rows.isNotEmpty) rows.add(const SizedBox(height: AppSpacing.md));
-      rows.add(
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var offset = 0; offset < columns; offset++) ...[
-                if (offset > 0) const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: start + offset < children.length
-                      ? children[start + offset]
-                      : const SizedBox.shrink(),
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: rows,
-    );
-  }
-}
-
-class _EmptyAttendants extends StatelessWidget {
-  const _EmptyAttendants();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.xl),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
+    return SurfaceCard(
+      padding: EdgeInsets.zero,
+      clip: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const RowDivider(),
+            children[i],
+          ],
+        ],
       ),
-      child: const _Message(
-        icon: Icons.group_add_outlined,
-        title: 'No shop attendants yet',
-        message:
-            'Add a Shop Attendant to give someone who works in your shop '
-            'their own login.',
-      ),
-    );
-  }
-}
-
-class _Centered extends StatelessWidget {
-  const _Centered({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: child,
-        ),
-      ),
-    );
-  }
-}
-
-class _Message extends StatelessWidget {
-  const _Message({
-    required this.icon,
-    required this.title,
-    required this.message,
-    this.action,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final action = this.action;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ExcludeSemantics(
-          child: Icon(icon, size: 40, color: AppColors.textMuted),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          message,
-          textAlign: TextAlign.center,
-          style: textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
-        ),
-        if (action != null) ...[const SizedBox(height: AppSpacing.lg), action],
-      ],
     );
   }
 }

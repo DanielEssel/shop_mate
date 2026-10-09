@@ -114,20 +114,13 @@ class ExpensesScreen extends ConsumerWidget {
                         : const ExpenseFilters(),
                   ),
                   ...historyAsync.when(
-                    loading: () => [
-                      boxed(
-                        const SurfaceCard(
-                          padding: EdgeInsets.zero,
-                          child: SkeletonList(rows: 5),
-                        ),
-                      ),
-                    ],
+                    loading: () => [boxed(const SkeletonList(rows: 5))],
                     error: (error, _) => [
                       boxed(
                         SurfaceCard(
                           child: ErrorState(
                             compact: true,
-                            title: 'Unable to load expenses.',
+                            title: 'Unable to load expenses',
                             message: 'Check your connection and try again.',
                             onRetry: () => _refresh(ref),
                           ),

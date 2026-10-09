@@ -108,8 +108,9 @@ Future<void> _pump(
   _FakeRepository repository, {
   String role = 'owner',
   bool settle = true,
+  Size size = const Size(420, 1600),
 }) async {
-  tester.view.physicalSize = const Size(420, 1600);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
 
@@ -177,7 +178,7 @@ void main() {
     expect(find.text('1 product'), findsOneWidget);
     expect(find.text('Old stock'), findsNothing);
 
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Archived'));
+    await tester.tap(find.widgetWithText(FilterChip, 'Archived'));
     await tester.pumpAndSettle();
     expect(find.text('Old stock'), findsOneWidget);
     expect(find.text('0 products · Archived'), findsOneWidget);
@@ -188,10 +189,9 @@ void main() {
     await _pump(tester, repository, settle: false);
     await tester.pump();
 
-    final spinner = tester.widget<CircularProgressIndicator>(
-      find.byType(CircularProgressIndicator),
-    );
-    expect(spinner.semanticsLabel, 'Loading categories');
+    // A loading placeholder announced as such.
+    expect(find.bySemanticsLabel('Loading categories'), findsOneWidget);
+    expect(find.text('No categories yet'), findsNothing);
 
     repository.loadGate!.complete();
     await tester.pumpAndSettle();
@@ -204,7 +204,7 @@ void main() {
     expect(find.text('No categories yet'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'New category'), findsNWidgets(2));
 
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Archived'));
+    await tester.tap(find.widgetWithText(FilterChip, 'Archived'));
     await tester.pumpAndSettle();
     expect(find.text('No archived categories'), findsOneWidget);
   });
@@ -247,6 +247,36 @@ void main() {
     await tester.pumpAndSettle();
     await _enterName(tester, '   ');
 
+    expect(
+      find.text('Category name must be 1 to 60 characters.'),
+      findsOneWidget,
+    );
+    expect(repository.calls.where((c) => c.startsWith('create')), isEmpty);
+  });
+
+  testWidgets('the name field counts toward the existing 60 limit', (
+    tester,
+  ) async {
+    final repository = _FakeRepository([]);
+    await _pump(tester, repository);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'New category').first);
+    await tester.pumpAndSettle();
+    expect(find.text('0 / 60'), findsOneWidget);
+
+    // Counted as the validator counts: trimmed.
+    await tester.enterText(find.byType(TextFormField), '  Drinks  ');
+    await tester.pump();
+    expect(find.text('6 / 60'), findsOneWidget);
+
+    // Typing is not capped; an over-long name is still rejected as before.
+    final long = 'A' * 61;
+    await tester.enterText(find.byType(TextFormField), long);
+    await tester.pump();
+    expect(find.text('61 / 60'), findsOneWidget);
+    expect(find.text(long), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
     expect(
       find.text('Category name must be 1 to 60 characters.'),
       findsOneWidget,
@@ -310,7 +340,7 @@ void main() {
     expect(find.text('Category archived.'), findsOneWidget);
     expect(find.text('Drinks'), findsNothing);
 
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Archived'));
+    await tester.tap(find.widgetWithText(FilterChip, 'Archived'));
     await tester.pumpAndSettle();
     await _menuAction(tester, 'Drinks', 'Restore');
 
@@ -372,5 +402,64 @@ void main() {
       find.text('Only the shop owner can manage categories.'),
       findsOneWidget,
     );
+  });
+
+  group('layout', () {
+    const longName =
+        'Fresh Farm Produce, Tubers & Plantain from the Kumasi Market';
+
+    for (final role in ['owner', 'staff']) {
+      for (final (label, size) in [
+        ('320px', const Size(320, 1600)),
+        ('desktop', const Size(1440, 1200)),
+      ]) {
+        testWidgets('$role list fits at $label', (tester) async {
+          await _pump(
+            tester,
+            _FakeRepository(
+              [_category('c1', longName), _category('c2', 'Snacks')],
+              counts: {'c1': 12},
+            ),
+            role: role,
+            size: size,
+          );
+
+          expect(tester.takeException(), isNull);
+          expect(find.text('Product Categories'), findsOneWidget);
+          expect(find.text(longName), findsOneWidget);
+          expect(
+            find.byType(PopupMenuButton<String>),
+            role == 'owner' ? findsNWidgets(2) : findsNothing,
+          );
+          expect(
+            find.widgetWithText(FilledButton, 'New category'),
+            role == 'owner' ? findsOneWidget : findsNothing,
+          );
+        });
+      }
+    }
+
+    testWidgets('desktop shows a table with status badges', (tester) async {
+      await _pump(
+        tester,
+        _FakeRepository([_category('c1', 'Drinks')], counts: {'c1': 3}),
+        size: const Size(1440, 1200),
+      );
+
+      expect(find.text('CATEGORY'), findsOneWidget);
+      expect(find.text('3 products'), findsOneWidget);
+      expect(find.text('Active'), findsWidgets);
+    });
+
+    testWidgets('the name dialog fits at 320px', (tester) async {
+      await _pump(tester, _FakeRepository([]), size: const Size(320, 700));
+
+      await tester.tap(find.widgetWithText(FilledButton, 'New category').first);
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('0 / 60').hitTestable(), findsOne);
+      expect(find.widgetWithText(FilledButton, 'Save').hitTestable(), findsOne);
+    });
   });
 }

@@ -67,8 +67,12 @@ class PageHeader extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        // Labelled buttons move below the title on phones; icon-only
+        // actions (refresh, clear) are small enough to stay beside it.
+        final iconOnly = actions.every((action) => action is IconButton);
         final stackActions =
             actions.isNotEmpty &&
+            !iconOnly &&
             Breakpoints.of(constraints.maxWidth).isCompact;
 
         final heading = Row(

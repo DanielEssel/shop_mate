@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:shopmate/core/ui/ui.dart';
 import 'package:shopmate/features/inventory/domain/entities/inventory_summary.dart';
 import 'package:shopmate/features/inventory/presentation/providers/inventory_provider.dart';
 import 'package:shopmate/features/inventory/presentation/screens/inventory_screen.dart';
@@ -106,6 +107,22 @@ void main() {
 
       expect(find.text('Rice'), findsOneWidget);
       expect(find.text('Adjust'), findsNothing);
+    });
+
+    testWidgets('uses the shared header and stock badge at 320px', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        ownerRole,
+        const LowStockScreen(),
+        size: const Size(320, 900),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.widgetWithText(PageHeader, 'Low Stock'), findsOneWidget);
+      expect(find.widgetWithText(StatusBadge, 'Low stock'), findsOneWidget);
+      expect(find.text('LOW STOCK'), findsNothing);
     });
   });
 }

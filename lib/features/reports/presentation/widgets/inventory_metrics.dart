@@ -1,54 +1,99 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/theme/app_colors.dart';
-import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
-import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/money_format.dart';
 import '../../domain/entities/inventory_report.dart';
+import 'report_counts.dart';
 
-/// Formats a whole number with thousands separators, e.g. `12345` -> `12,345`.
-String _formatCount(int value) {
-  final sign = value < 0 ? '-' : '';
-  final grouped = value.abs().toString().replaceAllMapped(
-    RegExp(r'\B(?=(\d{3})+(?!\d))'),
-    (_) => ',',
-  );
+/// A figure and whether it spans its whole row.
+typedef _Figure = ({Widget card, bool spansRow});
 
-  return '$sign$grouped';
-}
-
-String _plural(int count, String singular, String plural) {
-  return '${_formatCount(count)} ${count == 1 ? singular : plural}';
-}
-
-/// Lays tiles out in [columns] equal columns; a tile with `fullWidth` spans
-/// the whole row.
-class _TileWrap extends StatelessWidget {
-  const _TileWrap({required this.columnsFor, required this.tiles});
+/// Lays figures out in [columnsFor] equal columns, rows sized to their
+/// tallest card; a figure that `spansRow` takes a row of its own.
+class _FigureWrap extends StatelessWidget {
+  const _FigureWrap({required this.columnsFor, required this.figures});
 
   final int Function(double width) columnsFor;
-  final List<_Tile> tiles;
+  final List<_Figure> figures;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final columns = columnsFor(width);
-        final tileWidth = (width - AppSpacing.md * (columns - 1)) / columns;
+        final columns = columnsFor(constraints.maxWidth);
+        const spacing = AppSpacing.md;
 
-        return Wrap(
-          spacing: AppSpacing.md,
-          runSpacing: AppSpacing.md,
+        // Each row: its cards, and whether it is a full-width figure.
+        final rows = <({List<Widget> cards, bool full})>[];
+        var current = <Widget>[];
+        for (final figure in figures) {
+          if (figure.spansRow) {
+            if (current.isNotEmpty) rows.add((cards: current, full: false));
+            current = [];
+            rows.add((cards: [figure.card], full: true));
+            continue;
+          }
+          current.add(figure.card);
+          if (current.length == columns) {
+            rows.add((cards: current, full: false));
+            current = [];
+          }
+        }
+        if (current.isNotEmpty) rows.add((cards: current, full: false));
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final tile in tiles)
-              SizedBox(width: tile.spansRow ? width : tileWidth, child: tile),
+            for (var i = 0; i < rows.length; i++) ...[
+              if (i > 0) const SizedBox(height: spacing),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var j = 0; j < rows[i].cards.length; j++) ...[
+                      if (j > 0) const SizedBox(width: spacing),
+                      Expanded(child: rows[i].cards[j]),
+                    ],
+                    // Keep a partial row aligned with full ones.
+                    if (!rows[i].full)
+                      for (var j = rows[i].cards.length; j < columns; j++) ...[
+                        const SizedBox(width: spacing),
+                        const Expanded(child: SizedBox.shrink()),
+                      ],
+                  ],
+                ),
+              ),
+            ],
           ],
         );
       },
     );
   }
+}
+
+/// Profit, loss or break-even as text and icon, not colour alone.
+Widget _outcomeBadge(double value) {
+  if (value < 0) {
+    return const StatusBadge(
+      label: 'Loss',
+      tone: StatusTone.danger,
+      icon: Icons.trending_down_rounded,
+    );
+  }
+  if (value > 0) {
+    return const StatusBadge(
+      label: 'Profit',
+      tone: StatusTone.success,
+      icon: Icons.trending_up_rounded,
+    );
+  }
+  return const StatusBadge(
+    label: 'Break-even',
+    tone: StatusTone.neutral,
+    icon: Icons.trending_flat_rounded,
+  );
 }
 
 /// What the stock is worth: cost value, selling value and the expected
@@ -61,55 +106,59 @@ class InventoryValuationCards extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final profit = report.expectedGrossProfit;
-    final profitTone = profit < 0
-        ? _Tone.alert
-        : profit > 0
-        ? _Tone.positive
-        : _Tone.neutral;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         // Three across on wide layouts; on tablets the profit card spans
-        // the row beneath the two value cards.
+        // the row beneath the two value cards; phones stack them so large
+        // amounts stay readable.
         final columns = constraints.maxWidth >= 900
             ? 3
             : constraints.maxWidth >= 560
             ? 2
             : 1;
 
-        return _TileWrap(
+        return _FigureWrap(
           columnsFor: (_) => columns,
-          tiles: [
-            _Tile(
-              label: 'Inventory Cost Value',
-              value: formatGhs(report.inventoryCostValue),
-              caption: 'Stock on hand at current cost prices',
-              icon: Icons.inventory_2_outlined,
-              emphasized: true,
+          figures: [
+            (
+              card: MetricCard(
+                label: 'Inventory Cost Value',
+                value: formatGhs(report.inventoryCostValue),
+                caption: 'Stock on hand at current cost prices',
+                icon: Icons.inventory_2_outlined,
+                emphasized: true,
+              ),
+              spansRow: false,
             ),
-            _Tile(
-              label: 'Potential Selling Value',
-              value: formatGhs(report.potentialSellingValue),
-              caption: 'Stock on hand at current selling prices',
-              icon: Icons.sell_outlined,
-              emphasized: true,
+            (
+              card: MetricCard(
+                label: 'Potential Selling Value',
+                value: formatGhs(report.potentialSellingValue),
+                caption: 'Stock on hand at current selling prices',
+                icon: Icons.sell_outlined,
+                tone: StatusTone.brand,
+              ),
+              spansRow: false,
             ),
-            _Tile(
-              label: 'Expected Gross Profit',
-              value: formatGhs(profit),
-              caption: 'Selling value minus cost value',
-              icon: switch (profitTone) {
-                _Tone.alert => Icons.trending_down_rounded,
-                _Tone.positive => Icons.trending_up_rounded,
-                _ => Icons.trending_flat_rounded,
-              },
-              tone: profitTone,
-              badge: switch (profitTone) {
-                _Tone.alert => 'Loss',
-                _Tone.positive => 'Profit',
-                _ => 'Break-even',
-              },
-              emphasized: true,
+            (
+              card: MetricCard(
+                label: 'Expected Gross Profit',
+                value: formatGhs(profit),
+                caption: 'Selling value minus cost value',
+                icon: profit < 0
+                    ? Icons.trending_down_rounded
+                    : profit > 0
+                    ? Icons.trending_up_rounded
+                    : Icons.trending_flat_rounded,
+                tone: profit < 0
+                    ? StatusTone.danger
+                    : profit > 0
+                    ? StatusTone.success
+                    : StatusTone.neutral,
+                valueColor: profit < 0 ? AppColors.danger : null,
+                badge: _outcomeBadge(profit),
+              ),
               spansRow: columns == 2,
             ),
           ],
@@ -130,43 +179,61 @@ class InventoryStockGrid extends StatelessWidget {
     final low = report.lowStockCount;
     final out = report.outOfStockCount;
 
-    return _TileWrap(
+    return _FigureWrap(
       columnsFor: (width) => width >= 900
           ? 4
           : width >= 560
           ? 2
           : 1,
-      tiles: [
-        _Tile(
-          label: 'Products',
-          value: _formatCount(report.totalProducts),
-          caption: 'Active products, including out of stock',
-          icon: Icons.category_outlined,
+      figures: [
+        (
+          card: MetricCard(
+            label: 'Products',
+            value: formatReportCount(report.totalProducts),
+            caption: 'Active products, including out of stock',
+            icon: Icons.category_outlined,
+            tone: StatusTone.brand,
+          ),
+          spansRow: false,
         ),
-        _Tile(
-          label: 'Units in Stock',
-          value: _formatCount(report.totalUnits),
-          caption: 'Units currently on hand',
-          icon: Icons.inventory_outlined,
+        (
+          card: MetricCard(
+            label: 'Units in Stock',
+            value: formatReportCount(report.totalUnits),
+            caption: 'Units currently on hand',
+            icon: Icons.inventory_outlined,
+            tone: StatusTone.brand,
+          ),
+          spansRow: false,
         ),
-        _Tile(
-          label: 'Low Stock',
-          value: _formatCount(low),
-          caption: low == 0
-              ? 'No products at or below their alert level'
-              : '${_plural(low, 'product', 'products')} at or below '
-                    'their alert level',
-          icon: Icons.warning_amber_rounded,
-          tone: low > 0 ? _Tone.warning : _Tone.neutral,
+        (
+          card: MetricCard(
+            label: 'Low Stock',
+            value: formatReportCount(low),
+            caption: low == 0
+                ? 'No products at or below their alert level'
+                : '${pluralReportCount(low, 'product', 'products')} at or below '
+                      'their alert level',
+            icon: Icons.warning_amber_rounded,
+            tone: low > 0 ? StatusTone.warning : StatusTone.neutral,
+            captionTone: low > 0 ? StatusTone.warning : null,
+            valueColor: low > 0 ? AppColors.warning : null,
+          ),
+          spansRow: false,
         ),
-        _Tile(
-          label: 'Out of Stock',
-          value: _formatCount(out),
-          caption: out == 0
-              ? 'Every active product has stock'
-              : '${_plural(out, 'product', 'products')} with no units left',
-          icon: Icons.remove_shopping_cart_outlined,
-          tone: out > 0 ? _Tone.alert : _Tone.neutral,
+        (
+          card: MetricCard(
+            label: 'Out of Stock',
+            value: formatReportCount(out),
+            caption: out == 0
+                ? 'Every active product has stock'
+                : '${pluralReportCount(out, 'product', 'products')} with no units left',
+            icon: Icons.remove_shopping_cart_outlined,
+            tone: out > 0 ? StatusTone.danger : StatusTone.neutral,
+            captionTone: out > 0 ? StatusTone.danger : null,
+            valueColor: out > 0 ? AppColors.danger : null,
+          ),
+          spansRow: false,
         ),
       ],
     );
@@ -181,133 +248,30 @@ class InventoryActivityGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _TileWrap(
+    return _FigureWrap(
       columnsFor: (width) => width >= 560 ? 2 : 1,
-      tiles: [
-        _Tile(
-          label: 'Units Purchased',
-          value: _formatCount(report.unitsPurchased),
-          caption: 'All completed purchases',
-          icon: Icons.local_shipping_outlined,
+      figures: [
+        (
+          card: MetricCard(
+            label: 'Units Purchased',
+            value: formatReportCount(report.unitsPurchased),
+            caption: 'All completed purchases',
+            icon: Icons.local_shipping_outlined,
+            tone: StatusTone.info,
+          ),
+          spansRow: false,
         ),
-        _Tile(
-          label: 'Units Sold',
-          value: _formatCount(report.unitsSold),
-          caption: 'All sales, including credit sales',
-          icon: Icons.point_of_sale_outlined,
+        (
+          card: MetricCard(
+            label: 'Units Sold',
+            value: formatReportCount(report.unitsSold),
+            caption: 'All sales, including credit sales',
+            icon: Icons.point_of_sale_outlined,
+            tone: StatusTone.info,
+          ),
+          spansRow: false,
         ),
       ],
-    );
-  }
-}
-
-enum _Tone { neutral, positive, warning, alert }
-
-class _Tile extends StatelessWidget {
-  const _Tile({
-    required this.label,
-    required this.value,
-    required this.caption,
-    required this.icon,
-    this.tone = _Tone.neutral,
-    this.badge,
-    this.emphasized = false,
-    this.spansRow = false,
-  });
-
-  final String label;
-  final String value;
-  final String caption;
-  final IconData icon;
-  final _Tone tone;
-
-  /// Short status text, so tone is never conveyed by color alone.
-  final String? badge;
-
-  /// Valuation figures use the larger headline size.
-  final bool emphasized;
-  final bool spansRow;
-
-  Color get _toneColor => switch (tone) {
-    _Tone.positive => AppColors.success,
-    _Tone.warning => AppColors.warning,
-    _Tone.alert => AppColors.error,
-    _Tone.neutral => AppColors.textSecondary,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final valueStyle = emphasized
-        ? AppTypography.textTheme.headlineSmall!
-        : AppTypography.textTheme.titleLarge!;
-    final badge = this.badge;
-
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: AppTypography.textTheme.bodyMedium!.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Icon(icon, size: 18, color: _toneColor),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            value,
-            style: valueStyle.copyWith(
-              color: switch (tone) {
-                _Tone.warning => AppColors.warning,
-                _Tone.alert => AppColors.error,
-                _ => AppColors.textPrimary,
-              },
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          if (badge != null) ...[
-            const SizedBox(height: AppSpacing.sm),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.sm,
-                vertical: AppSpacing.xs,
-              ),
-              decoration: BoxDecoration(
-                color: _toneColor.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-              ),
-              child: Text(
-                badge,
-                style: AppTypography.textTheme.bodySmall!.copyWith(
-                  color: _toneColor,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            caption,
-            style: AppTypography.textTheme.bodySmall!.copyWith(
-              color: AppColors.textMuted,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

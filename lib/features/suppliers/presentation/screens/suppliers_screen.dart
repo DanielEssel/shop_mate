@@ -161,14 +161,7 @@ class _SuppliersScreenState extends ConsumerState<SuppliersScreen> {
                     ),
                   ),
                   ...suppliersAsync.when(
-                    loading: () => [
-                      boxed(
-                        const SurfaceCard(
-                          padding: EdgeInsets.zero,
-                          child: SkeletonList(rows: 4),
-                        ),
-                      ),
-                    ],
+                    loading: () => [boxed(const SkeletonList(rows: 4))],
                     error: (_, _) => [
                       boxed(
                         SurfaceCard(

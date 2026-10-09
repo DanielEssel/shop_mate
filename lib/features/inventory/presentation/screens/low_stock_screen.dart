@@ -9,6 +9,7 @@ import '../../../shop/presentation/providers/shop_provider.dart';
 import '../widgets/low_stock_product_card.dart';
 import '../widgets/low_stock_summary_header.dart';
 import '../../../products/domain/entities/product.dart';
+import '../../../../core/ui/ui.dart';
 
 class LowStockScreen extends ConsumerWidget {
   const LowStockScreen({super.key});
@@ -63,7 +64,13 @@ class LowStockScreen extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _Header(onBack: () => context.pop()),
+                            PageHeader(
+                              title: 'Low Stock',
+                              subtitle:
+                                  'Products that need restocking '
+                                  'attention.',
+                              leading: pageHeaderLeading(context),
+                            ),
 
                             const SizedBox(height: AppSpacing.xxl),
 
@@ -93,52 +100,6 @@ class LowStockScreen extends ConsumerWidget {
           },
         ),
       ),
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({required this.onBack});
-
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Row(
-      children: [
-        IconButton(
-          onPressed: onBack,
-          icon: const Icon(Icons.arrow_back_rounded),
-          style: IconButton.styleFrom(
-            backgroundColor: AppColors.surface,
-            side: const BorderSide(color: AppColors.border),
-          ),
-        ),
-        const SizedBox(width: AppSpacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Low Stock',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Products that need restocking attention.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

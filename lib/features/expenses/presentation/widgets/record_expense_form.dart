@@ -9,6 +9,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_spacing.dart';
 import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/uuid_v4.dart';
 import '../../domain/entities/expense_category.dart';
 import '../../domain/entities/expense_payment_method.dart';
@@ -310,10 +311,10 @@ class _RecordExpenseFormState extends ConsumerState<RecordExpenseForm> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(
+              AppSpacing.xl,
               AppSpacing.lg,
               AppSpacing.md,
-              AppSpacing.sm,
-              AppSpacing.sm,
+              AppSpacing.md,
             ),
             child: Row(
               children: [
@@ -324,7 +325,7 @@ class _RecordExpenseFormState extends ConsumerState<RecordExpenseForm> {
                       Text(
                         'Record Expense',
                         style: AppTypography.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: AppSpacing.xs),
@@ -350,7 +351,7 @@ class _RecordExpenseFormState extends ConsumerState<RecordExpenseForm> {
           const Divider(height: 1),
           Flexible(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(AppSpacing.lg),
+              padding: const EdgeInsets.all(AppSpacing.xl),
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -358,10 +359,7 @@ class _RecordExpenseFormState extends ConsumerState<RecordExpenseForm> {
                   DropdownButtonFormField<ExpenseCategory>(
                     initialValue: _category,
                     isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Category',
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: const InputDecoration(labelText: 'Category'),
                     items: [
                       for (final category in ExpenseCategory.values)
                         DropdownMenuItem(
@@ -377,73 +375,77 @@ class _RecordExpenseFormState extends ConsumerState<RecordExpenseForm> {
                           },
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  TextField(
-                    controller: _amountController,
-                    enabled: !_isSubmitting,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    textInputAction: TextInputAction.next,
-                    onChanged: (_) => _onChanged(),
-                    decoration: InputDecoration(
-                      labelText: 'Amount',
-                      prefixText: 'GHS ',
-                      hintText: '0.00',
-                      errorText: _amountError,
-                      border: const OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  DropdownButtonFormField<ExpensePaymentMethod>(
-                    initialValue: _paymentMethod,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Payment method',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: [
-                      for (final method in ExpensePaymentMethod.values)
-                        DropdownMenuItem(
-                          value: method,
-                          child: Text(method.label),
-                        ),
-                    ],
-                    onChanged: _isSubmitting
-                        ? null
-                        : (value) {
-                            _paymentMethod = value;
-                            _onChanged();
-                          },
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  InkWell(
-                    onTap: _isSubmitting ? null : _pickDate,
-                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                    child: InputDecorator(
-                      isEmpty: false,
-                      decoration: InputDecoration(
-                        labelText: 'Expense date',
+                  FieldRow(
+                    children: [
+                      TextField(
+                        controller: _amountController,
                         enabled: !_isSubmitting,
-                        errorText: _isDateValid
-                            ? null
-                            : 'Select a valid expense date.',
-                        border: const OutlineInputBorder(),
-                        suffixIcon: const Icon(Icons.calendar_today_outlined),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        textInputAction: TextInputAction.next,
+                        onChanged: (_) => _onChanged(),
+                        decoration: InputDecoration(
+                          labelText: 'Amount',
+                          prefixText: 'GHS ',
+                          hintText: '0.00',
+                          errorText: _amountError,
+                        ),
                       ),
-                      child: Text(dateLabel),
-                    ),
+                      DropdownButtonFormField<ExpensePaymentMethod>(
+                        initialValue: _paymentMethod,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Payment method',
+                        ),
+                        items: [
+                          for (final method in ExpensePaymentMethod.values)
+                            DropdownMenuItem(
+                              value: method,
+                              child: Text(method.label),
+                            ),
+                        ],
+                        onChanged: _isSubmitting
+                            ? null
+                            : (value) {
+                                _paymentMethod = value;
+                                _onChanged();
+                              },
+                      ),
+                    ],
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  TextField(
-                    controller: _referenceController,
-                    enabled: !_isSubmitting,
-                    textInputAction: TextInputAction.next,
-                    onChanged: (_) => _onChanged(),
-                    decoration: const InputDecoration(
-                      labelText: 'Reference (optional)',
-                      hintText: 'Receipt, invoice or transaction number',
-                      border: OutlineInputBorder(),
-                    ),
+                  FieldRow(
+                    children: [
+                      InkWell(
+                        onTap: _isSubmitting ? null : _pickDate,
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                        child: InputDecorator(
+                          isEmpty: false,
+                          decoration: InputDecoration(
+                            labelText: 'Expense date',
+                            enabled: !_isSubmitting,
+                            errorText: _isDateValid
+                                ? null
+                                : 'Select a valid expense date.',
+                            suffixIcon: const Icon(
+                              Icons.calendar_today_outlined,
+                            ),
+                          ),
+                          child: Text(dateLabel),
+                        ),
+                      ),
+                      TextField(
+                        controller: _referenceController,
+                        enabled: !_isSubmitting,
+                        textInputAction: TextInputAction.next,
+                        onChanged: (_) => _onChanged(),
+                        decoration: const InputDecoration(
+                          labelText: 'Reference (optional)',
+                          hintText: 'Receipt, invoice or transaction number',
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: AppSpacing.md),
                   TextField(
@@ -455,7 +457,6 @@ class _RecordExpenseFormState extends ConsumerState<RecordExpenseForm> {
                     onChanged: (_) => _onChanged(),
                     decoration: const InputDecoration(
                       labelText: 'Note (optional)',
-                      border: OutlineInputBorder(),
                     ),
                   ),
                   if (_submitError != null) ...[
@@ -484,6 +485,9 @@ class _RecordExpenseFormState extends ConsumerState<RecordExpenseForm> {
                 ],
                 FilledButton.icon(
                   onPressed: _canConfirm ? _confirm : null,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
                   icon: _isSubmitting
                       ? const SizedBox.square(
                           dimension: 18,
@@ -517,21 +521,21 @@ class _SubmitErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.error.withValues(alpha: 0.08),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+        color: AppColors.dangerLight,
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.error_outline_rounded, color: AppColors.error),
+          const Icon(Icons.error_outline_rounded, color: AppColors.danger),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
               message,
               style: AppTypography.textTheme.bodyMedium?.copyWith(
-                color: AppColors.error,
-                fontWeight: FontWeight.w600,
+                color: AppColors.danger,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),

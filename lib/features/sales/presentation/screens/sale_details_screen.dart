@@ -2,14 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_spacing.dart';
+import '../../../../core/ui/ui.dart';
+import '../../../../core/utils/date_format.dart';
+import '../../../../core/utils/money_format.dart';
 import '../../domain/entities/sale.dart';
 import '../../domain/entities/sale_item.dart';
 import '../providers/sales_provider.dart';
+import '../widgets/sale_card.dart';
 
 class SaleDetailsScreen extends ConsumerWidget {
   const SaleDetailsScreen({super.key, required this.saleId});
 
   final String saleId;
+
+  void _refresh(WidgetRef ref) {
+    ref.invalidate(saleProvider(saleId));
+    ref.invalidate(saleItemsProvider(saleId));
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -17,514 +29,265 @@ class SaleDetailsScreen extends ConsumerWidget {
     final itemsAsync = ref.watch(saleItemsProvider(saleId));
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
-      appBar: AppBar(
-        title: const Text('Sale Details'),
-        actions: [
-          IconButton(
-            tooltip: 'View receipt',
-            onPressed: () {
-              context.push('/sales/$saleId/receipt');
-            },
-            icon: const Icon(Icons.receipt_long_outlined),
-          ),
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: () {
-              ref.invalidate(saleProvider(saleId));
-              ref.invalidate(saleItemsProvider(saleId));
-            },
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-      ),
-      body: saleAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _ErrorState(
-          message: error.toString().replaceFirst('Exception: ', ''),
-          onRetry: () {
-            ref.invalidate(saleProvider(saleId));
-            ref.invalidate(saleItemsProvider(saleId));
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final isCompact = Breakpoints.of(width).isCompact;
+            final horizontal = Breakpoints.pagePadding(
+              width,
+              maxWidth: ContentWidth.standard,
+            );
+
+            return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                isCompact ? AppSpacing.md : AppSpacing.xxl,
+                horizontal,
+                AppSpacing.xxxl,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  PageHeader(
+                    title: 'Sale Details',
+                    leading: pageHeaderLeading(context),
+                    actions: [
+                      if (!isCompact)
+                        IconButton(
+                          tooltip: 'Refresh',
+                          onPressed: () => _refresh(ref),
+                          icon: const Icon(Icons.refresh_rounded),
+                        ),
+                      PrimaryButton(
+                        label: 'View receipt',
+                        icon: Icons.receipt_long_outlined,
+                        onPressed: () => context.push('/sales/$saleId/receipt'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xxl),
+                  saleAsync.when(
+                    loading: () => const _DetailsSkeleton(),
+                    error: (error, _) => _LoadError(
+                      title: 'Unable to load sale',
+                      error: error,
+                      onRetry: () => _refresh(ref),
+                    ),
+                    data: (sale) => itemsAsync.when(
+                      loading: () => const _DetailsSkeleton(),
+                      error: (error, _) => _LoadError(
+                        title: 'Unable to load sale',
+                        error: error,
+                        onRetry: () =>
+                            ref.invalidate(saleItemsProvider(saleId)),
+                      ),
+                      data: (items) => _SaleDetailsBody(
+                        sale: sale,
+                        items: items,
+                        wide: width >= Breakpoints.expanded,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
           },
         ),
-        data: (sale) {
-          return itemsAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => _ErrorState(
-              message: error.toString().replaceFirst('Exception: ', ''),
-              onRetry: () {
-                ref.invalidate(saleItemsProvider(saleId));
-              },
-            ),
-            data: (items) {
-              return _SaleDetailsBody(sale: sale, items: items);
-            },
-          );
-        },
       ),
     );
   }
 }
 
 class _SaleDetailsBody extends StatelessWidget {
-  const _SaleDetailsBody({required this.sale, required this.items});
+  const _SaleDetailsBody({
+    required this.sale,
+    required this.items,
+    required this.wide,
+  });
 
   final Sale sale;
   final List<SaleItem> items;
 
+  /// Desktop: items beside the sale and payment information.
+  final bool wide;
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    const gap = SizedBox(height: AppSpacing.xxl);
 
-    return SafeArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _SaleHeader(sale: sale),
-                const SizedBox(height: 16),
-                _SaleSummaryCard(sale: sale),
-                const SizedBox(height: 16),
-                _ItemsCard(items: items),
-                const SizedBox(height: 16),
-                _PaymentCard(sale: sale),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      context.pop();
-                    },
-                    icon: const Icon(Icons.arrow_back_rounded),
-                    label: const Text('Back to Sales'),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  'Sale ID: ${sale.id}',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.grey.shade500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    final identity = IdentityPanel(
+      visual: const IconTile(icon: Icons.receipt_long_outlined, size: 56),
+      title: sale.saleNumber,
+      subtitle: formatDateTime(sale.createdAt),
+      badges: [
+        sale.isCredit
+            ? const StatusBadge(
+                label: 'Credit',
+                tone: StatusTone.warning,
+                icon: Icons.schedule_rounded,
+              )
+            : const StatusBadge(
+                label: 'Completed',
+                tone: StatusTone.success,
+                icon: Icons.check_circle_outline_rounded,
+              ),
+        // A credit sale's status already says "Credit".
+        if (!sale.isCredit) SalePaymentBadge(sale: sale),
+      ],
     );
-  }
-}
 
-class _SaleHeader extends StatelessWidget {
-  const _SaleHeader({required this.sale});
+    final figures = MetricGrid(
+      cards: [
+        MetricCard(
+          label: 'Total',
+          value: formatGhs(sale.totalAmount),
+          caption:
+              '${items.length} ${items.length == 1 ? 'product' : 'products'}',
+          icon: Icons.payments_outlined,
+          emphasized: true,
+        ),
+        MetricCard(
+          label: 'Amount Paid',
+          value: formatGhs(sale.amountPaid),
+          caption: sale.paymentMethodLabel,
+          icon: Icons.account_balance_wallet_outlined,
+          tone: StatusTone.success,
+        ),
+        if (!sale.isCredit)
+          MetricCard(
+            label: 'Change',
+            value: formatGhs(sale.changeAmount),
+            caption: 'Given back to the customer',
+            icon: Icons.currency_exchange_rounded,
+            tone: StatusTone.info,
+          ),
+      ],
+    );
 
-  final Sale sale;
+    final lineItems = LineItemsSection(
+      items: [
+        for (final item in items)
+          LineItem(
+            name: item.productName,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            total: item.subtotal,
+          ),
+      ],
+      total: sale.totalAmount,
+      emptyMessage: 'No items found for this sale.',
+    );
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
+    final information = InfoSection(
+      title: 'Sale Information',
+      items: [
+        InfoItem(label: 'Sale number', value: sale.saleNumber),
+        InfoItem(label: 'Date', value: formatDateTime(sale.createdAt)),
+        InfoItem(
+          label: 'Status',
+          value: sale.isCredit ? 'Credit' : 'Completed',
+        ),
+        InfoItem(label: 'Sale ID', value: sale.id),
+      ],
+    );
+
+    final payment = InfoSection(
+      title: 'Payment',
+      items: [
+        InfoItem(label: 'Payment method', value: sale.paymentMethodLabel),
+        InfoItem(
+          label: 'Payment status',
+          value: sale.isCredit
+              ? 'Payment recorded as credit'
+              : 'Payment completed',
+        ),
+      ],
+    );
+
+    if (wide) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F5F0),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Icon(
-              Icons.receipt_long_rounded,
-              color: Color(0xFF087F5B),
-              size: 28,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  sale.saleNumber,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  _formatDateTime(sale.createdAt),
-                  style: TextStyle(color: Colors.grey.shade600),
-                ),
-              ],
-            ),
-          ),
-          _StatusBadge(
-            label: sale.isCredit ? 'Credit' : 'Completed',
-            isCredit: sale.isCredit,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.label, required this.isCredit});
-
-  final String label;
-  final bool isCredit;
-
-  @override
-  Widget build(BuildContext context) {
-    final backgroundColor = isCredit
-        ? const Color(0xFFFFF4E5)
-        : const Color(0xFFE8F5F0);
-
-    final foregroundColor = isCredit
-        ? const Color(0xFFB76E00)
-        : const Color(0xFF087F5B);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(30),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: foregroundColor,
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-class _SaleSummaryCard extends StatelessWidget {
-  const _SaleSummaryCard({required this.sale});
-
-  final Sale sale;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'Sale Summary',
-      icon: Icons.summarize_rounded,
-      child: Column(
-        children: [
-          _InfoRow(
-            label: 'Total amount',
-            value: 'GHS ${sale.totalAmount.toStringAsFixed(2)}',
-            emphasize: true,
-          ),
-          const SizedBox(height: 12),
-          _InfoRow(label: 'Payment method', value: sale.paymentMethodLabel),
-          const SizedBox(height: 12),
-          _InfoRow(
-            label: 'Amount paid',
-            value: 'GHS ${sale.amountPaid.toStringAsFixed(2)}',
-          ),
-          if (!sale.isCredit) ...[
-            const SizedBox(height: 12),
-            _InfoRow(
-              label: 'Change',
-              value: 'GHS ${sale.changeAmount.toStringAsFixed(2)}',
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ItemsCard extends StatelessWidget {
-  const _ItemsCard({required this.items});
-
-  final List<SaleItem> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'Items',
-      icon: Icons.shopping_bag_outlined,
-      trailing: Text(
-        '${items.length} ${items.length == 1 ? 'item' : 'items'}',
-        style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-      ),
-      child: items.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
-              child: Center(child: Text('No items found for this sale.')),
-            )
-          : Column(
-              children: [
-                for (var index = 0; index < items.length; index++) ...[
-                  _SaleItemRow(item: items[index]),
-                  if (index != items.length - 1) const Divider(height: 24),
-                ],
-              ],
-            ),
-    );
-  }
-}
-
-class _SaleItemRow extends StatelessWidget {
-  const _SaleItemRow({required this.item});
-
-  final SaleItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: const Color(0xFFF0F3F5),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(Icons.inventory_2_outlined, size: 21),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
+          identity,
+          const SizedBox(height: AppSpacing.lg),
+          figures,
+          gap,
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                item.productName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${item.quantity} × GHS ${item.unitPrice.toStringAsFixed(2)}',
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+              Expanded(flex: 3, child: lineItems),
+              const SizedBox(width: AppSpacing.xxl),
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [information, gap, payment],
+                ),
               ),
             ],
           ),
-        ),
-        const SizedBox(width: 12),
-        Text(
-          'GHS ${item.subtotal.toStringAsFixed(2)}',
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        identity,
+        const SizedBox(height: AppSpacing.lg),
+        figures,
+        gap,
+        lineItems,
+        gap,
+        payment,
+        gap,
+        information,
       ],
     );
   }
 }
 
-class _PaymentCard extends StatelessWidget {
-  const _PaymentCard({required this.sale});
-
-  final Sale sale;
-
-  @override
-  Widget build(BuildContext context) {
-    return _SectionCard(
-      title: 'Payment',
-      icon: Icons.payments_outlined,
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F5F0),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              _paymentIcon(sale.paymentMethod),
-              color: const Color(0xFF087F5B),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  sale.paymentMethodLabel,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  sale.isCredit
-                      ? 'Payment recorded as credit'
-                      : 'Payment completed',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
+class _LoadError extends StatelessWidget {
+  const _LoadError({
     required this.title,
-    required this.icon,
-    required this.child,
-    this.trailing = const SizedBox.shrink(),
+    required this.error,
+    required this.onRetry,
   });
 
   final String title;
-  final IconData icon;
-  final Widget child;
-  final Widget trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 21, color: const Color(0xFF087F5B)),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              trailing,
-            ],
-          ),
-          const SizedBox(height: 18),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.label,
-    required this.value,
-    this.emphasize = false,
-  });
-
-  final String label;
-  final String value;
-  final bool emphasize;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(label, style: TextStyle(color: Colors.grey.shade600)),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: emphasize ? 17 : 14,
-            fontWeight: emphasize ? FontWeight.w800 : FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.message, required this.onRetry});
-
-  final String message;
+  final Object error;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 52,
-              color: Colors.redAccent,
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'Unable to load sale',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 18),
-            FilledButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Try Again'),
-            ),
-          ],
-        ),
+    return SurfaceCard(
+      child: ErrorState(
+        compact: true,
+        title: title,
+        message: error.toString().replaceFirst('Exception: ', ''),
+        onRetry: onRetry,
       ),
     );
   }
 }
 
-String _formatDateTime(DateTime dateTime) {
-  final local = dateTime.toLocal();
+class _DetailsSkeleton extends StatelessWidget {
+  const _DetailsSkeleton();
 
-  String twoDigits(int value) => value.toString().padLeft(2, '0');
-
-  return '${local.day}/${local.month}/${local.year} '
-      '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
-}
-
-IconData _paymentIcon(String method) {
-  switch (method) {
-    case 'cash':
-      return Icons.payments_rounded;
-    case 'mobile_money':
-      return Icons.phone_android_rounded;
-    case 'card':
-      return Icons.credit_card_rounded;
-    case 'bank_transfer':
-      return Icons.account_balance_rounded;
-    case 'credit':
-      return Icons.schedule_rounded;
-    default:
-      return Icons.payment_rounded;
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SkeletonBox(height: 112, radius: AppRadius.lg),
+        SizedBox(height: AppSpacing.lg),
+        SkeletonBox(height: 104, radius: AppRadius.lg),
+        SizedBox(height: AppSpacing.xxl),
+        SkeletonBox(height: 220, radius: AppRadius.lg),
+      ],
+    );
   }
 }

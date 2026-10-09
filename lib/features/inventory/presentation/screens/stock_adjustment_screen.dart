@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_spacing.dart';
+import '../../../../app/theme/app_typography.dart';
+import '../../../../core/ui/ui.dart';
 import '../../../products/domain/entities/product.dart';
 import '../../../products/presentation/providers/products_provider.dart';
 import '../providers/inventory_provider.dart';
@@ -100,31 +105,49 @@ class _StockAdjustmentScreenState extends ConsumerState<StockAdjustmentScreen> {
         barrierDismissible: false,
         builder: (dialogContext) {
           return AlertDialog(
-            title: const Text(
-              'Stock Updated',
-              style: TextStyle(fontWeight: FontWeight.w800),
-            ),
+            title: const Text('Stock Updated'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(
                   Icons.check_circle_rounded,
                   size: 64,
-                  color: Color(0xFF087F5B),
+                  color: AppColors.primary,
                 ),
                 const SizedBox(height: 16),
                 Text(
                   product.name,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: AppTypography.textTheme.titleSmall,
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  '${product.stockQuantity} → ${_direction == 'increase' ? product.stockQuantity + _quantity : product.stockQuantity - _quantity} units',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
+                // An arrow icon, not the arrow character: the app font has
+                // no glyph for it.
+                Builder(
+                  builder: (context) {
+                    final style = AppTypography.metricMedium.copyWith(
+                      color: AppColors.textPrimary,
+                    );
+                    final before = '${product.stockQuantity}';
+                    final after =
+                        '${_direction == 'increase' ? product.stockQuantity + _quantity : product.stockQuantity - _quantity} units';
+
+                    return Semantics(
+                      label: '$before to $after',
+                      excludeSemantics: true,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(before, style: style),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 6),
+                            child: Icon(Icons.arrow_forward_rounded, size: 18),
+                          ),
+                          Text(after, style: style),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -161,106 +184,143 @@ class _StockAdjustmentScreenState extends ConsumerState<StockAdjustmentScreen> {
     }
   }
 
+  /// Floats above the action bar so it never covers Update Stock.
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    showFloatingMessage(
+      context,
+      message,
+      clearance: FormActionBar.messageClearance,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(productsProvider);
+    final products = productsAsync.value;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
-      appBar: AppBar(
-        title: const Text(
-          'Adjust Stock',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-      ),
-      body: productsAsync.when(
-        loading: () {
-          return const Center(child: CircularProgressIndicator());
-        },
-        error: (error, stackTrace) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                'Unable to load products.\n$error',
-                textAlign: TextAlign.center,
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = constraints.maxWidth;
+                  final horizontal = Breakpoints.pagePadding(
+                    width,
+                    maxWidth: ContentWidth.form,
+                  );
+
+                  return SingleChildScrollView(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: EdgeInsets.fromLTRB(
+                      horizontal,
+                      Breakpoints.of(width).isCompact
+                          ? AppSpacing.md
+                          : AppSpacing.xxl,
+                      horizontal,
+                      AppSpacing.xxl,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        PageHeader(
+                          title: 'Adjust Stock',
+                          subtitle:
+                              'Manually increase or decrease the available '
+                              'stock.',
+                          leading: pageHeaderLeading(context),
+                        ),
+                        const SizedBox(height: AppSpacing.xxl),
+                        productsAsync.when(
+                          loading: () => Semantics(
+                            container: true,
+                            label: 'Loading products',
+                            child: const ExcludeSemantics(
+                              child: SkeletonList(rows: 3),
+                            ),
+                          ),
+                          error: (_, _) => SurfaceCard(
+                            child: ErrorState(
+                              compact: true,
+                              title: 'Unable to load products',
+                              message: 'Check your connection and try again.',
+                              retryLabel: 'Retry',
+                              onRetry: () => ref.invalidate(productsProvider),
+                            ),
+                          ),
+                          data: (products) {
+                            final selectedProduct = _getSelectedProduct(
+                              products,
+                            );
+
+                            final newStock = selectedProduct == null
+                                ? 0
+                                : _direction == 'increase'
+                                ? selectedProduct.stockQuantity + _quantity
+                                : selectedProduct.stockQuantity - _quantity;
+
+                            return _AdjustmentForm(
+                              products: products,
+                              selectedProduct: selectedProduct,
+                              direction: _direction,
+                              quantityController: _quantityController,
+                              noteController: _noteController,
+                              newStock: newStock,
+                              isProcessing: _isProcessing,
+                              onProductChanged: (productId) {
+                                setState(() {
+                                  _selectedProductId = productId;
+                                });
+                              },
+                              onDirectionChanged: (direction) {
+                                setState(() {
+                                  _direction = direction;
+                                });
+                              },
+                              onChanged: () {
+                                setState(() {});
+                              },
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
-          );
-        },
-        data: (products) {
-          final selectedProduct = _getSelectedProduct(products);
-
-          final newStock = selectedProduct == null
-              ? 0
-              : _direction == 'increase'
-              ? selectedProduct.stockQuantity + _quantity
-              : selectedProduct.stockQuantity - _quantity;
-
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final isDesktop = constraints.maxWidth >= 900;
-
-              return SingleChildScrollView(
-                padding: EdgeInsets.all(isDesktop ? 32 : 16),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 760),
-                    child: _AdjustmentCard(
-                      products: products,
-                      selectedProduct: selectedProduct,
-                      direction: _direction,
-                      quantityController: _quantityController,
-                      noteController: _noteController,
-                      quantity: _quantity,
-                      newStock: newStock,
-                      isProcessing: _isProcessing,
-                      onProductChanged: (productId) {
-                        setState(() {
-                          _selectedProductId = productId;
-                        });
-                      },
-                      onDirectionChanged: (direction) {
-                        setState(() {
-                          _direction = direction;
-                        });
-                      },
-                      onChanged: () {
-                        setState(() {});
-                      },
-                      onSubmit: () => _submit(products),
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
-        },
+            FormActionBar(
+              primaryLabel: 'Update Stock',
+              busyLabel: 'Updating Stock...',
+              isBusy: _isProcessing,
+              onPrimary: products == null ? null : () => _submit(products),
+              onSecondary: () => Navigator.of(context).maybePop(),
+              maxContentWidth: ContentWidth.form,
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _AdjustmentCard extends StatelessWidget {
-  const _AdjustmentCard({
+class _AdjustmentForm extends StatelessWidget {
+  const _AdjustmentForm({
     required this.products,
     required this.selectedProduct,
     required this.direction,
     required this.quantityController,
     required this.noteController,
-    required this.quantity,
     required this.newStock,
     required this.isProcessing,
     required this.onProductChanged,
     required this.onDirectionChanged,
     required this.onChanged,
-    required this.onSubmit,
   });
 
   final List<Product> products;
@@ -268,62 +328,31 @@ class _AdjustmentCard extends StatelessWidget {
   final String direction;
   final TextEditingController quantityController;
   final TextEditingController noteController;
-  final int quantity;
   final int newStock;
   final bool isProcessing;
   final ValueChanged<String?> onProductChanged;
   final ValueChanged<String> onDirectionChanged;
   final VoidCallback onChanged;
-  final VoidCallback onSubmit;
 
   @override
   Widget build(BuildContext context) {
     final isIncrease = direction == 'increase';
+    final selectedProduct = this.selectedProduct;
+    const fieldGap = SizedBox(height: AppSpacing.lg);
 
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE9ECEF)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.035),
-            blurRadius: 20,
-            offset: const Offset(0, 7),
-          ),
-        ],
-      ),
+    return FormSection(
+      title: 'Adjustment',
+      subtitle: 'Choose a product, the change and how many units.',
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Update Inventory',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Manually increase or decrease the available stock.',
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-          ),
-
-          const SizedBox(height: 26),
-
-          const _FieldLabel(label: 'Product'),
-          const SizedBox(height: 8),
-
           DropdownButtonFormField<String>(
             initialValue: selectedProduct?.id,
             isExpanded: true,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
+              labelText: 'Product',
               hintText: 'Select a product',
-              prefixIcon: const Icon(Icons.inventory_2_outlined),
-              filled: true,
-              fillColor: const Color(0xFFF7F8FA),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
+              prefixIcon: Icon(Icons.inventory_2_outlined),
             ),
             items: products.map((product) {
               return DropdownMenuItem<String>(
@@ -334,129 +363,56 @@ class _AdjustmentCard extends StatelessWidget {
                 ),
               );
             }).toList(),
-            onChanged: onProductChanged,
+            onChanged: isProcessing ? null : onProductChanged,
           ),
-
-          const SizedBox(height: 22),
-
-          if (selectedProduct != null)
-            _CurrentStockCard(product: selectedProduct!),
-
-          const SizedBox(height: 22),
-
-          const _FieldLabel(label: 'Adjustment Type'),
-          const SizedBox(height: 8),
-
-          Row(
-            children: [
-              Expanded(
-                child: _DirectionButton(
-                  label: 'Add Stock',
-                  icon: Icons.add_circle_outline_rounded,
-                  selected: isIncrease,
-                  onTap: () {
-                    onDirectionChanged('increase');
-                  },
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _DirectionButton(
-                  label: 'Remove Stock',
-                  icon: Icons.remove_circle_outline_rounded,
-                  selected: !isIncrease,
-                  onTap: () {
-                    onDirectionChanged('decrease');
-                  },
-                ),
-              ),
+          if (selectedProduct != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            _CurrentStockCard(product: selectedProduct),
+          ],
+          fieldGap,
+          OptionChipGroup(
+            label: 'Adjustment type',
+            options: const [
+              ('increase', 'Add Stock'),
+              ('decrease', 'Remove Stock'),
             ],
+            selected: direction,
+            onSelected: isProcessing ? null : onDirectionChanged,
           ),
-
-          const SizedBox(height: 22),
-
-          const _FieldLabel(label: 'Quantity'),
-          const SizedBox(height: 8),
-
+          fieldGap,
           TextField(
             controller: quantityController,
+            enabled: !isProcessing,
             keyboardType: TextInputType.number,
             onChanged: (_) => onChanged(),
             decoration: InputDecoration(
+              labelText: 'Quantity',
               hintText: 'Enter quantity',
               prefixIcon: Icon(
                 isIncrease ? Icons.add_rounded : Icons.remove_rounded,
               ),
-              filled: true,
-              fillColor: const Color(0xFFF7F8FA),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
             ),
           ),
-
-          const SizedBox(height: 22),
-
-          const _FieldLabel(label: 'Note'),
-          const SizedBox(height: 8),
-
+          fieldGap,
           TextField(
             controller: noteController,
+            enabled: !isProcessing,
+            minLines: 2,
             maxLines: 3,
-            decoration: InputDecoration(
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Note (optional)',
               hintText: 'e.g. Damaged goods, physical count, opening stock...',
-              prefixIcon: const Padding(
-                padding: EdgeInsets.only(bottom: 42),
-                child: Icon(Icons.notes_rounded),
-              ),
-              filled: true,
-              fillColor: const Color(0xFFF7F8FA),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
             ),
           ),
-
-          const SizedBox(height: 22),
-
-          if (selectedProduct != null)
+          if (selectedProduct != null) ...[
+            fieldGap,
             _NewStockPreview(
-              currentStock: selectedProduct!.stockQuantity,
+              currentStock: selectedProduct.stockQuantity,
               newStock: newStock,
               increase: isIncrease,
             ),
-
-          const SizedBox(height: 26),
-
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: FilledButton.icon(
-              onPressed: isProcessing ? null : onSubmit,
-              icon: isProcessing
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.check_rounded),
-              label: Text(
-                isProcessing ? 'Updating Stock...' : 'Update Stock',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF087F5B),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-            ),
-          ),
+          ],
         ],
       ),
     );
@@ -470,48 +426,51 @@ class _CurrentStockCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: const Color(0xFFE8F5F1),
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.primarySurface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Row(
         children: [
-          const Icon(Icons.inventory_2_outlined, color: Color(0xFF087F5B)),
-          const SizedBox(width: 12),
+          const Icon(Icons.inventory_2_outlined, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Current Stock',
-                  style: TextStyle(
-                    color: Color(0xFF087F5B),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                Text(
+                  'Current stock',
+                  style: textTheme.labelSmall?.copyWith(
+                    color: AppColors.primaryDark,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   product.name,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.titleSmall?.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: AppSpacing.md),
           Text(
             '${product.stockQuantity}',
-            style: const TextStyle(
-              color: Color(0xFF087F5B),
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
+            style: AppTypography.metricMedium.copyWith(
+              color: AppColors.primaryDark,
             ),
           ),
-          const SizedBox(width: 4),
-          const Text(
+          const SizedBox(width: AppSpacing.xs),
+          Text(
             'units',
-            style: TextStyle(color: Color(0xFF087F5B), fontSize: 11),
+            style: textTheme.bodySmall?.copyWith(color: AppColors.primaryDark),
           ),
         ],
       ),
@@ -532,120 +491,47 @@ class _NewStockPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F8FA),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE9ECEF)),
+        color: AppColors.surfaceSubtle,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Text(
-              'New Stock Level',
-              style: TextStyle(fontWeight: FontWeight.w700),
+              'New stock level',
+              style: textTheme.titleSmall?.copyWith(
+                color: AppColors.textPrimary,
+              ),
             ),
           ),
           Text(
             '$currentStock',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w700,
+            style: AppTypography.amount.copyWith(
+              color: AppColors.textSecondary,
             ),
           ),
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 10),
-            child: Icon(Icons.arrow_forward_rounded, size: 18),
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            child: Icon(
+              Icons.arrow_forward_rounded,
+              size: 18,
+              color: AppColors.textMuted,
+            ),
           ),
           Text(
             '$newStock',
-            style: TextStyle(
-              color: increase ? const Color(0xFF087F5B) : Colors.red.shade700,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
+            style: AppTypography.metricMedium.copyWith(
+              color: increase ? AppColors.primary : AppColors.danger,
             ),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _DirectionButton extends StatelessWidget {
-  const _DirectionButton({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? const Color(0xFFE8F5F1) : const Color(0xFFF7F8FA),
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          height: 52,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: selected
-                  ? const Color(0xFF087F5B)
-                  : const Color(0xFFE9ECEF),
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: selected
-                    ? const Color(0xFF087F5B)
-                    : Colors.grey.shade600,
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  label,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: selected
-                        ? const Color(0xFF087F5B)
-                        : Colors.grey.shade700,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FieldLabel extends StatelessWidget {
-  const _FieldLabel({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
     );
   }
 }
