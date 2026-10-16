@@ -11,6 +11,9 @@ class SaleItemModel extends SaleItem {
     required super.costPrice,
     required super.subtotal,
     required super.createdAt,
+    super.originalUnitPrice,
+    super.discountPercentage,
+    super.discountAmount,
   });
 
   factory SaleItemModel.fromJson(Map<String, dynamic> json) {
@@ -24,6 +27,11 @@ class SaleItemModel extends SaleItem {
       costPrice: (json['cost_price'] as num).toDouble(),
       subtotal: (json['subtotal'] as num).toDouble(),
       createdAt: DateTime.parse(json['created_at'].toString()),
+      // Discount snapshots; absent on data from before discounts existed.
+      originalUnitPrice: (json['original_unit_price'] as num?)?.toDouble(),
+      discountPercentage:
+          (json['discount_percentage'] as num?)?.toDouble() ?? 0,
+      discountAmount: (json['discount_amount'] as num?)?.toDouble() ?? 0,
     );
   }
 
@@ -37,6 +45,9 @@ class SaleItemModel extends SaleItem {
       'unit_price': unitPrice,
       'cost_price': costPrice,
       'subtotal': subtotal,
+      'original_unit_price': originalUnitPrice,
+      'discount_percentage': discountPercentage,
+      'discount_amount': discountAmount,
       'created_at': createdAt.toIso8601String(),
     };
   }

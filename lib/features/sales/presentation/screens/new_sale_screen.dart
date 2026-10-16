@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
@@ -13,8 +12,17 @@ import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/money_format.dart';
 import '../../../products/domain/entities/product.dart';
 import '../../../products/presentation/widgets/product_visuals.dart';
+import '../../../discounts/domain/entities/discount_pricing.dart';
+import '../../../discounts/domain/entities/discount_settings.dart';
+import '../../../discounts/presentation/providers/discount_settings_providers.dart';
 import '../../domain/entities/cart_item.dart';
+import '../../domain/entities/pending_sale_request.dart';
+import '../../domain/entities/recorded_sale.dart';
+import '../../domain/entities/sale_outcome.dart';
+import '../../domain/entities/sale_request_exception.dart';
+import '../providers/pending_sale_controller.dart';
 import '../providers/sales_provider.dart';
+import '../widgets/pending_sale_panel.dart';
 import '../../../products/presentation/providers/products_provider.dart';
 import '../../../customers/presentation/providers/customers_provider.dart';
 import '../../../customers/domain/entities/customer.dart';
@@ -27,6 +35,12 @@ const _paymentMethods = <(String, String)>[
   ('bank_transfer', 'Bank Transfer'),
   ('credit', 'Credit'),
 ];
+
+/// Shown for SQLSTATE SMD01 (recognised in the data layer by its code).
+const _discountRefusedMessage =
+    'Discount could not be applied to one or more selected products. '
+    'Review the discount settings or remove the affected product before '
+    'trying again.';
 
 /// Tender methods for a credit sale's initial payment (no credit).
 const _tenderMethods = <(String, String)>[
@@ -51,9 +65,21 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
   String _paymentMethod = 'cash';
   String? _initialPaymentMethod;
   String? _customerId;
-  String? _creditRequestFingerprint;
-  String? _creditIdempotencyKey;
   bool _isProcessing = false;
+
+  /// Whether the first answer about a saved, unconfirmed sale has been
+  /// handled (a saved sale found on entry is looked up once, automatically).
+  bool _pendingChecked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ref.listenManual(
+      pendingSaleControllerProvider,
+      (_, next) => _checkSavedSaleOnEntry(next),
+      fireImmediately: true,
+    );
+  }
 
   /// Phones list a few products until the user searches or asks for all,
   /// so the current sale stays close.
@@ -80,27 +106,45 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
     final cart = ref.watch(saleCartProvider);
     final cartNotifier = ref.read(saleCartProvider.notifier);
     final customersAsync = ref.watch(customersProvider);
-    final subtotal = cartNotifier.subtotal;
+    // An estimate with the shop's discount; the recorded sale is what
+    // counts.
+    final pricing = _CheckoutPricing.of(
+      cart,
+      discounts: ref.watch(discountSettingsProvider),
+      now: DateTime.now(),
+    );
+    final total = pricing.total;
 
     final amountPaid = double.tryParse(_amountPaidController.text) ?? 0;
 
     final change = _paymentMethod == 'credit'
         ? 0.0
-        : (amountPaid - subtotal).clamp(0.0, double.infinity).toDouble();
+        : (amountPaid - total).clamp(0.0, double.infinity).toDouble();
+
+    // A sale whose outcome is unconfirmed blocks new sales until resolved
+    // (and while the device's saved record is still being read).
+    final pendingAsync = ref.watch(pendingSaleControllerProvider);
+    final pendingState = pendingAsync.value;
+    final locked = pendingState == null || pendingState.blocksCheckout;
+    void addProduct(Product product) {
+      if (!locked && !_isProcessing) cartNotifier.addProduct(product);
+    }
 
     final checkout = _Checkout(
       cart: cart,
-      subtotal: subtotal,
+      pricing: pricing,
+      total: total,
       amountPaid: amountPaid,
       change: change,
       paymentMethod: _paymentMethod,
       initialPaymentMethod: _initialPaymentMethod,
       customerId: _customerId,
       isProcessing: _isProcessing,
+      locked: locked,
     );
 
     void completeSale() {
-      _completeSale(cart: cart, subtotal: subtotal, customerId: _customerId);
+      _completeSale(cart: cart, estimatedTotal: total, customerId: _customerId);
     }
 
     return Scaffold(
@@ -169,7 +213,7 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
                     products: filtered,
                     hasProducts: products.isNotEmpty,
                     checkout: checkout,
-                    onAddProduct: cartNotifier.addProduct,
+                    onAddProduct: addProduct,
                     onComplete: completeSale,
                   );
                 }
@@ -181,7 +225,7 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
                   products: filtered,
                   hasProducts: products.isNotEmpty,
                   checkout: checkout,
-                  onAddProduct: cartNotifier.addProduct,
+                  onAddProduct: addProduct,
                   onComplete: completeSale,
                 );
               },
@@ -323,12 +367,22 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
                       AppSpacing.lg,
                     ),
                     children: [
+                      if (_pendingPanel() case final panel?) ...[
+                        panel,
+                        const SizedBox(height: AppSpacing.lg),
+                      ],
                       if (checkout.cart.isEmpty)
                         const _EmptyCart()
                       else
                         for (var i = 0; i < checkout.cart.length; i++) ...[
                           if (i > 0) const RowDivider(),
-                          _CartLine(item: checkout.cart[i]),
+                          _CartLine(
+                            item: checkout.cart[i],
+                            preview: checkout.pricing.previewFor(
+                              checkout.cart[i],
+                            ),
+                            enabled: !checkout.locked,
+                          ),
                         ],
                       if (checkout.cart.isNotEmpty) ...[
                         const SizedBox(height: AppSpacing.lg),
@@ -451,6 +505,10 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
                             ),
                     ),
                     const SizedBox(height: AppSpacing.xxl),
+                    if (_pendingPanel() case final panel?) ...[
+                      panel,
+                      const SizedBox(height: AppSpacing.lg),
+                    ],
                     _cartHeading(cart),
                     const SizedBox(height: AppSpacing.md),
                     SurfaceCard(
@@ -465,11 +523,21 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
                               children: [
                                 for (var i = 0; i < cart.length; i++) ...[
                                   if (i > 0) const RowDivider(),
-                                  _CartLine(item: cart[i]),
+                                  _CartLine(
+                                    item: cart[i],
+                                    preview: checkout.pricing.previewFor(
+                                      cart[i],
+                                    ),
+                                    enabled: !checkout.locked,
+                                  ),
                                 ],
                               ],
                             ),
                     ),
+                    if (cart.isNotEmpty) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      _DiscountBreakdown(pricing: checkout.pricing),
+                    ],
                     if (cart.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.xxl),
                       const SectionHeader(title: 'Payment'),
@@ -496,7 +564,7 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
               ? 'Total'
               : 'Total · ${checkout.itemCount} '
                     '${checkout.itemCount == 1 ? 'item' : 'items'}',
-          amount: formatGhs(checkout.subtotal),
+          amount: formatGhs(checkout.total),
           caption: checkout.balanceCaption,
           captionColor: checkout.isCredit
               ? AppColors.warning
@@ -554,7 +622,7 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
           ? null
           : IconButton(
               tooltip: 'Clear cart',
-              onPressed: _isProcessing
+              onPressed: _isProcessing || _isCheckoutLocked
                   ? null
                   : ref.read(saleCartProvider.notifier).clearCart,
               color: AppColors.textSecondary,
@@ -615,51 +683,9 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
     });
   }
 
-  String _creditIdempotencyKeyFor({
-    required String customerId,
-    required List<CartItem> cart,
-    required double initialPaymentAmount,
-    required String? initialPaymentMethod,
-  }) {
-    final requestFingerprint = [
-      customerId,
-      initialPaymentAmount.toStringAsFixed(2),
-      initialPaymentMethod ?? '',
-      ...cart.map((item) => '${item.product.id}:${item.quantity}'),
-    ].join('|');
-
-    if (_creditRequestFingerprint != requestFingerprint ||
-        _creditIdempotencyKey == null) {
-      _creditRequestFingerprint = requestFingerprint;
-      _creditIdempotencyKey = _generateUuidV4();
-    }
-
-    return _creditIdempotencyKey!;
-  }
-
-  String _generateUuidV4() {
-    final random = Random.secure();
-    final bytes = List<int>.generate(
-      16,
-      (_) => random.nextInt(256),
-      growable: false,
-    );
-
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-
-    final hex = bytes
-        .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
-        .join();
-
-    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
-        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-'
-        '${hex.substring(20)}';
-  }
-
   Future<void> _completeSale({
     required List<CartItem> cart,
-    required double subtotal,
+    required double estimatedTotal,
     String? customerId,
   }) async {
     final isCreditSale = _paymentMethod == 'credit';
@@ -673,7 +699,8 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
     final parsedAmount = double.tryParse(rawAmount);
     final amountPaid = parsedAmount ?? 0;
 
-    if (!isCreditSale && amountPaid < subtotal) {
+    // Checked against the estimate; the server checks the recorded total.
+    if (!isCreditSale && amountPaid < estimatedTotal) {
       _showMessage('Amount paid cannot be less than the total.');
       return;
     }
@@ -695,7 +722,7 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
         return;
       }
 
-      if (amountPaid > subtotal) {
+      if (amountPaid > estimatedTotal) {
         _showMessage('Initial payment cannot exceed the sale total.');
         return;
       }
@@ -706,62 +733,287 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
       }
     }
 
+    final draft = SaleDraft(
+      kind: isCreditSale ? SaleRequestKind.credit : SaleRequestKind.standard,
+      paymentMethod: _paymentMethod,
+      customerId: customerId,
+      amountPaid: amountPaid,
+      initialPaymentMethod: isCreditSale && amountPaid > 0
+          ? _initialPaymentMethod
+          : null,
+      // Exactly what is sent, in cart order: the request's fingerprint.
+      items: [
+        for (final item in cart)
+          SaleRequestItem(productId: item.product.id, quantity: item.quantity),
+      ],
+      estimatedTotal: estimatedTotal,
+    );
+
     setState(() {
       _isProcessing = true;
     });
 
     try {
-      final createSale = ref.read(createSaleProvider);
-      final sale = isCreditSale
-          ? await createSale.createCreditSaleWithInitialPayment(
-              customerId: customerId!,
-              items: cart,
-              initialPaymentAmount: amountPaid,
-              initialPaymentMethod: amountPaid > 0
-                  ? _initialPaymentMethod
-                  : null,
-              idempotencyKey: _creditIdempotencyKeyFor(
-                customerId: customerId,
-                cart: cart,
-                initialPaymentAmount: amountPaid,
-                initialPaymentMethod: amountPaid > 0
-                    ? _initialPaymentMethod
-                    : null,
-              ),
-            )
-          : await createSale.call(
-              customerId: customerId,
-              items: cart.map((item) {
-                return {
-                  'product_id': item.product.id,
-                  'quantity': item.quantity,
-                };
-              }).toList(),
-              paymentMethod: _paymentMethod,
-              amountPaid: amountPaid,
-            );
-
-      _creditRequestFingerprint = null;
-      _creditIdempotencyKey = null;
-
-      ref.read(saleCartProvider.notifier).clearCart();
-
-      ref.invalidate(productsProvider);
-      ref.invalidate(salesProductsProvider);
-      ref.invalidate(salesProvider);
-      if (isCreditSale && customerId != null) {
-        ref.invalidate(customerCreditStatementProvider(customerId));
-      }
-
+      final outcome = await ref
+          .read(pendingSaleControllerProvider.notifier)
+          .submit(draft);
       if (!mounted) return;
+      await _handleOutcome(
+        outcome,
+        isCredit: isCreditSale,
+        estimatedTotal: estimatedTotal,
+      );
+    } catch (_) {
+      if (mounted) _showMessage(_unknownMessage);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
 
-      final viewReceipt = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) {
-          final textTheme = Theme.of(dialogContext).textTheme;
+  // -----------------------------------------------------------------
+  // Unconfirmed sales
+  // -----------------------------------------------------------------
 
+  static const _unknownMessage =
+      "We couldn't confirm whether this sale was recorded. It is saved on "
+      'this device: check it below before doing anything else, and do not '
+      'charge the customer again.';
+
+  bool get _isCheckoutLocked =>
+      ref.read(pendingSaleControllerProvider).value?.blocksCheckout ?? true;
+
+  /// A saved, unconfirmed sale found when New Sale opens is looked up once,
+  /// automatically (a lookup never creates a sale).
+  void _checkSavedSaleOnEntry(AsyncValue<PendingSaleState> value) {
+    final state = value.value;
+    if (_pendingChecked || state == null) return;
+    _pendingChecked = true;
+    if (state.phase == PendingSalePhase.pending) {
+      Future.microtask(_lookUpPending);
+    }
+  }
+
+  /// The unresolved sale, and any set-aside sale recorded after all.
+  Widget? _pendingPanel() {
+    final state = ref.watch(pendingSaleControllerProvider).value;
+    final recordedLater = ref.watch(abandonedSalesProvider).value ?? const [];
+    final panels = [
+      for (final item in recordedLater)
+        AbandonedSaleRecordedNotice(
+          item: item,
+          onOpenSale: () => context.go('/sales/${item.recorded.saleId}'),
+          onAcknowledge: () => _acknowledgeAbandoned(item),
+        ),
+      if (state != null && state.blocksCheckout)
+        PendingSalePanel(
+          state: state,
+          onLookUp: _lookUpPending,
+          onRetry: _retryPending,
+          onAbandon: _abandonPending,
+          onReload: () =>
+              ref.read(pendingSaleControllerProvider.notifier).reload(),
+          onOpenSales: () => context.go('/sales'),
+        ),
+    ];
+    if (panels.isEmpty) return null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < panels.length; i++) ...[
+          if (i > 0) const SizedBox(height: AppSpacing.md),
+          panels[i],
+        ],
+      ],
+    );
+  }
+
+  PendingSaleRequest? get _pendingRequest =>
+      ref.read(pendingSaleControllerProvider).value?.pending;
+
+  Future<void> _lookUpPending() async {
+    final pending = _pendingRequest;
+    if (pending == null) return;
+    try {
+      final outcome = await ref
+          .read(pendingSaleControllerProvider.notifier)
+          .lookUp();
+      if (!mounted) return;
+      await _handleOutcome(
+        outcome,
+        isCredit: pending.draft.kind == SaleRequestKind.credit,
+        estimatedTotal: pending.draft.estimatedTotal,
+      );
+    } catch (_) {
+      if (mounted) {
+        _showMessage(
+          "We couldn't check this sale right now. Check your connection "
+          'and try again.',
+        );
+      }
+    }
+  }
+
+  Future<void> _retryPending() async {
+    final pending = _pendingRequest;
+    if (pending == null) return;
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Has the customer already paid?',
+      message:
+          'Only retry if the customer has already paid for this sale and is '
+          'still waiting. ShopMate will send exactly the same sale again; if '
+          'it was recorded meanwhile, you will get that sale, not a new one.',
+      confirmLabel: 'Customer has paid: retry',
+    );
+    if (!confirmed || !mounted) return;
+    try {
+      final outcome = await ref
+          .read(pendingSaleControllerProvider.notifier)
+          .retry(customerConfirmedPaid: true);
+      if (!mounted) return;
+      await _handleOutcome(
+        outcome,
+        isCredit: pending.draft.kind == SaleRequestKind.credit,
+        estimatedTotal: pending.draft.estimatedTotal,
+      );
+    } catch (_) {
+      if (mounted) _showMessage(_unknownMessage);
+    }
+  }
+
+  /// Sets the unresolved sale aside (the customer left or did not pay).
+  /// It is kept on this device and checked again later: setting it aside
+  /// cannot stop the original request from being recorded.
+  Future<void> _abandonPending() async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Set this sale aside?',
+      message:
+          'Only do this if the customer did not pay or has left. It does not '
+          'cancel the sale: the request already sent may still be recorded. '
+          'ShopMate keeps it on this device and keeps checking; if it is '
+          'recorded, you will be told here. You can then start a new sale.',
+      confirmLabel: 'Set aside',
+      cancelLabel: 'Keep it',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    final abandoned = await ref
+        .read(pendingSaleControllerProvider.notifier)
+        .abandon();
+    if (mounted && !abandoned) {
+      _showMessage(
+        "The sale couldn't be set aside on this device, so it is still "
+        'here. Please try again.',
+      );
+    }
+  }
+
+  Future<void> _acknowledgeAbandoned(AbandonedSaleRecorded item) async {
+    final removed = await ref
+        .read(abandonedSalesProvider.notifier)
+        .acknowledge(item.abandoned.request.idempotencyKey);
+    if (mounted && !removed) {
+      _showMessage("This notice couldn't be cleared. Please try again.");
+    }
+  }
+
+  /// One place for every result: new sales, retries and lookups.
+  Future<void> _handleOutcome(
+    SaleOutcome? outcome, {
+    required bool isCredit,
+    required double estimatedTotal,
+  }) async {
+    switch (outcome) {
+      case null:
+        return;
+      case SaleOutcomeRecorded():
+        await _finishRecorded(outcome, estimatedTotal: estimatedTotal);
+      case SaleOutcomeRejected(:final error, requestKept: true):
+        _showMessage(
+          '${_rejectionMessage(error, isCredit: isCredit)} The first '
+          'attempt may still be recorded, so this sale stays saved here.',
+        );
+      case SaleOutcomeRejected(:final error):
+        _showMessage(_rejectionMessage(error, isCredit: isCredit));
+      case SaleOutcomeUnknown():
+        _showMessage(_unknownMessage);
+      case SaleOutcomeNotFound():
+        _showMessage(
+          'No recorded sale was found for it yet. If the customer has paid '
+          'and is waiting, you can retry this same sale.',
+        );
+      case SaleOutcomeLookupFailed():
+        _showMessage(
+          "We couldn't check this sale right now. Check your connection "
+          'and try again.',
+        );
+      case SaleOutcomeBlocked():
+        _showMessage('Resolve the unconfirmed sale above first.');
+      case SaleOutcomeNotSaved():
+        _showMessage(
+          "This sale couldn't be prepared on this device, so nothing was "
+          'sent. Try again; if it keeps failing, restart ShopMate.',
+        );
+    }
+  }
+
+  Future<void> _finishRecorded(
+    SaleOutcomeRecorded outcome, {
+    required double estimatedTotal,
+  }) async {
+    final recorded = outcome.recorded;
+
+    ref.read(saleCartProvider.notifier).clearCart();
+    _amountPaidController.clear();
+    ref.invalidate(productsProvider);
+    ref.invalidate(salesProductsProvider);
+    ref.invalidate(salesProvider);
+    ref.invalidate(customerCreditStatementProvider);
+
+    final openRecorded = await _showRecordedSale(
+      recorded,
+      estimatedTotal: estimatedTotal,
+      alreadyRecorded: outcome.alreadyRecorded,
+      fromRecovery: outcome.fromRecovery,
+    );
+
+    if (mounted) {
+      final id = recorded.saleId;
+      context.go(switch (openRecorded) {
+        true when recorded.hasDetails => '/sales/$id/receipt',
+        true => '/sales/$id',
+        _ => '/sales',
+      });
+    }
+  }
+
+  /// Shows what the database recorded: its total, discount and change,
+  /// never the cart's estimate. Resolves true to open the sale.
+  Future<bool?> _showRecordedSale(
+    RecordedSale recorded, {
+    required double estimatedTotal,
+    required bool alreadyRecorded,
+    required bool fromRecovery,
+  }) {
+    final sale = recorded.sale;
+
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final textTheme = Theme.of(dialogContext).textTheme;
+        final secondary = textTheme.bodyMedium?.copyWith(
+          color: AppColors.textSecondary,
+        );
+
+        if (sale == null) {
+          // Recorded, but the read-back failed: never submit it again.
           return AlertDialog(
-            title: const Text('Sale Completed'),
+            title: const Text('Sale Recorded'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -772,70 +1024,134 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 Text(
-                  sale.saleNumber,
-                  style: textTheme.titleLarge?.copyWith(
-                    color: AppColors.textPrimary,
-                  ),
+                  "The sale was recorded, but its details couldn't be "
+                  'loaded. Open it from Sales to see the total, change and '
+                  'receipt. Do not record it again.',
+                  textAlign: TextAlign.center,
+                  style: secondary,
                 ),
-                const SizedBox(height: AppSpacing.md),
-                Text(
-                  'Total: ${formatGhs(sale.totalAmount)}',
-                  style: AppTypography.amount,
-                ),
-                if (sale.changeAmount > 0)
-                  Text(
-                    'Change: ${formatGhs(sale.changeAmount)}',
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
               ],
             ),
             actions: [
               TextButton(
-                onPressed: () {
-                  Navigator.of(dialogContext).pop(false);
-                },
+                onPressed: () => Navigator.of(dialogContext).pop(false),
                 child: const Text('Done'),
               ),
               FilledButton.icon(
-                onPressed: () {
-                  Navigator.of(dialogContext).pop(true);
-                },
-                icon: const Icon(Icons.receipt_long_outlined),
-                label: const Text('View receipt'),
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                icon: const Icon(Icons.open_in_new_rounded),
+                label: const Text('Open sale'),
               ),
             ],
           );
-        },
-      );
+        }
 
-      if (mounted) {
-        context.go(
-          viewReceipt == true ? '/sales/${sale.id}/receipt' : '/sales',
+        final adjusted =
+            DiscountPricing.toCents(sale.totalAmount) !=
+            DiscountPricing.toCents(estimatedTotal);
+
+        return AlertDialog(
+          title: const Text('Sale Completed'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const IconTile(
+                icon: Icons.check_rounded,
+                color: AppColors.success,
+                size: 56,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Text(
+                sale.saleNumber,
+                style: textTheme.titleLarge?.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              if (alreadyRecorded || fromRecovery) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  alreadyRecorded
+                      ? 'This sale had already been recorded. Do not '
+                            'collect payment again.'
+                      : 'This sale is now recorded. The customer has '
+                            'already paid: do not collect payment again.',
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.warning,
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'Total: ${formatGhs(sale.totalAmount)}',
+                style: AppTypography.amount,
+              ),
+              if (sale.discountAmount > 0)
+                Text(
+                  'Discount: ${formatGhs(sale.discountAmount)}',
+                  style: secondary,
+                ),
+              if (sale.changeAmount > 0)
+                Text(
+                  'Change: ${formatGhs(sale.changeAmount)}',
+                  style: secondary,
+                ),
+              if (adjusted && !alreadyRecorded && !fromRecovery) ...[
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  'The final total was adjusted at checkout (the estimate '
+                  'was ${formatGhs(estimatedTotal)}). The amounts above are '
+                  'what was recorded.',
+                  textAlign: TextAlign.center,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.warning,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Done'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.receipt_long_outlined),
+              label: const Text('View receipt'),
+            ),
+          ],
         );
-      }
-    } catch (error) {
-      if (!mounted) return;
-
-      _showMessage(
-        isCreditSale
-            ? _friendlySaleError(error)
-            : error.toString().replaceFirst('Exception: ', ''),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
-    }
+      },
+    );
   }
 
-  String _friendlySaleError(Object error) {
-    final message = error is PostgrestException
-        ? error.message
-        : error.toString();
+  /// A refused sale's message, chosen by the error's code.
+  String _rejectionMessage(
+    SaleRequestException error, {
+    required bool isCredit,
+  }) {
+    return switch (error.kind) {
+      SaleRequestErrorKind.discountRefused => _discountRefusedMessage,
+      SaleRequestErrorKind.keyConflict =>
+        "This sale's request key was already used for a different sale, so "
+            'nothing was recorded. Check Sales, then start the sale again.',
+      SaleRequestErrorKind.creditKeyConflict =>
+        'This credit-sale request key was already used with different '
+            'details. Review the sale and try again.',
+      SaleRequestErrorKind.serviceUnavailable =>
+        "Sales can't be recorded until ShopMate's database is updated. "
+            'Nothing was recorded. Contact your ShopMate administrator.',
+      SaleRequestErrorKind.outcomeUnknown => _unknownMessage,
+      SaleRequestErrorKind.rejected =>
+        isCredit
+            ? _friendlySaleError(error.serverMessage ?? '')
+            : error.serverMessage ??
+                  'Unable to complete the sale. Please try again.',
+    };
+  }
+
+  String _friendlySaleError(String message) {
     final normalized = message.toLowerCase();
 
     if (normalized.contains('customer is required') ||
@@ -889,17 +1205,22 @@ class _NewSaleScreenState extends ConsumerState<NewSaleScreen> {
 class _Checkout {
   const _Checkout({
     required this.cart,
-    required this.subtotal,
+    required this.pricing,
+    required this.total,
     required this.amountPaid,
     required this.change,
     required this.paymentMethod,
     required this.initialPaymentMethod,
     required this.customerId,
     required this.isProcessing,
+    required this.locked,
   });
 
   final List<CartItem> cart;
-  final double subtotal;
+  final _CheckoutPricing pricing;
+
+  /// The estimated total to pay, after any discount.
+  final double total;
   final double amountPaid;
   final double change;
   final String paymentMethod;
@@ -907,12 +1228,15 @@ class _Checkout {
   final String? customerId;
   final bool isProcessing;
 
+  /// An unconfirmed sale must be resolved before a new one starts.
+  final bool locked;
+
   bool get isCredit => paymentMethod == 'credit';
 
   int get itemCount => cart.fold<int>(0, (sum, item) => sum + item.quantity);
 
   double get outstanding =>
-      (subtotal - amountPaid).clamp(0.0, double.infinity).toDouble();
+      (total - amountPaid).clamp(0.0, double.infinity).toDouble();
 
   /// "Change GHS 5.00" or "Outstanding GHS 40.00", once there is something
   /// to say.
@@ -921,6 +1245,132 @@ class _Checkout {
     if (isCredit) return 'Outstanding ${formatGhs(outstanding)}';
     if (change > 0) return 'Change ${formatGhs(change)}';
     return null;
+  }
+}
+
+/// Whether the shop's discount could be taken into account.
+enum _DiscountStatus { none, active, checking, unavailable }
+
+/// The cart priced with the shop's discount, in whole cents, using the
+/// database's rule. An estimate for the cashier: the server prices the sale
+/// when it is recorded, and only its recorded totals count.
+class _CheckoutPricing {
+  const _CheckoutPricing._(
+    this._previews, {
+    required this.status,
+    required this.subtotalCents,
+    required this.discountCents,
+    required this.anyLikelyRefused,
+  });
+
+  factory _CheckoutPricing.of(
+    List<CartItem> cart, {
+    required AsyncValue<DiscountSettings?> discounts,
+    required DateTime now,
+  }) {
+    // Never promise a discount that couldn't be read.
+    final settings = discounts.hasError ? null : discounts.value;
+    final status = discounts.hasError
+        ? _DiscountStatus.unavailable
+        : !discounts.hasValue
+        ? _DiscountStatus.checking
+        : settings != null && settings.isActiveAt(now)
+        ? _DiscountStatus.active
+        : _DiscountStatus.none;
+
+    final previews = <String, LineDiscountPreview>{};
+    var subtotalCents = 0;
+    var discountCents = 0;
+    var anyLikelyRefused = false;
+    for (final item in cart) {
+      final preview = DiscountPricing.preview(
+        item.product,
+        settings: settings,
+        now: now,
+      );
+      previews[item.product.id] = preview;
+      subtotalCents += preview.originalCents * item.quantity;
+      discountCents += preview.discountCents * item.quantity;
+      anyLikelyRefused = anyLikelyRefused || preview.likelyRefused;
+    }
+
+    return _CheckoutPricing._(
+      previews,
+      status: status,
+      subtotalCents: subtotalCents,
+      discountCents: discountCents,
+      anyLikelyRefused: anyLikelyRefused,
+    );
+  }
+
+  final _DiscountStatus status;
+  final Map<String, LineDiscountPreview> _previews;
+  final int subtotalCents;
+  final int discountCents;
+  final bool anyLikelyRefused;
+
+  int get totalCents => subtotalCents - discountCents;
+  double get total => totalCents / 100;
+
+  LineDiscountPreview previewFor(CartItem item) =>
+      _previews[item.product.id] ??
+      LineDiscountPreview.none(
+        DiscountPricing.toCents(item.product.sellingPrice),
+      );
+}
+
+/// Subtotal and discount when one applies, and what the cashier should know
+/// about the estimate. Nothing at all for an ordinary sale.
+class _DiscountBreakdown extends StatelessWidget {
+  const _DiscountBreakdown({required this.pricing});
+
+  final _CheckoutPricing pricing;
+
+  @override
+  Widget build(BuildContext context) {
+    final note = switch (pricing.status) {
+      _DiscountStatus.unavailable =>
+        "Discounts couldn't be checked, so normal prices are shown. The "
+            'final total is confirmed when the sale is recorded.',
+      _DiscountStatus.checking => 'Checking discounts...',
+      _DiscountStatus.active when pricing.discountCents > 0 =>
+        'Estimated with the current discount. The final total is confirmed '
+            'when the sale is recorded.',
+      _ => null,
+    };
+    final hasDiscount = pricing.discountCents > 0;
+    if (note == null && !hasDiscount && !pricing.anyLikelyRefused) {
+      return const SizedBox.shrink();
+    }
+
+    final small = Theme.of(context).textTheme.bodySmall;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (hasDiscount) ...[
+          SummaryLine(
+            label: 'Subtotal',
+            value: formatGhs(pricing.subtotalCents / 100),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          SummaryLine(
+            label: 'Discount',
+            value: '-${formatGhs(pricing.discountCents / 100)}',
+            valueColor: AppColors.success,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+        ],
+        if (note != null)
+          Text(note, style: small?.copyWith(color: AppColors.textSecondary)),
+        if (pricing.anyLikelyRefused)
+          Text(
+            "A product in this sale can't get the current discount; the sale "
+            'may be refused.',
+            style: small?.copyWith(color: AppColors.danger),
+          ),
+      ],
+    );
   }
 }
 
@@ -1132,15 +1582,30 @@ class _ProductPickRow extends StatelessWidget {
 /// One line of the sale: name and unit price, quantity, line total and
 /// remove. Two rows so long names and amounts never collide.
 class _CartLine extends ConsumerWidget {
-  const _CartLine({required this.item});
+  const _CartLine({
+    required this.item,
+    required this.preview,
+    required this.enabled,
+  });
+
+  /// False while an unconfirmed sale blocks changes.
+  final bool enabled;
 
   final CartItem item;
+
+  /// The expected price under the shop's discount (no cost is shown).
+  final LineDiscountPreview preview;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(saleCartProvider.notifier);
     final textTheme = Theme.of(context).textTheme;
     final atStockLimit = item.quantity >= item.product.stockQuantity;
+    final unitPrice = preview.isDiscounted
+        ? '${formatGhs(preview.finalCents / 100)} each · was '
+              '${formatGhs(preview.originalCents / 100)}, '
+              '${preview.percentageLabel} off'
+        : '${formatGhs(item.product.sellingPrice)} each';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
@@ -1162,7 +1627,10 @@ class _CartLine extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
-              Text(formatGhs(item.subtotal), style: AppTypography.amount),
+              Text(
+                formatGhs(preview.finalCents * item.quantity / 100),
+                style: AppTypography.amount,
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -1171,9 +1639,9 @@ class _CartLine extends ConsumerWidget {
               Expanded(
                 child: Text(
                   atStockLimit
-                      ? '${formatGhs(item.product.sellingPrice)} each · '
-                            'all ${item.product.stockQuantity} in stock'
-                      : '${formatGhs(item.product.sellingPrice)} each',
+                      ? '$unitPrice · all ${item.product.stockQuantity} in '
+                            'stock'
+                      : unitPrice,
                   // Wraps beside the stepper on small phones rather than
                   // cutting off the price or the stock warning.
                   maxLines: 3,
@@ -1188,19 +1656,29 @@ class _CartLine extends ConsumerWidget {
               QuantityStepper(
                 quantity: item.quantity,
                 itemName: item.product.name,
-                onDecrease: () => notifier.decreaseQuantity(item.product.id),
-                onIncrease: atStockLimit
+                onDecrease: enabled
+                    ? () => notifier.decreaseQuantity(item.product.id)
+                    : null,
+                onIncrease: atStockLimit || !enabled
                     ? null
                     : () => notifier.increaseQuantity(item.product.id),
               ),
               IconButton(
                 tooltip: 'Remove ${item.product.name}',
-                onPressed: () => notifier.removeProduct(item.product.id),
+                onPressed: enabled
+                    ? () => notifier.removeProduct(item.product.id)
+                    : null,
                 color: AppColors.textMuted,
                 icon: const Icon(Icons.delete_outline_rounded, size: 20),
               ),
             ],
           ),
+          if (preview.likelyRefused)
+            Text(
+              "The current discount can't be applied to this product, so "
+              'the sale may be refused. Remove it or ask the shop owner.',
+              style: textTheme.bodySmall?.copyWith(color: AppColors.danger),
+            ),
         ],
       ),
     );
@@ -1243,7 +1721,7 @@ class _PaymentSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCredit = checkout.isCredit;
-    final enabled = !checkout.isProcessing;
+    final enabled = !checkout.isProcessing && !checkout.locked;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1342,9 +1820,13 @@ class _Totals extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (checkout.cart.isNotEmpty) ...[
+          _DiscountBreakdown(pricing: checkout.pricing),
+          const SizedBox(height: AppSpacing.sm),
+        ],
         SummaryLine(
           label: 'Total',
-          value: formatGhs(checkout.subtotal),
+          value: formatGhs(checkout.total),
           emphasized: true,
         ),
         if (checkout.cart.isNotEmpty) ...[
@@ -1381,7 +1863,8 @@ class _CompleteSaleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final button = FilledButton.icon(
-      onPressed: checkout.cart.isEmpty || checkout.isProcessing
+      onPressed:
+          checkout.cart.isEmpty || checkout.isProcessing || checkout.locked
           ? null
           : onPressed,
       style: FilledButton.styleFrom(

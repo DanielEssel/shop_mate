@@ -1,16 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../core/services/supabase_service.dart';
+import '../../../../core/utils/uuid_v4.dart';
 import '../../../products/domain/entities/product.dart';
 import '../../../products/presentation/providers/products_provider.dart';
+import '../../data/datasources/pending_sale_local_store.dart';
 import '../../data/datasources/sales_remote_datasource.dart';
 import '../../data/repositories/sales_repository_impl.dart';
 import '../../domain/entities/cart_item.dart';
 import '../../domain/entities/sale.dart';
 import '../../domain/entities/sale_payment_summary.dart';
+import '../../domain/repositories/pending_sale_store.dart';
 import '../../domain/repositories/sales_repository.dart';
-import '../../domain/usecases/create_sale.dart';
+import '../../domain/usecases/submit_sale.dart';
 import '../../domain/usecases/get_sale.dart';
 import '../../domain/usecases/get_sales.dart';
 import '../../domain/entities/sale_item.dart';
@@ -23,8 +27,19 @@ final salesRepositoryProvider = Provider<SaleRepository>((ref) {
   return SalesRepositoryImpl(ref.read(salesRemoteDataSourceProvider));
 });
 
-final createSaleProvider = Provider<CreateSale>((ref) {
-  return CreateSale(ref.read(salesRepositoryProvider));
+/// The device's record of an unresolved sale (survives app restarts).
+final pendingSaleStoreProvider = Provider<PendingSaleStore>((ref) {
+  return SharedPreferencesPendingSaleStore(SharedPreferences.getInstance);
+});
+
+/// Records sales at most once per request; see [SubmitSale].
+final submitSaleProvider = Provider<SubmitSale>((ref) {
+  return SubmitSale(
+    repository: ref.read(salesRepositoryProvider),
+    store: ref.read(pendingSaleStoreProvider),
+    newKey: generateUuidV4,
+    now: DateTime.now,
+  );
 });
 
 final getSalesProvider = Provider<GetSales>((ref) {

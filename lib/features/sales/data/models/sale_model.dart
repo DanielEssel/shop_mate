@@ -11,6 +11,7 @@ class SaleModel extends Sale {
     required super.createdAt,
     super.createdBy,
     super.customerId,
+    super.discountAmount,
   });
 
   factory SaleModel.fromJson(Map<String, dynamic> json) {
@@ -24,6 +25,8 @@ class SaleModel extends Sale {
       createdBy: json['created_by'] as String?,
       customerId: json['customer_id'] as String?,
       createdAt: DateTime.parse(json['created_at'].toString()),
+      // Absent on data from before discounts existed.
+      discountAmount: (json['discount_amount'] as num?)?.toDouble() ?? 0,
     );
   }
 
@@ -37,6 +40,7 @@ class SaleModel extends Sale {
       'change_amount': changeAmount,
       'created_by': createdBy,
       'customer_id': customerId,
+      'discount_amount': discountAmount,
       'created_at': createdAt.toIso8601String(),
     };
   }

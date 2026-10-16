@@ -16,9 +16,13 @@ class LineItem {
     required this.quantity,
     required this.unitPrice,
     required this.total,
+    this.note,
   });
 
   final String name;
+
+  /// An optional second line under the name, e.g. a recorded discount.
+  final String? note;
   final int quantity;
   final double unitPrice;
 
@@ -177,14 +181,26 @@ class _TableRow extends StatelessWidget {
         children: [
           Expanded(
             flex: 5,
-            child: Text(
-              item.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (item.note case final note?)
+                  Text(
+                    note,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppColors.success),
+                  ),
+              ],
             ),
           ),
           Expanded(
@@ -252,6 +268,13 @@ class _CompactRow extends StatelessWidget {
                     color: AppColors.textMuted,
                   ),
                 ),
+                if (item.note case final note?)
+                  Text(
+                    note,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppColors.success,
+                    ),
+                  ),
               ],
             ),
           ),

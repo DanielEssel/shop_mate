@@ -15,6 +15,7 @@ import '../../domain/entities/sale_item.dart';
 import '../providers/sales_provider.dart';
 import '../services/receipt_branding.dart';
 import '../services/receipt_output_service.dart';
+import '../utils/sale_discount_text.dart';
 
 class ReceiptPreviewScreen extends ConsumerWidget {
   const ReceiptPreviewScreen({super.key, required this.saleId});
@@ -205,6 +206,7 @@ class _ReceiptDocumentState extends State<_ReceiptDocument> {
     return other.sale.id == widget.sale.id &&
         other.sale.saleNumber == widget.sale.saleNumber &&
         other.sale.totalAmount == widget.sale.totalAmount &&
+        other.sale.discountAmount == widget.sale.discountAmount &&
         other.sale.changeAmount == widget.sale.changeAmount &&
         other.sale.isCredit == widget.sale.isCredit &&
         other.sale.createdAt == widget.sale.createdAt &&
@@ -225,7 +227,10 @@ class _ReceiptDocumentState extends State<_ReceiptDocument> {
           firstItem.productName != secondItem.productName ||
           firstItem.quantity != secondItem.quantity ||
           firstItem.unitPrice != secondItem.unitPrice ||
-          firstItem.subtotal != secondItem.subtotal) {
+          firstItem.subtotal != secondItem.subtotal ||
+          firstItem.discountAmount != secondItem.discountAmount ||
+          firstItem.discountPercentage != secondItem.discountPercentage ||
+          firstItem.originalUnitPrice != secondItem.originalUnitPrice) {
         return false;
       }
     }
@@ -350,10 +355,7 @@ class _ReceiptDocumentState extends State<_ReceiptDocument> {
     final time = MaterialLocalizations.of(
       context,
     ).formatTimeOfDay(TimeOfDay.fromDateTime(localCreatedAt));
-    final subtotal = items.fold<double>(
-      0,
-      (total, item) => total + item.subtotal,
-    );
+    final totals = ReceiptTotals.of(sale, items);
     final outstanding = (sale.totalAmount - widget.paidAmount)
         .clamp(0.0, double.infinity)
         .toDouble();
@@ -497,8 +499,18 @@ class _ReceiptDocumentState extends State<_ReceiptDocument> {
                       padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
                       child: Divider(),
                     ),
-                    _ReceiptAmountRow(label: 'Subtotal', amount: subtotal),
+                    _ReceiptAmountRow(
+                      label: 'Subtotal',
+                      amount: totals.subtotal,
+                    ),
                     const SizedBox(height: AppSpacing.xs),
+                    if (totals.hasDiscount) ...[
+                      _ReceiptAmountRow(
+                        label: 'Discount',
+                        amount: -totals.discount,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                    ],
                     _ReceiptAmountRow(
                       label: 'Total',
                       amount: sale.totalAmount,
@@ -598,6 +610,8 @@ class _ReceiptItemRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final note = saleItemDiscountNote(item, formatMoney: formatReceiptMoney);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 480) {
@@ -610,6 +624,7 @@ class _ReceiptItemRow extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
+              if (note != null) _ReceiptDiscountNote(note: note),
               const SizedBox(height: AppSpacing.xs),
               Row(
                 children: [
@@ -633,10 +648,16 @@ class _ReceiptItemRow extends StatelessWidget {
           children: [
             Expanded(
               flex: 5,
-              child: Text(
-                item.productName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.productName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (note != null) _ReceiptDiscountNote(note: note),
+                ],
               ),
             ),
             SizedBox(
@@ -666,6 +687,23 @@ class _ReceiptItemRow extends StatelessWidget {
   }
 }
 
+/// A line's recorded discount, under its name.
+class _ReceiptDiscountNote extends StatelessWidget {
+  const _ReceiptDiscountNote({required this.note});
+
+  final String note;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      note,
+      style: AppTypography.textTheme.bodySmall?.copyWith(
+        color: AppColors.textSecondary,
+      ),
+    );
+  }
+}
+
 class _ReceiptAmountRow extends StatelessWidget {
   const _ReceiptAmountRow({
     required this.label,
@@ -687,7 +725,7 @@ class _ReceiptAmountRow extends StatelessWidget {
     return Row(
       children: [
         Expanded(child: Text(label, style: style)),
-        Text('GHS ${amount.toStringAsFixed(2)}', style: style),
+        Text(formatReceiptMoney(amount), style: style),
       ],
     );
   }

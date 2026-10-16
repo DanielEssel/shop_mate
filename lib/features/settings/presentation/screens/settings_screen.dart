@@ -50,6 +50,14 @@ class SettingsScreen extends ConsumerWidget {
                       'categories.',
                   onTap: () => context.push('/settings/categories'),
                 ),
+                _SettingsRow(
+                  icon: Icons.sell_outlined,
+                  title: 'Discounts',
+                  subtitle:
+                      'A percentage off all products or selected '
+                      'products.',
+                  onTap: () => context.push('/settings/discounts'),
+                ),
               ],
             ),
           )

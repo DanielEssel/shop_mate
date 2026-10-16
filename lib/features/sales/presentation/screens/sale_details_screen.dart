@@ -12,6 +12,7 @@ import '../../domain/entities/sale.dart';
 import '../../domain/entities/sale_item.dart';
 import '../providers/sales_provider.dart';
 import '../widgets/sale_card.dart';
+import '../utils/sale_discount_text.dart';
 
 class SaleDetailsScreen extends ConsumerWidget {
   const SaleDetailsScreen({super.key, required this.saleId});
@@ -156,6 +157,14 @@ class _SaleDetailsBody extends StatelessWidget {
           icon: Icons.account_balance_wallet_outlined,
           tone: StatusTone.success,
         ),
+        if (sale.discountAmount > 0)
+          MetricCard(
+            label: 'Discount',
+            value: formatGhs(sale.discountAmount),
+            caption: 'Already taken off the total',
+            icon: Icons.sell_outlined,
+            tone: StatusTone.success,
+          ),
         if (!sale.isCredit)
           MetricCard(
             label: 'Change',
@@ -175,6 +184,7 @@ class _SaleDetailsBody extends StatelessWidget {
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             total: item.subtotal,
+            note: saleItemDiscountNote(item),
           ),
       ],
       total: sale.totalAmount,

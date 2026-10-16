@@ -8,12 +8,15 @@ import 'package:shopmate/app/theme/app_theme.dart';
 import 'package:shopmate/features/auth/presentation/providers/auth_provider.dart';
 import 'package:shopmate/features/customers/domain/entities/customer.dart';
 import 'package:shopmate/features/customers/presentation/providers/customers_provider.dart';
+import 'package:shopmate/features/discounts/presentation/providers/discount_settings_providers.dart';
 import 'package:shopmate/features/products/domain/entities/product.dart';
-import 'package:shopmate/features/sales/domain/entities/cart_item.dart';
-import 'package:shopmate/features/sales/domain/entities/sale.dart';
-import 'package:shopmate/features/sales/domain/usecases/create_sale.dart';
+import 'package:shopmate/features/sales/domain/entities/pending_sale_request.dart';
 import 'package:shopmate/features/sales/presentation/providers/sales_provider.dart';
 import 'package:shopmate/features/sales/presentation/screens/new_sale_screen.dart';
+import 'package:shopmate/features/shop/presentation/providers/shop_provider.dart';
+
+import '../../../shop/shop_role_fixtures.dart';
+import '../../fake_sale_repository.dart';
 
 const _rice = Product(
   id: 'p-rice',
@@ -35,67 +38,12 @@ const _soap = Product(
 
 const _ama = Customer(id: 'c-ama', name: 'Ama Mensah', phone: '0241234567');
 
-class _FakeCreateSale implements CreateSale {
-  final calls = <Map<String, Object?>>[];
-
-  Sale _sale(double total, String method, double paid) => Sale(
-    id: 'sale-1',
-    saleNumber: 'SL-0001',
-    totalAmount: total,
-    paymentMethod: method,
-    amountPaid: paid,
-    changeAmount: paid > total ? paid - total : 0,
-    createdAt: DateTime(2026, 10, 8, 10),
-  );
-
-  @override
-  Future<Sale> call({
-    String? customerId,
-    required List<Map<String, dynamic>> items,
-    required String paymentMethod,
-    required double amountPaid,
-  }) async {
-    calls.add({
-      'kind': 'sale',
-      'customerId': customerId,
-      'items': items,
-      'paymentMethod': paymentMethod,
-      'amountPaid': amountPaid,
-    });
-    final total = items.fold<double>(
-      0,
-      (sum, item) => sum + 15.0 * (item['quantity'] as int),
-    );
-    return _sale(total, paymentMethod, amountPaid);
-  }
-
-  @override
-  Future<Sale> createCreditSaleWithInitialPayment({
-    required String customerId,
-    required List<CartItem> items,
-    required double initialPaymentAmount,
-    required String? initialPaymentMethod,
-    required String idempotencyKey,
-  }) async {
-    calls.add({
-      'kind': 'credit',
-      'customerId': customerId,
-      'quantity': items.single.quantity,
-      'initialPaymentAmount': initialPaymentAmount,
-      'initialPaymentMethod': initialPaymentMethod,
-      'idempotencyKey': idempotencyKey,
-    });
-    final total = items.fold<double>(0, (sum, item) => sum + item.subtotal);
-    return _sale(total, 'credit', initialPaymentAmount);
-  }
-}
-
 class _Customers extends CustomersNotifier {
   @override
   Future<List<Customer>> build() async => const [_ama];
 }
 
-Future<(_FakeCreateSale, GoRouter)> _pump(
+Future<(FakeSaleRepository, GoRouter)> _pump(
   WidgetTester tester, {
   required Size size,
 }) async {
@@ -103,7 +51,7 @@ Future<(_FakeCreateSale, GoRouter)> _pump(
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
 
-  final createSale = _FakeCreateSale();
+  final createSale = FakeSaleRepository();
   final router = GoRouter(
     initialLocation: '/sales/new',
     routes: [
@@ -129,7 +77,11 @@ Future<(_FakeCreateSale, GoRouter)> _pump(
         currentUserIdProvider.overrideWithValue('user-1'),
         salesProductsProvider.overrideWith((ref) async => [_rice, _soap]),
         customersProvider.overrideWith(_Customers.new),
-        createSaleProvider.overrideWithValue(createSale),
+        salesRepositoryProvider.overrideWithValue(createSale),
+        pendingSaleStoreProvider.overrideWithValue(InMemoryPendingSaleStore()),
+        shopAccessProvider.overrideWith((ref) async => activeAccess(ownerRole)),
+        // No discount configured.
+        discountSettingsProvider.overrideWith((ref) async => null),
         // Keep the screen's invalidations away from real repositories.
         salesProvider.overrideWith((ref) async => const []),
       ],
@@ -257,7 +209,7 @@ void main() {
           find.text('Amount paid cannot be less than the total.'),
           findsOneWidget,
         );
-        expect(createSale.calls, isEmpty);
+        expect(createSale.submissions, isEmpty);
       });
 
       testWidgets('a cash sale completes and shows the change', (tester) async {
@@ -269,15 +221,18 @@ void main() {
 
         await _complete(tester);
 
-        expect(createSale.calls.single, {
-          'kind': 'sale',
-          'customerId': null,
-          'items': [
+        final sent = createSale.submissions.single;
+        expect(sent.draft.kind, SaleRequestKind.standard);
+        expect(sent.draft.customerId, isNull);
+        expect(
+          [for (final item in sent.draft.items) item.toJson()],
+          [
             {'product_id': 'p-rice', 'quantity': 1},
           ],
-          'paymentMethod': 'cash',
-          'amountPaid': 20.0,
-        });
+        );
+        expect(sent.draft.paymentMethod, 'cash');
+        expect(sent.draft.amountPaid, 20.0);
+        expect(sent.idempotencyKey, isNotEmpty);
         expect(find.text('Sale Completed'), findsOneWidget);
         expect(find.text('Change: GHS 5.00'), findsOneWidget);
 
@@ -300,7 +255,7 @@ void main() {
           find.text('Please select a customer for a credit sale.'),
           findsOneWidget,
         );
-        expect(createSale.calls, isEmpty);
+        expect(createSale.submissions, isEmpty);
       });
 
       testWidgets('a credit sale with an initial payment needs its tender '
@@ -324,18 +279,18 @@ void main() {
           find.text('Select a tender method for the initial payment.'),
           findsOneWidget,
         );
-        expect(createSale.calls, isEmpty);
+        expect(createSale.submissions, isEmpty);
 
         // The tender chips are the second "Mobile Money" on screen.
         await _tapVisible(tester, find.text('Mobile Money').last);
         await _complete(tester);
 
-        final call = createSale.calls.single;
-        expect(call['kind'], 'credit');
-        expect(call['customerId'], 'c-ama');
-        expect(call['initialPaymentAmount'], 5.0);
-        expect(call['initialPaymentMethod'], 'mobile_money');
-        expect(call['idempotencyKey'], isNotEmpty);
+        final call = createSale.submissions.single;
+        expect(call.draft.kind, SaleRequestKind.credit);
+        expect(call.draft.customerId, 'c-ama');
+        expect(call.draft.amountPaid, 5.0);
+        expect(call.draft.initialPaymentMethod, 'mobile_money');
+        expect(call.idempotencyKey, isNotEmpty);
 
         await _closeDialog(tester, 'View receipt');
         expect(router.state.uri.path, '/sales/sale-1/receipt');
@@ -357,6 +312,6 @@ void main() {
     await _complete(tester);
 
     expect(tester.takeException(), isNull);
-    expect(createSale.calls.single['amountPaid'], 15.0);
+    expect(createSale.submissions.single.draft.amountPaid, 15.0);
   });
 }

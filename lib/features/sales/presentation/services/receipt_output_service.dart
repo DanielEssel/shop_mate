@@ -8,6 +8,7 @@ import 'package:printing/printing.dart';
 import '../../domain/entities/sale.dart';
 import '../../domain/entities/sale_item.dart';
 import 'receipt_branding.dart';
+import '../utils/sale_discount_text.dart';
 
 class ReceiptPdfData {
   const ReceiptPdfData({
@@ -91,10 +92,7 @@ class ReceiptOutputService {
       author: 'ShopMate',
       creator: 'ShopMate',
     );
-    final subtotal = data.items.fold<double>(
-      0,
-      (total, item) => total + item.subtotal,
-    );
+    final totals = ReceiptTotals.of(data.sale, data.items);
     final outstanding = (data.sale.totalAmount - data.paidAmount)
         .clamp(0.0, double.infinity)
         .toDouble();
@@ -205,7 +203,13 @@ class ReceiptOutputService {
               for (final item in data.items)
                 pw.TableRow(
                   children: [
-                    _tableCell(item.productName),
+                    _itemCell(
+                      item.productName,
+                      saleItemDiscountNote(
+                        item,
+                        formatMoney: formatReceiptMoney,
+                      ),
+                    ),
                     _tableCell(item.quantity.toString(), alignRight: true),
                     _tableCell(_money(item.unitPrice), alignRight: true),
                     _tableCell(_money(item.subtotal), alignRight: true),
@@ -214,8 +218,12 @@ class ReceiptOutputService {
             ],
           ),
           pw.SizedBox(height: 18),
-          _amountRow('Subtotal', subtotal),
+          _amountRow('Subtotal', totals.subtotal),
           pw.SizedBox(height: 5),
+          if (totals.hasDiscount) ...[
+            _amountRow('Discount', -totals.discount),
+            pw.SizedBox(height: 5),
+          ],
           _amountRow('Total', data.sale.totalAmount, bold: true),
           pw.SizedBox(height: 5),
           _amountRow('Paid', data.paidAmount),
@@ -311,6 +319,27 @@ class ReceiptOutputService {
     );
   }
 
+  /// A product name with its recorded discount, if any, underneath.
+  pw.Widget _itemCell(String name, String? note) {
+    if (note == null) return _tableCell(name);
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          pw.Text(name, style: const pw.TextStyle(fontSize: 9)),
+          pw.Text(
+            note,
+            style: const pw.TextStyle(
+              fontSize: 8,
+              color: pdf.PdfColors.grey700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   pw.Widget _amountRow(String label, double amount, {bool bold = false}) {
     final style = pw.TextStyle(
       fontSize: bold ? 12 : 10,
@@ -329,5 +358,5 @@ class ReceiptOutputService {
     );
   }
 
-  String _money(double amount) => 'GHS ${amount.toStringAsFixed(2)}';
+  String _money(double amount) => formatReceiptMoney(amount);
 }

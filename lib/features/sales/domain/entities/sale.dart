@@ -12,12 +12,17 @@ class Sale {
     required this.changeAmount,
     required this.createdAt,
     this.createdBy,
+    this.discountAmount = 0,
   });
 
   final String id;
   final String saleNumber;
 
+  /// The amount charged, after any discount.
   final double totalAmount;
+
+  /// The sale's total discount, as recorded (0 for none).
+  final double discountAmount;
   final String paymentMethod;
 
   final double amountPaid;

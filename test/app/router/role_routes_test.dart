@@ -17,6 +17,7 @@ const _ownerOnly = [
   '/reports/inventory',
   '/settings',
   '/settings/categories',
+  '/settings/discounts',
   '/users',
   '/inventory/adjust',
 ];
@@ -95,6 +96,7 @@ void main() {
       '/reports/inventory',
       '/settings',
       '/settings/categories',
+      '/settings/discounts',
       '/users',
       '/inventory/adjust',
     ]) {

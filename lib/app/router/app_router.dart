@@ -14,6 +14,7 @@ import '../../features/customers/presentation/screens/add_customer_screen.dart';
 import '../../features/customers/presentation/screens/customer_details_screen.dart';
 import '../../features/customers/presentation/screens/customers_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
+import '../../features/discounts/presentation/screens/discount_settings_screen.dart';
 import '../../features/expenses/presentation/screens/expense_details_screen.dart';
 import '../../features/expenses/presentation/screens/expenses_screen.dart';
 import '../../features/inventory/presentation/screens/inventory_screen.dart';
@@ -525,6 +526,14 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: 'categories',
                 builder: (context, state) {
                   return const ProductCategoriesScreen();
+                },
+              ),
+              // Owner-only through the '/settings' entry in
+              // _ownerOnlyRoutes.
+              GoRoute(
+                path: 'discounts',
+                builder: (context, state) {
+                  return const DiscountSettingsScreen();
                 },
               ),
             ],

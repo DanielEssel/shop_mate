@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../domain/entities/cart_item.dart';
+import '../../domain/entities/pending_sale_request.dart';
+import '../../domain/entities/sale_outcome.dart';
 import '../models/sale_item_model.dart';
 import '../models/sale_model.dart';
 import '../models/sale_payment_summary_model.dart';
@@ -14,52 +15,82 @@ class SalesRemoteDataSource {
   static const _saleItemsTable = 'sale_items';
   static const _paymentAllocationsTable = 'customer_payment_allocations';
 
-  Future<String> createSale({
-    String? customerId,
-    required List<Map<String, dynamic>> items,
-    required String paymentMethod,
-    required double amountPaid,
-  }) async {
-    final response = await _client.rpc(
-      'create_sale',
+  /// `create_sale_idempotent`: records a standard (non-credit) sale at most
+  /// once per key. The unprotected `create_sale` is never called from here.
+  Future<SaleSubmission> createSaleIdempotent(
+    PendingSaleRequest request,
+  ) async {
+    final Object? response = await _client.rpc(
+      'create_sale_idempotent',
       params: {
-        'p_customer_id': customerId,
-        'p_payment_method': paymentMethod,
-        'p_amount_paid': amountPaid,
-        'p_items': items,
+        'p_idempotency_key': request.idempotencyKey,
+        'p_customer_id': request.draft.customerId,
+        'p_payment_method': request.draft.paymentMethod,
+        'p_amount_paid': request.draft.amountPaid,
+        'p_items': _items(request),
       },
     );
-
-    return response.toString();
+    // A set-returning function: one row of (sale_id, replayed).
+    final Object? row = response is List && response.length == 1
+        ? response.first
+        : null;
+    if (row is! Map) {
+      throw const FormatException('Invalid create_sale_idempotent response.');
+    }
+    final saleId = row['sale_id'];
+    final replayed = row['replayed'];
+    if (saleId is! String || replayed is! bool) {
+      throw const FormatException('Invalid create_sale_idempotent response.');
+    }
+    return SaleSubmission(saleId: saleId, replayed: replayed);
   }
 
-  Future<String> createCreditSaleWithInitialPayment({
-    required String customerId,
-    required List<CartItem> items,
-    required double initialPaymentAmount,
-    required String? initialPaymentMethod,
-    required String idempotencyKey,
-  }) async {
-    final response = await _client.rpc(
+  /// The existing credit function, unchanged; it cannot say whether a
+  /// request was replayed.
+  Future<SaleSubmission> createCreditSaleWithInitialPayment(
+    PendingSaleRequest request,
+  ) async {
+    final customerId = request.draft.customerId;
+    if (customerId == null) {
+      throw ArgumentError('A credit sale needs a customer.');
+    }
+    final Object? response = await _client.rpc(
       'create_credit_sale_with_initial_payment',
       params: {
         'p_customer_id': customerId,
-        'p_initial_payment_amount': initialPaymentAmount,
-        'p_initial_payment_method': initialPaymentMethod,
-        'p_items': items
-            .map(
-              (item) => {
-                'product_id': item.product.id,
-                'quantity': item.quantity,
-              },
-            )
-            .toList(),
-        'p_idempotency_key': idempotencyKey,
+        'p_initial_payment_amount': request.draft.amountPaid,
+        'p_initial_payment_method': request.draft.initialPaymentMethod,
+        'p_items': _items(request),
+        'p_idempotency_key': request.idempotencyKey,
       },
     );
-
-    return response.toString();
+    if (response is! String) {
+      throw const FormatException(
+        'Invalid create_credit_sale_with_initial_payment response.',
+      );
+    }
+    return SaleSubmission(saleId: response);
   }
+
+  /// `find_sale_by_idempotency_key`: read-only.
+  Future<String?> findSaleByIdempotencyKey(String idempotencyKey) async {
+    final Object? response = await _client.rpc(
+      'find_sale_by_idempotency_key',
+      params: {'p_key': idempotencyKey},
+    );
+    if (response == null) return null;
+    if (response is! String) {
+      throw const FormatException(
+        'Invalid find_sale_by_idempotency_key response.',
+      );
+    }
+    return response;
+  }
+
+  /// The items exactly as saved, in their saved order.
+  static List<Map<String, Object>> _items(PendingSaleRequest request) => [
+    for (final item in request.draft.items) item.toJson(),
+  ];
 
   Future<List<SaleModel>> getSales() async {
     final response = await _client
