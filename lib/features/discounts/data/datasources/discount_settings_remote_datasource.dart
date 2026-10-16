@@ -2,8 +2,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/discount_settings_model.dart';
 
-/// Direct table access; row-level security scopes every read and write to
-/// the caller's shop and limits writes to its owner.
+/// Reads the tables directly (row-level security scopes them to the
+/// caller's shop). Writes only through `save_discount_settings`, which
+/// checks that the caller is the shop's owner and saves the configuration
+/// and its selection in one transaction; the tables themselves are
+/// read-only for the app.
 class DiscountSettingsRemoteDataSource {
   DiscountSettingsRemoteDataSource(this._client);
 
@@ -30,53 +33,24 @@ class DiscountSettingsRemoteDataSource {
     );
   }
 
-  /// Creates the shop's configuration and returns its shop id (the database
-  /// fills it from the caller's shop).
-  Future<String> insertSettings(Map<String, Object?> values) async {
-    final row = await _client
-        .from(_settingsTable)
-        .insert(values)
-        .select('shop_id')
-        .single();
-    final shopId = row['shop_id'];
-    if (shopId is! String) {
-      throw const FormatException('Invalid discount settings response.');
-    }
-    return shopId;
-  }
-
-  /// Returns false when no row was updated (hidden by row-level security).
-  Future<bool> updateSettings(
-    String shopId,
-    Map<String, Object?> values,
-  ) async {
-    final rows = await _client
-        .from(_settingsTable)
-        .update(values)
-        .eq('shop_id', shopId)
-        .select('shop_id');
-    return rows.isNotEmpty;
-  }
-
-  /// Makes the shop's selection exactly [productIds]: removes every other
-  /// product, then adds the missing ones (already-selected ones are left).
-  Future<void> replaceSelection(String shopId, Set<String> productIds) async {
-    final remove = _client.from(_productsTable).delete().eq('shop_id', shopId);
-    if (productIds.isEmpty) {
-      await remove;
-      return;
-    }
-
-    final sorted = productIds.toList()..sort();
-    await remove.not('product_id', 'in', '(${sorted.join(',')})');
-    await _client
-        .from(_productsTable)
-        .upsert(
-          [
-            for (final id in sorted) {'product_id': id},
-          ],
-          onConflict: 'shop_id,product_id',
-          ignoreDuplicates: true,
-        );
+  /// Saves the caller's shop configuration and its exact selection, all or
+  /// nothing. The shop is the caller's own; none is sent.
+  Future<void> saveSettings({
+    required bool isEnabled,
+    required String scope,
+    required String percentage,
+    required String? endsAt,
+    required List<String> productIds,
+  }) async {
+    await _client.rpc<void>(
+      'save_discount_settings',
+      params: {
+        'p_is_enabled': isEnabled,
+        'p_scope': scope,
+        'p_percentage': percentage,
+        'p_ends_at': endsAt,
+        'p_product_ids': productIds,
+      },
+    );
   }
 }

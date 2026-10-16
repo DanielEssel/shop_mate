@@ -88,10 +88,7 @@ class FakeDiscountSettingsRepository implements DiscountSettingsRepository {
   }
 
   @override
-  Future<void> saveSettings(
-    DiscountSettingsDraft draft, {
-    required DiscountSettings? current,
-  }) async {
+  Future<void> saveSettings(DiscountSettingsDraft draft) async {
     saves.add(draft);
     await saveGate?.future;
     final error = saveError;

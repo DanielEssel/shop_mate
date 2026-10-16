@@ -38,7 +38,6 @@ void main() {
           percentage: DiscountPercentage.fromBasisPoints(1000),
           selectedProductIds: const {},
         ),
-        current: null,
         products: discountProducts,
         now: DateTime.utc(2026, 10, 15),
       ),

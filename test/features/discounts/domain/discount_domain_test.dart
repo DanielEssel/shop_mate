@@ -179,7 +179,7 @@ void main() {
         final save = SaveDiscountSettings(repository, writesEnabled: false);
 
         await expectLater(
-          save(draft(), current: null, products: discountProducts, now: now),
+          save(draft(), products: discountProducts, now: now),
           _throwsKind(DiscountSettingsErrorKind.writesNotAvailable),
         );
         expect(repository.saves, isEmpty);
@@ -192,7 +192,6 @@ void main() {
         final repository = FakeDiscountSettingsRepository();
         await SaveDiscountSettings(repository, writesEnabled: true)(
           draft(),
-          current: null,
           products: discountProducts,
           now: now,
         );
@@ -213,7 +212,6 @@ void main() {
                 scope: DiscountScope.selectedProducts,
                 selected: {'rice', 'sugar'},
               ),
-              current: null,
               products: discountProducts,
               now: now,
             ),
@@ -228,7 +226,6 @@ void main() {
       final repository = FakeDiscountSettingsRepository();
       await SaveDiscountSettings(repository, writesEnabled: true)(
         draft(scope: DiscountScope.selectedProducts, selected: {'rice', 'oil'}),
-        current: null,
         products: discountProducts,
         now: now,
       );
@@ -240,7 +237,6 @@ void main() {
       await expectLater(
         SaveDiscountSettings(repository, writesEnabled: true)(
           draft(scope: DiscountScope.selectedProducts),
-          current: null,
           products: discountProducts,
           now: now,
         ),
@@ -253,7 +249,6 @@ void main() {
       await expectLater(
         SaveDiscountSettings(repository, writesEnabled: true)(
           draft(endsAt: now.subtract(const Duration(minutes: 1))),
-          current: null,
           products: discountProducts,
           now: now,
         ),

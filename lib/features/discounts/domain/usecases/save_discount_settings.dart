@@ -8,8 +8,9 @@ import '../repositories/discount_settings_repository.dart';
 /// Validates and saves the owner's discount configuration.
 ///
 /// Nothing is sent while the release gate is closed ([writesEnabled]
-/// false). The below-cost check uses the products as currently loaded; the
-/// server checks again on every sale, because costs can change later.
+/// false). These checks give clear messages before sending; the database
+/// repeats them when saving (with the costs it holds) and again on every
+/// sale, because costs can change later.
 class SaveDiscountSettings {
   SaveDiscountSettings(this._repository, {required this.writesEnabled});
 
@@ -18,7 +19,6 @@ class SaveDiscountSettings {
 
   Future<void> call(
     DiscountSettingsDraft draft, {
-    required DiscountSettings? current,
     required List<Product> products,
     required DateTime now,
   }) async {
@@ -54,6 +54,6 @@ class SaveDiscountSettings {
       }
     }
 
-    await _repository.saveSettings(draft, current: current);
+    await _repository.saveSettings(draft);
   }
 }

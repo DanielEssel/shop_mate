@@ -141,10 +141,7 @@ class _DiscountSettingsScreenState
     }
   }
 
-  Future<void> _save({
-    required DiscountSettings? settings,
-    required List<Product> products,
-  }) async {
+  Future<void> _save({required List<Product> products}) async {
     if (_isSaving) return;
     FocusScope.of(context).unfocus();
     if (!(_formKey.currentState?.validate() ?? false)) return;
@@ -165,12 +162,7 @@ class _DiscountSettingsScreenState
     try {
       await ref
           .read(saveDiscountSettingsProvider)
-          .call(
-            draft,
-            current: settings,
-            products: products,
-            now: DateTime.now(),
-          );
+          .call(draft, products: products, now: DateTime.now());
       if (!mounted) return;
       _baseline = saved;
       ref.invalidate(discountSettingsProvider);
@@ -251,7 +243,6 @@ class _DiscountSettingsScreenState
       },
     );
 
-    final settings = settingsAsync.value;
     final products = productsAsync.value;
     final canSave =
         settingsAsync.hasValue && products != null && _isDirty && !_isSaving;
@@ -269,9 +260,7 @@ class _DiscountSettingsScreenState
                 busyLabel: 'Saving...',
                 primaryIcon: Icons.save_outlined,
                 isBusy: _isSaving,
-                onPrimary: canSave
-                    ? () => _save(settings: settings, products: products)
-                    : null,
+                onPrimary: canSave ? () => _save(products: products) : null,
                 secondaryLabel: 'Discard changes',
                 onSecondary: _isDirty && !_isSaving
                     ? () => _resetTo(_baseline!)

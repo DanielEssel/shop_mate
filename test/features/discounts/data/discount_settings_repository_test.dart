@@ -11,8 +11,6 @@ import 'package:shopmate/features/discounts/domain/entities/discount_scope.dart'
 import 'package:shopmate/features/discounts/domain/entities/discount_settings.dart';
 import 'package:shopmate/features/discounts/domain/entities/discount_settings_exception.dart';
 
-import '../fake_discount_settings_repository.dart';
-
 class _Request {
   _Request(this.method, this.path, this.query, this.body, this.prefer);
 
@@ -187,124 +185,86 @@ void main() {
   });
 
   group('save', () {
-    test('first save: insert OFF, sync selection, then switch ON', () async {
-      server
-        ..reply({'shop_id': 'shop-1'}, status: 201) // insert
-        ..reply(null, status: 204) // delete others
-        ..reply(null, status: 201) // add selection
-        ..reply([
-          {'shop_id': 'shop-1'},
-        ]); // enable
+    test('one call to save_discount_settings with exactly what was entered; '
+        'no shop id, no table writes', () async {
+      server.reply(null, status: 204);
 
       await repository.saveSettings(
-        _draft(endsAt: DateTime.utc(2026, 10, 21)),
-        current: null,
+        _draft(
+          selected: const {'rice', 'oil'},
+          endsAt: DateTime.utc(2026, 10, 21),
+        ),
       );
 
-      final requests = server.requests;
-      expect(requests.map((r) => '${r.method} ${r.path}'), [
-        'POST /rest/v1/shop_discount_settings',
-        'DELETE /rest/v1/shop_discount_products',
-        'POST /rest/v1/shop_discount_products',
-        'PATCH /rest/v1/shop_discount_settings',
-      ]);
-      // Saved switched off first, with the percentage as exact text.
-      expect(requests[0].body, {
-        'is_enabled': false,
-        'scope': 'selected_products',
-        'percentage': '12.50',
-        'ends_at': '2026-10-21T00:00:00.000Z',
+      final sent = server.requests.single;
+      expect(
+        '${sent.method} ${sent.path}',
+        'POST /rest/v1/rpc/save_discount_settings',
+      );
+      expect(sent.body, {
+        'p_is_enabled': true,
+        'p_scope': 'selected_products',
+        // Exact decimal text, never a floating-point number.
+        'p_percentage': '12.50',
+        'p_ends_at': '2026-10-21T00:00:00.000Z',
+        // In a stable order.
+        'p_product_ids': ['oil', 'rice'],
       });
-      // Everything but the new selection is removed, for this shop only.
-      expect(requests[1].query, contains('shop_id=eq.shop-1'));
-      expect(requests[1].query, contains('product_id=not.in.(oil,rice)'));
-      // Missing products are added; existing ones are left alone.
-      expect(requests[2].body, [
-        {'product_id': 'oil'},
-        {'product_id': 'rice'},
-      ]);
-      expect(requests[2].prefer, contains('resolution=ignore-duplicates'));
-      expect(requests[2].query, contains('on_conflict=shop_id,product_id'));
-      // Switched on last, for this shop only.
-      expect(requests[3].body, {'is_enabled': true});
-      expect(requests[3].query, contains('shop_id=eq.shop-1'));
     });
 
-    test('saving it OFF never sends the final enable', () async {
-      server
-        ..reply([
-          {'shop_id': 'shop-1'},
-        ]) // update
-        ..reply(null, status: 204); // delete all (empty selection)
+    test('switched off with no products and no end date', () async {
+      server.reply(null, status: 204);
 
       await repository.saveSettings(
         _draft(isEnabled: false, selected: const {}),
-        current: discountSettings(),
       );
 
-      expect(server.requests.map((r) => '${r.method} ${r.path}'), [
-        'PATCH /rest/v1/shop_discount_settings',
-        'DELETE /rest/v1/shop_discount_products',
-      ]);
-      expect((server.requests[0].body! as Map)['is_enabled'], isFalse);
-      expect(server.requests[1].query, isNot(contains('not.in')));
+      expect(server.requests.single.body, {
+        'p_is_enabled': false,
+        'p_scope': 'selected_products',
+        'p_percentage': '12.50',
+        'p_ends_at': null,
+        'p_product_ids': <Object?>[],
+      });
     });
 
-    test(
-      'an update hidden by row-level security is a refusal, not success',
-      () async {
-        server.reply(<Object?>[]); // PATCH matched no row
-
+    test('database refusals map by code, never by message text', () async {
+      final expected = {
+        // Not the owner, no active shop, or an expired session.
+        '42501': DiscountSettingsErrorKind.permissionDenied,
+        'PGRST301': DiscountSettingsErrorKind.permissionDenied,
+        // The function is not in the database yet: never a fallback.
+        'PGRST202': DiscountSettingsErrorKind.writesNotAvailable,
+        '42883': DiscountSettingsErrorKind.writesNotAvailable,
+        'SMD02': DiscountSettingsErrorKind.unsafeSelection,
+        'SMD03': DiscountSettingsErrorKind.noProductsSelected,
+        'SMD04': DiscountSettingsErrorKind.endDateInPast,
+        '23514': DiscountSettingsErrorKind.invalid,
+        '22023': DiscountSettingsErrorKind.invalid,
+        '22P02': DiscountSettingsErrorKind.invalid,
+        'XX000': DiscountSettingsErrorKind.saveFailed,
+      };
+      for (final MapEntry(key: code, value: kind) in expected.entries) {
+        server.replyError(code, status: code == 'PGRST202' ? 404 : 400);
         await expectLater(
-          repository.saveSettings(_draft(), current: discountSettings()),
-          _throwsKind(DiscountSettingsErrorKind.permissionDenied),
+          repository.saveSettings(_draft()),
+          _throwsKind(kind),
+          reason: code,
         );
-        // Nothing after the refused step.
-        expect(server.requests, hasLength(1));
-      },
-    );
-
-    test('the release gate (42501) stops at the first step', () async {
-      server.replyError('42501', status: 401);
-
-      await expectLater(
-        repository.saveSettings(_draft(), current: null),
-        _throwsKind(DiscountSettingsErrorKind.permissionDenied),
-      );
-      expect(server.requests, hasLength(1));
+      }
+      // One call per attempt; nothing else is tried.
+      expect(server.requests.map((r) => r.path).toSet(), {
+        '/rest/v1/rpc/save_discount_settings',
+      });
     });
 
-    test(
-      'a failure part-way leaves the discount OFF (enable never sent)',
-      () async {
-        server
-          ..reply([
-            {'shop_id': 'shop-1'},
-          ]) // saved OFF
-          ..replyError('42501', status: 401); // selection refused
-
-        await expectLater(
-          repository.saveSettings(_draft(), current: discountSettings()),
-          _throwsKind(DiscountSettingsErrorKind.permissionDenied),
-        );
-        expect(server.requests.map((r) => r.method), ['PATCH', 'DELETE']);
-        expect((server.requests[0].body! as Map)['is_enabled'], isFalse);
-      },
-    );
-
-    test('constraint failures and no connection map to safe kinds', () async {
-      server.replyError('23514');
-      await expectLater(
-        repository.saveSettings(_draft(), current: null),
-        _throwsKind(DiscountSettingsErrorKind.invalid),
-      );
-
+    test('no connection is a network failure', () async {
       final offline = _client('http://127.0.0.1:1');
       addTearDown(offline.dispose);
       await expectLater(
         DiscountSettingsRepositoryImpl(
           DiscountSettingsRemoteDataSource(offline),
-        ).saveSettings(_draft(), current: null),
+        ).saveSettings(_draft()),
         _throwsKind(DiscountSettingsErrorKind.network),
       );
     });

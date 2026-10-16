@@ -1,16 +1,17 @@
 /// Why a discount settings operation failed.
 enum DiscountSettingsErrorKind {
-  /// This app build does not save discount settings yet (release gate).
+  /// This app build does not save discount settings yet (release gate), or
+  /// the database does not have the save function yet.
   writesNotAvailable(
     "Discount activation isn't available yet. Your changes were not saved. "
     'Saving will be switched on in a coming ShopMate update.',
   ),
 
-  /// The database refused the write (not the owner, or writes not yet
-  /// permitted for the shop).
+  /// The database refused the write: the caller is not this shop's active
+  /// owner (or the session has expired).
   permissionDenied(
-    "Discount settings can't be changed for this shop yet. Your changes "
-    'were not saved.',
+    'Only the shop owner can change discount settings. Your changes were '
+    'not saved.',
   ),
   network(
     "We couldn't reach ShopMate. Check your internet connection and try "

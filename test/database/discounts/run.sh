@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Discount Settings (Batch 1) database tests on a throwaway local Postgres
-# (15+). Never point this at the live project: it creates and drops its own
-# cluster.
+# Discount Settings database tests (Batch 1 and the owner-writes function)
+# on a throwaway local Postgres (15+). Never point this at the live
+# project: it creates and drops its own cluster.
 #
 #   PG_BIN=/path/to/postgres/bin test/database/discounts/run.sh
 set -euo pipefail
@@ -33,7 +33,11 @@ echo "== recording pre-migration sales"
 # migration refuses to run otherwise).
 echo "== applying 20261013090000_discount_settings.sql (single transaction)"
 "${PSQL[@]}" --single-transaction -f "$M/20261013090000_discount_settings.sql"
+"${PSQL[@]}" -f "$HERE/writes_pre.sql"
+echo "== applying 20261016090000_discount_settings_writes.sql (single transaction)"
+"${PSQL[@]}" --single-transaction -f "$M/20261016090000_discount_settings_writes.sql"
 "${PSQL[@]}" -f "$HERE/cases.sql"
+"${PSQL[@]}" -f "$HERE/writes.sql"
 
 # ---------------------------------------------------------------------------
 # Two-session check: the selected-products list is read once per sale.

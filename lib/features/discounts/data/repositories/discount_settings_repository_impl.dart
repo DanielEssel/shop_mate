@@ -20,52 +20,18 @@ class DiscountSettingsRepositoryImpl implements DiscountSettingsRepository {
   }
 
   @override
-  Future<void> saveSettings(
-    DiscountSettingsDraft draft, {
-    required DiscountSettings? current,
-  }) async {
+  Future<void> saveSettings(DiscountSettingsDraft draft) async {
     try {
-      // 1. The configuration, switched OFF: a later failure leaves normal
-      //    prices rather than a half-applied discount.
-      final values = <String, Object?>{
-        'is_enabled': false,
-        'scope': draft.scope.value,
+      await _remoteDataSource.saveSettings(
+        isEnabled: draft.isEnabled,
+        scope: draft.scope.value,
         // Exact decimal text; never a floating-point number.
-        'percentage': draft.percentage.databaseValue,
-        'ends_at': draft.endsAt?.toUtc().toIso8601String(),
-      };
-      final String shopId;
-      if (current == null) {
-        shopId = await _remoteDataSource.insertSettings(values);
-      } else {
-        shopId = current.shopId;
-        await _requireUpdated(_remoteDataSource.updateSettings(shopId, values));
-      }
-
-      // 2. The selected products (kept even while the scope is all products).
-      await _remoteDataSource.replaceSelection(
-        shopId,
-        draft.selectedProductIds,
+        percentage: draft.percentage.databaseValue,
+        endsAt: draft.endsAt?.toUtc().toIso8601String(),
+        productIds: draft.selectedProductIds.toList()..sort(),
       );
-
-      // 3. Only now switch it on, if asked.
-      if (draft.isEnabled) {
-        await _requireUpdated(
-          _remoteDataSource.updateSettings(shopId, {'is_enabled': true}),
-        );
-      }
     } catch (error) {
       throw _translate(error, DiscountSettingsErrorKind.saveFailed);
-    }
-  }
-
-  /// An update hidden by row-level security changes nothing without an
-  /// error; it must never be reported as saved.
-  static Future<void> _requireUpdated(Future<bool> update) async {
-    if (!await update) {
-      throw const DiscountSettingsException(
-        DiscountSettingsErrorKind.permissionDenied,
-      );
     }
   }
 
@@ -89,10 +55,21 @@ class DiscountSettingsRepositoryImpl implements DiscountSettingsRepository {
 
     final code = error.code;
     final kind = switch (code) {
-      // No privilege (the release gate), or row-level security.
+      // Not the shop's owner (or no active shop), or row-level security.
       '42501' => DiscountSettingsErrorKind.permissionDenied,
-      // Check constraint, bad number, number out of range.
-      '23514' || '22P02' || '22003' => DiscountSettingsErrorKind.invalid,
+      // save_discount_settings is not in the database yet: no fallback to
+      // writing the tables directly.
+      'PGRST202' || '42883' => DiscountSettingsErrorKind.writesNotAvailable,
+      // save_discount_settings' own rules, by SQLSTATE.
+      'SMD02' => DiscountSettingsErrorKind.unsafeSelection,
+      'SMD03' => DiscountSettingsErrorKind.noProductsSelected,
+      'SMD04' => DiscountSettingsErrorKind.endDateInPast,
+      // Check constraint, bad or missing value, number out of range, or a
+      // product that is not in this shop.
+      '23514' ||
+      '22P02' ||
+      '22003' ||
+      '22023' => DiscountSettingsErrorKind.invalid,
       final String c when _sessionCodes.contains(c) =>
         DiscountSettingsErrorKind.permissionDenied,
       _ when error.message.contains('row-level security') =>

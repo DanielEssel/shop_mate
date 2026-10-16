@@ -454,6 +454,80 @@ void main() {
       expect(find.text('Saved discount'), findsOne);
     });
 
+    testWidgets('saved settings are there after leaving and reopening', (
+      tester,
+    ) async {
+      final repository = FakeDiscountSettingsRepository();
+      final router = await _pump(tester, repository, writesEnabled: true);
+      await _tap(tester, find.byKey(const ValueKey('discount-enabled')));
+      await _enterPercentage(tester, '12.5');
+      await _selectScope(tester, 'Selected products');
+      await _tap(tester, _productTile('rice'));
+      await _tap(tester, _productTile('oil'));
+      await _tap(tester, _button('Save discount'));
+      final loadsAfterSave = repository.loads;
+
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(find.text('Settings home'), findsOne);
+      router.push('/discounts');
+      await tester.pumpAndSettle();
+
+      expect(repository.loads, greaterThan(loadsAfterSave));
+      expect(find.text('Active'), findsOne);
+      expect(find.text('12.5%'), findsOne);
+      expect(
+        tester.widget<TextFormField>(_percentage).controller!.text,
+        '12.5',
+      );
+      expect(find.text('2 of 6 products selected'), findsOne);
+      expect(_enabled(tester, 'Save discount'), isFalse);
+    });
+
+    testWidgets('an active discount can be switched off and stays off', (
+      tester,
+    ) async {
+      final repository = FakeDiscountSettingsRepository(
+        settings: discountSettings(),
+      );
+      final router = await _pump(tester, repository, writesEnabled: true);
+      expect(find.text('Active'), findsOne);
+
+      await _tap(tester, find.byKey(const ValueKey('discount-enabled')));
+      await _tap(tester, _button('Save discount'));
+
+      final saved = repository.saves.single;
+      expect(saved.isEnabled, isFalse);
+      expect(saved.percentage.databaseValue, '10.00');
+      expect(find.text('Discount settings saved.'), findsOne);
+
+      router.pop();
+      await tester.pumpAndSettle();
+      router.push('/discounts');
+      await tester.pumpAndSettle();
+      expect(find.text('Active'), findsNothing);
+      expect(tester.widget<TextFormField>(_percentage).controller!.text, '10');
+    });
+
+    for (final kind in [
+      DiscountSettingsErrorKind.unsafeSelection,
+      DiscountSettingsErrorKind.endDateInPast,
+      DiscountSettingsErrorKind.writesNotAvailable,
+    ]) {
+      testWidgets('the database refusing (${kind.name}): its message, '
+          'nothing claimed as saved', (tester) async {
+        final repository = FakeDiscountSettingsRepository()
+          ..saveError = DiscountSettingsException(kind);
+        await _pump(tester, repository, writesEnabled: true);
+        await _enterPercentage(tester, '10');
+        await _tap(tester, _button('Save discount'));
+
+        expect(find.text(kind.message), findsOne);
+        expect(find.text('Discount settings saved.'), findsNothing);
+        expect(_enabled(tester, 'Save discount'), isTrue);
+      });
+    }
+
     testWidgets('one submission while saving', (tester) async {
       final repository = FakeDiscountSettingsRepository()
         ..saveGate = Completer<void>();
